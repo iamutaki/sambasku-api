@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { config } from 'dotenv';
 import { getTestDb } from '@/shared/database/drizzle/test-client';
-import { passwordResetTokens, refreshTokens, users } from '@/shared/database/drizzle/schema';
+
+import { users } from '@/shared/database/drizzle/schema';
+import { truncateAll } from '@/shared/database/drizzle/test-utils';
 import { PasswordResetTokenRepositoryImpl } from '../../infrastructure/password-reset-token.repository.impl';
 
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -14,9 +16,7 @@ describe.skipIf(!hasTestDb)('PasswordResetTokenRepositoryImpl', () => {
   let userId: string;
 
   beforeEach(async () => {
-    await db.delete(passwordResetTokens);
-    await db.delete(refreshTokens);
-    await db.delete(users);
+    await truncateAll(db);
     const [user] = await db
       .insert(users)
       .values({ username: 'budi', email: 'budi@test.com', passwordHash: 'hash' })

@@ -21,6 +21,8 @@ function makeUser(overrides: Partial<User> = {}): User {
   };
 }
 
+const GENERIC_ERROR = { errorCode: 'INVALID_CREDENTIALS', message: 'Email atau password salah' };
+
 function makeDeps(user: User | null, passwordOk = true) {
   const userRepo = {
     findById: vi.fn(),
@@ -70,7 +72,15 @@ describe('LoginUserUseCase', () => {
 
     await expect(
       useCase.execute({ email: 'budi@test.com', password: 'Password123' }),
-    ).rejects.toMatchObject({ errorCode: 'INVALID_CREDENTIALS' });
+    ).rejects.toMatchObject(GENERIC_ERROR);
+  });
+
+  it('EDGE CASE: menolak user yang dinonaktifkan (is_active=false) — pesan generik sama', async () => {
+    const { useCase } = makeDeps(makeUser({ isActive: false }));
+
+    await expect(
+      useCase.execute({ email: 'budi@test.com', password: 'Password123' }),
+    ).rejects.toMatchObject(GENERIC_ERROR);
   });
 
   it('sukses: simpan refresh token dalam bentuk HASH, bukan plain', async () => {

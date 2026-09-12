@@ -9,6 +9,7 @@ import type { AuthController } from './auth.controller';
 import {
   loginSchema,
   loginResponseSchema,
+  refreshTokenBodySchema,
   refreshResponseSchema,
 } from './validators/login.validator';
 import { registerSchema, registerResponseSchema } from './validators/register.validator';
@@ -64,7 +65,8 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     method: 'post',
     path: '/refresh',
     tags: ['Auth'],
-    summary: 'Rotasi refresh token + access token baru',
+    summary: 'Rotasi refresh token + access token baru (web: cookie, mobile: body)',
+    request: { body: { content: json(refreshTokenBodySchema) } },
     responses: {
       200: { description: 'Access token baru', content: json(refreshResponseSchema) },
       401: { description: 'Refresh token tidak valid/kadaluarsa', content: json(errorResponseSchema) },
@@ -75,7 +77,8 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     method: 'post',
     path: '/logout',
     tags: ['Auth'],
-    summary: 'Logout — revoke refresh token perangkat ini',
+    summary: 'Logout — revoke refresh token perangkat ini (web: cookie, mobile: body)',
+    request: { body: { content: json(refreshTokenBodySchema) } },
     responses: {
       200: { description: 'Logout berhasil', content: json(okNullResponseSchema) },
     },
@@ -121,8 +124,8 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   // jadi status literal tidak ter-infer; bentuk response dicek e2e test + schema validator
   authRoutes.openapi(registerRoute, (c) => deps.controller.register(c, c.req.valid('json')) as never);
   authRoutes.openapi(loginRoute, (c) => deps.controller.login(c, c.req.valid('json')) as never);
-  authRoutes.openapi(refreshRoute, (c) => deps.controller.refresh(c) as never);
-  authRoutes.openapi(logoutRoute, (c) => deps.controller.logout(c) as never);
+  authRoutes.openapi(refreshRoute, (c) => deps.controller.refresh(c, c.req.valid('json')) as never);
+  authRoutes.openapi(logoutRoute, (c) => deps.controller.logout(c, c.req.valid('json')) as never);
   authRoutes.openapi(logoutAllRoute, (c) => deps.controller.logoutAll(c) as never);
   authRoutes.openapi(forgotPasswordRoute, (c) => deps.controller.forgot(c, c.req.valid('json')) as never);
   authRoutes.openapi(resetPasswordRoute, (c) => deps.controller.reset(c, c.req.valid('json')) as never);

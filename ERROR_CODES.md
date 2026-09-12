@@ -17,3 +17,4 @@ Dokumen hidup — wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan username yang sudah dipakai |
 | `RATE_LIMITED` | 429 | Terlalu banyak percobaan (lihat tabel limit di api-base-stack.md Section 15) |
 | `INTERNAL_ERROR` | 500 | Error tak terduga (bug, koneksi DB putus, dst) |
+| `IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider penyimpanan gambar belum dikonfigurasi (env `IMAGEKIT_*`) |

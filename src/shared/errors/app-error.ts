@@ -48,3 +48,12 @@ export class ConflictError extends AppError {
     this.errorCode = errorCode;
   }
 }
+
+export class ServiceUnavailableError extends AppError {
+  statusCode = 503;
+  errorCode: string;
+  constructor(errorCode = 'SERVICE_UNAVAILABLE', message = 'Layanan tidak tersedia') {
+    super(message);
+    this.errorCode = errorCode;
+  }
+}

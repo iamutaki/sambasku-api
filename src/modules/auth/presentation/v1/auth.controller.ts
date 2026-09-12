@@ -32,7 +32,8 @@ export class AuthController {
   ) {}
 
   async register(c: Context, body: RegisterBody) {
-    const user = await this.deps.register.execute(body);
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    const user = await this.deps.register.execute(body, requestId);
     return c.json(
       {
         success: true as const,
@@ -47,6 +48,21 @@ export class AuthController {
       deviceInfo: c.req.header('User-Agent'),
       ipAddress: c.req.header('x-forwarded-for') ?? null,
     });
+
+    // Dua kanal refresh token: web via httpOnly cookie (XSS-safe),
+    // mobile via response body (client simpan di Keychain/Keystore)
+    if (body.client_type === 'mobile') {
+      return c.json({
+        success: true as const,
+        data: {
+          access_token: result.accessToken,
+          expires_in: result.expiresIn,
+          refresh_token: result.refreshToken,
+          user: result.user,
+        },
+      });
+    }
+
     this.setRefreshCookie(c, result.refreshToken);
     return c.json({
       success: true as const,
@@ -58,10 +74,23 @@ export class AuthController {
     });
   }
 
-  async refresh(c: Context) {
-    const token = getCookie(c, REFRESH_TOKEN_COOKIE);
+  async refresh(c: Context, body: { refresh_token?: string } = {}) {
+    const token = body.refresh_token ?? getCookie(c, REFRESH_TOKEN_COOKIE);
     if (!token) throw new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak ada');
     const result = await this.deps.refresh.execute(token);
+
+    if (body.refresh_token !== undefined) {
+      // Klien mobile: kembalikan token rotasi via body juga
+      return c.json({
+        success: true as const,
+        data: {
+          access_token: result.accessToken,
+          expires_in: result.expiresIn,
+          refresh_token: result.refreshToken,
+        },
+      });
+    }
+
     this.setRefreshCookie(c, result.refreshToken);
     return c.json({
       success: true as const,
@@ -69,8 +98,8 @@ export class AuthController {
     });
   }
 
-  async logout(c: Context) {
-    const token = getCookie(c, REFRESH_TOKEN_COOKIE);
+  async logout(c: Context, body: { refresh_token?: string } = {}) {
+    const token = body.refresh_token ?? getCookie(c, REFRESH_TOKEN_COOKIE);
     if (token) await this.deps.logout.execute(token);
     deleteCookie(c, REFRESH_TOKEN_COOKIE, { path: COOKIE_PATH });
     return c.json({ success: true as const, data: null });
@@ -94,7 +123,8 @@ export class AuthController {
   }
 
   async reset(c: Context, body: ResetPasswordBody) {
-    await this.deps.reset.execute({ token: body.token, newPassword: body.new_password });
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    await this.deps.reset.execute({ token: body.token, newPassword: body.new_password }, requestId);
     return c.json({ success: true as const, data: { message: 'Password berhasil direset' } });
   }
 

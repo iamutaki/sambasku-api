@@ -21,6 +21,36 @@ import { ForgotPasswordUseCase } from '@/modules/auth/application/use-cases/forg
 import { ResetPasswordUseCase } from '@/modules/auth/application/use-cases/reset-password.use-case';
 import { AuthController } from '@/modules/auth/presentation/v1/auth.controller';
 import { createAuthRoutes } from '@/modules/auth/presentation/v1/auth.routes';
+import { WordRepositoryImpl } from '@/modules/word/infrastructure/word.repository.impl';
+import { CreateWordUseCase } from '@/modules/word/application/use-cases/create-word.use-case';
+import { GetWordByIdUseCase } from '@/modules/word/application/use-cases/get-word-by-id.use-case';
+import { SearchWordsUseCase } from '@/modules/word/application/use-cases/search-words.use-case';
+import { WordController } from '@/modules/word/presentation/v1/word.controller';
+import {
+  createAdminWordRoutes,
+  createPublicWordRoutes,
+} from '@/modules/word/presentation/v1/word.routes';
+import { createWordClassRoutes } from '@/modules/word/presentation/v1/word-class.routes';
+import { LanguageRepositoryImpl } from '@/modules/language/infrastructure/language.repository.impl';
+import { ListLanguagesUseCase } from '@/modules/language/application/use-cases/list-languages.use-case';
+import { ListDialectsUseCase } from '@/modules/language/application/use-cases/list-dialects.use-case';
+import { LanguageController } from '@/modules/language/presentation/v1/language.controller';
+import {
+  createDialectRoutes,
+  createLanguageRoutes,
+} from '@/modules/language/presentation/v1/language.routes';
+import { CategoryRepositoryImpl } from '@/modules/category/infrastructure/category.repository.impl';
+import { ListCategoriesUseCase } from '@/modules/category/application/use-cases/list-categories.use-case';
+import { CategoryController } from '@/modules/category/presentation/v1/category.controller';
+import { createCategoryRoutes } from '@/modules/category/presentation/v1/category.routes';
+import { AuditLogRepositoryImpl } from '@/modules/audit/infrastructure/audit-log.repository.impl';
+import { ListAuditLogsUseCase } from '@/modules/audit/application/use-cases/list-audit-logs.use-case';
+import { AuditController } from '@/modules/audit/presentation/v1/audit.controller';
+import { createAuditRoutes } from '@/modules/audit/presentation/v1/audit.routes';
+import { ImageKitStorageService } from '@/modules/image/infrastructure/imagekit-storage.service';
+import { CreateUploadCredentialsUseCase } from '@/modules/image/application/use-cases/create-upload-credentials.use-case';
+import { ImageController } from '@/modules/image/presentation/v1/image.controller';
+import { createImageRoutes } from '@/modules/image/presentation/v1/image.routes';
 
 // ---- Composition root: rakit semua dependency (manual DI, api-base-stack.md Section 2) ----
 const userRepo = new UserRepositoryImpl(db);
@@ -34,8 +64,11 @@ const tokenService = new JwtTokenService({
 const hasher = new Argon2PasswordService();
 const mailer = new SmtpMailerService();
 
+// ---- Modul audit (Section 21) — direkspos ke use case modul lain ----
+const auditRepo = new AuditLogRepositoryImpl(db);
+
 const controller = new AuthController({
-  register: new RegisterUserUseCase(userRepo, hasher),
+  register: new RegisterUserUseCase(userRepo, hasher, auditRepo),
   login: new LoginUserUseCase(
     userRepo,
     hasher,
@@ -54,10 +87,31 @@ const controller = new AuthController({
   logout: new LogoutUserUseCase(refreshTokenRepo),
   logoutAll: new LogoutAllDevicesUseCase(refreshTokenRepo),
   forgot: new ForgotPasswordUseCase(userRepo, resetTokenRepo, mailer, `${env.APP_URL}/reset-password`),
-  reset: new ResetPasswordUseCase(resetTokenRepo, userRepo, hasher),
+  reset: new ResetPasswordUseCase(resetTokenRepo, userRepo, hasher, auditRepo, refreshTokenRepo),
 });
 
 const authenticate = createAuthenticateMiddleware((token) => tokenService.verifyAccessToken(token));
+
+// ---- Modul word (+ language & category sebagai data referensi form admin) ----
+const wordRepo = new WordRepositoryImpl(db);
+const imageStorage = new ImageKitStorageService();
+const wordController = new WordController({
+  create: new CreateWordUseCase(wordRepo, auditRepo),
+  getById: new GetWordByIdUseCase(wordRepo),
+  search: new SearchWordsUseCase(wordRepo),
+  listWordClasses: () => wordRepo.listWordClasses(),
+  imageProviderName: imageStorage.providerName,
+});
+
+const languageRepo = new LanguageRepositoryImpl(db);
+const languageController = new LanguageController({
+  listLanguages: new ListLanguagesUseCase(languageRepo),
+  listDialects: new ListDialectsUseCase(languageRepo),
+});
+
+const categoryController = new CategoryController({
+  listCategories: new ListCategoriesUseCase(new CategoryRepositoryImpl(db)),
+});
 
 // ---- HTTP app ----
 export const app = createOpenApiApp();
@@ -94,6 +148,30 @@ app.get('/', (c) =>
 );
 
 app.route('/api/v1/auth', createAuthRoutes({ controller, authenticate }));
+
+// Modul word — admin (write) + publik (read)
+app.route('/api/v1/admin/words', createAdminWordRoutes({ controller: wordController, authenticate }));
+app.route('/api/v1/words', createPublicWordRoutes({ controller: wordController, authenticate }));
+app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordController }));
+
+// Data referensi form admin
+app.route('/api/v1/languages', createLanguageRoutes({ controller: languageController }));
+app.route('/api/v1/dialects', createDialectRoutes({ controller: languageController }));
+app.route('/api/v1/categories', createCategoryRoutes({ controller: categoryController }));
+
+// Audit log — hanya admin & root (Section 21)
+const auditController = new AuditController({ listAuditLogs: new ListAuditLogsUseCase(auditRepo) });
+app.route('/api/v1/admin/audit-logs', createAuditRoutes({ controller: auditController, authenticate }));
+
+// Image provider — wrapper ImageKit via ImageStoragePort (Section 8);
+// imageStorage sudah di-instantiate di atas (dipakai wordController juga)
+const imageController = new ImageController({
+  createUploadCredentials: new CreateUploadCredentialsUseCase({
+    imageStorage,
+    defaultFolder: '/words',
+  }),
+});
+app.route('/api/v1/admin/images/upload-token', createImageRoutes({ controller: imageController, authenticate }));
 
 // OpenAPI spec + Scalar docs (api-base-stack.md Section 9)
 app.doc('/openapi.json', {

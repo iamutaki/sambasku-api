@@ -31,8 +31,8 @@ export class LoginUserUseCase {
     if (!user || !(await this.hasher.compare(dto.password, user.passwordHash))) {
       throw invalid;
     }
-    // Soft-deleted user tidak boleh login lagi
-    if (user.deletedAt) {
+    // Soft-deleted ATAU dinonaktifkan (is_active=false) → pesan generik yang sama
+    if (user.deletedAt || !user.isActive) {
       throw invalid;
     }
 

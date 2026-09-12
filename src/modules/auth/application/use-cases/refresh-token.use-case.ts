@@ -26,7 +26,7 @@ export class RefreshTokenUseCase {
     }
 
     const user = await this.userRepo.findById(record.userId);
-    if (!user || user.deletedAt) {
+    if (!user || user.deletedAt || !user.isActive) {
       throw new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak valid');
     }
 

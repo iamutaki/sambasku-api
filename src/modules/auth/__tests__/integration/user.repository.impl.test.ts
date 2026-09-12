@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { config } from 'dotenv';
 import { getTestDb } from '@/shared/database/drizzle/test-client';
-import { passwordResetTokens, refreshTokens, users } from '@/shared/database/drizzle/schema';
+
+import { truncateAll } from '@/shared/database/drizzle/test-utils';
 import { UserRepositoryImpl } from '../../infrastructure/user.repository.impl';
 
 // Test hanya jalan kalau .env.test ada dengan DATABASE_URL test (api-base-stack.md Section 10)
@@ -13,9 +14,7 @@ describe.skipIf(!hasTestDb)('UserRepositoryImpl', () => {
   const repo = new UserRepositoryImpl(db);
 
   beforeEach(async () => {
-    await db.delete(passwordResetTokens);
-    await db.delete(refreshTokens);
-    await db.delete(users);
+    await truncateAll(db);
   });
 
   it('menyimpan dan mengambil user by email', async () => {

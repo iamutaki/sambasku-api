@@ -19,6 +19,12 @@ const envSchema = z.object({
 
   CORS_ALLOWED_ORIGINS: z.string(), // comma-separated
 
+  // Image provider (ImageKit) — opsional; tanpa ini endpoint upload-token
+  // membalas 503 IMAGE_UPLOAD_UNAVAILABLE (lihat modules/image/)
+  IMAGEKIT_PRIVATE_KEY: z.string().optional(),
+  IMAGEKIT_PUBLIC_KEY: z.string().optional(),
+  IMAGEKIT_URL_ENDPOINT: z.string().optional(), // mis. https://ik.imagekit.io/akun
+
   APP_URL: z.url().default('http://localhost:5173'), // basis link reset password
 });
 

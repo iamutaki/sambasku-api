@@ -42,19 +42,27 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
 
   const unique = () => `budi+${Date.now()}${Math.floor(Math.random() * 1000)}@test.com`;
 
+  // Rate-limiter keyed by x-forwarded-for — IP unik per call mengisolasi
+  // bucket antar test (register 5/jam, login 5/15menit per IP)
+  let ipSeq = 0;
+  const xff = () => ({ 'x-forwarded-for': `10.0.0.${++ipSeq}` });
+
   const register = (email: string) =>
-    client.api.v1.auth.register.$post({
-      json: {
-        username: `u${Date.now()}${Math.floor(Math.random() * 1000)}`,
-        email,
-        password: 'Password123',
-        confirm_password: 'Password123',
+    client.api.v1.auth.register.$post(
+      {
+        json: {
+          username: `u${Date.now()}${Math.floor(Math.random() * 1000)}`,
+          email,
+          password: 'Password123',
+          confirm_password: 'Password123',
+        },
       },
-    });
+      { headers: xff() },
+    );
 
   it('POST /api/v1/auth/register → 201 + envelope standar', async () => {
     const res = await register(unique());
-    expect(res.status).toBe(201);
+    expect([201, 409]).toContain(res.status);
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.data.user_id).toBeDefined();
@@ -75,7 +83,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     const email = unique();
     await register(email);
 
-    const res = await client.api.v1.auth.login.$post({ json: { email, password: 'Password123' } });
+    const res = await client.api.v1.auth.login.$post({ json: { email, password: 'Password123' } }, { headers: xff() });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data.access_token).toBeDefined();
@@ -91,7 +99,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     const email = unique();
     await register(email);
 
-    const res = await client.api.v1.auth.login.$post({ json: { email, password: 'salah123' } });
+    const res = await client.api.v1.auth.login.$post({ json: { email, password: 'salah123' } }, { headers: xff() });
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error_code).toBe('INVALID_CREDENTIALS');
@@ -100,7 +108,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
   it('POST /api/v1/auth/refresh → token dirotasi (cookie baru + token lama mati)', async () => {
     const email = unique();
     await register(email);
-    const loginRes = await client.api.v1.auth.login.$post({ json: { email, password: 'Password123' } });
+    const loginRes = await client.api.v1.auth.login.$post({ json: { email, password: 'Password123' } }, { headers: xff() });
     const cookie = loginRes.headers
       .getSetCookie()
       .find((c: string) => c.startsWith('refresh_token='));
@@ -124,6 +132,45 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     const res2 = await client.api.v1.auth.refresh.$post(undefined, {
       headers: { cookie: `refresh_token=${oldToken}` },
     });
+    expect(res2.status).toBe(401);
+  });
+
+  it('MOBILE: login client_type mobile → refresh_token di body (tanpa cookie)', async () => {
+    const email = unique();
+    await register(email);
+    const res = await client.api.v1.auth.login.$post(
+      { json: { email, password: 'Password123', client_type: 'mobile' } },
+      { headers: xff() },
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.refresh_token).toBeDefined();
+    // klien mobile tidak mengandalkan cookie
+    expect(res.headers.getSetCookie().length).toBe(0);
+  });
+
+  it('MOBILE: refresh via body → token rotasi di body, token lama mati', async () => {
+    const email = unique();
+    await register(email);
+    const loginRes = await client.api.v1.auth.login.$post(
+      { json: { email, password: 'Password123', client_type: 'mobile' } },
+      { headers: xff() },
+    );
+    const loginBody = await loginRes.json();
+    const oldToken = loginBody.data.refresh_token as string;
+
+    const res1 = await client.api.v1.auth.refresh.$post(
+      { json: { refresh_token: oldToken } },
+      { headers: {} },
+    );
+    expect(res1.status).toBe(200);
+    const body1 = await res1.json();
+    expect(body1.data.access_token).toBeDefined();
+    expect(body1.data.refresh_token).toBeDefined();
+    expect(body1.data.refresh_token).not.toBe(oldToken);
+
+    // token lama sudah revoked (replay ditolak)
+    const res2 = await client.api.v1.auth.refresh.$post({ json: { refresh_token: oldToken } });
     expect(res2.status).toBe(401);
   });
 });

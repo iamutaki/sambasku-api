@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { RegisterUserUseCase } from '../../application/use-cases/register-user.use-case';
 import type { UserRepository } from '../../domain/repositories/user.repository';
 import type { PasswordHasherPort } from '../../application/ports/password-hasher.port';
+import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 
 function makeDeps(overrides: { findByUsername?: unknown; findByEmail?: unknown } = {}) {
   const userRepo = {
@@ -25,7 +26,8 @@ function makeDeps(overrides: { findByUsername?: unknown; findByEmail?: unknown }
     hash: vi.fn().mockResolvedValue('argon2id$hash'),
     compare: vi.fn(),
   } as unknown as PasswordHasherPort;
-  return { userRepo, hasher, useCase: new RegisterUserUseCase(userRepo, hasher) };
+  const auditRepo = { record: vi.fn().mockResolvedValue(undefined), list: vi.fn() };
+  return { userRepo, hasher, auditRepo, useCase: new RegisterUserUseCase(userRepo, hasher, auditRepo as unknown as AuditLogRepository) };
 }
 
 describe('RegisterUserUseCase', () => {
@@ -71,5 +73,25 @@ describe('RegisterUserUseCase', () => {
     await expect(
       useCase.execute({ username: 'budi', email: 'budi@test.com', password: 'pendek1' }),
     ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
+  });
+
+  it('mencatat audit trail user.create — TANPA password/hash di new_data', async () => {
+    const { useCase, auditRepo } = makeDeps();
+
+    await useCase.execute(
+      { username: 'budi', email: 'budi@test.com', password: 'Password123' },
+      'req-123',
+    );
+
+    expect(auditRepo.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'create',
+        entityType: 'user',
+        requestId: 'req-123',
+        newData: expect.not.objectContaining({ password: expect.anything() }),
+      }),
+    );
+    const entry = vi.mocked(auditRepo.record).mock.calls[0][0];
+    expect(JSON.stringify(entry.newData)).not.toContain('argon2id');
   });
 });

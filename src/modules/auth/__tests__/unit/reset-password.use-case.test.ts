@@ -4,6 +4,7 @@ import type { UserRepository } from '../../domain/repositories/user.repository';
 import type { PasswordResetTokenRepository } from '../../domain/repositories/password-reset-token.repository';
 import type { PasswordHasherPort } from '../../application/ports/password-hasher.port';
 import type { PasswordResetTokenRecord } from '../../domain/repositories/password-reset-token.repository';
+import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import { hashToken } from '../../application/utils/token';
 
 function makeRecord(overrides: Partial<PasswordResetTokenRecord> = {}): PasswordResetTokenRecord {
@@ -35,11 +36,26 @@ function makeDeps(record: PasswordResetTokenRecord | null, consumeResult = true)
     compare: vi.fn(),
   } as unknown as PasswordHasherPort;
 
+  const auditRepo = { record: vi.fn().mockResolvedValue(undefined), list: vi.fn() };
+  const refreshTokenRepo = {
+    create: vi.fn(),
+    findByHash: vi.fn(),
+    revokeByHash: vi.fn(),
+    revokeAllForUser: vi.fn().mockResolvedValue(undefined),
+  };
   return {
     userRepo,
     hasher,
     resetTokenRepo,
-    useCase: new ResetPasswordUseCase(resetTokenRepo, userRepo, hasher),
+    auditRepo,
+    refreshTokenRepo,
+    useCase: new ResetPasswordUseCase(
+      resetTokenRepo,
+      userRepo,
+      hasher,
+      auditRepo as unknown as AuditLogRepository,
+      refreshTokenRepo as never,
+    ),
   };
 }
 
@@ -89,5 +105,29 @@ describe('ResetPasswordUseCase', () => {
     await expect(
       useCase.execute({ token: 'token-benar', newPassword: 'pendek1' }),
     ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
+  });
+
+  it('mencatat audit password_change — new_data tanpa hash password', async () => {
+    const { useCase, auditRepo } = makeDeps(makeRecord());
+
+    await useCase.execute({ token: 'token-benar', newPassword: 'PasswordBaru1' }, 'req-456');
+
+    expect(auditRepo.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'password_change',
+        entityType: 'user',
+        entityId: '01TESTULIDUSERID00000000',
+        newData: { changed: true },
+        requestId: 'req-456',
+      }),
+    );
+  });
+
+  it('EDGE CASE: mencabut SEMUA refresh token user (logout paksa semua perangkat)', async () => {
+    const { useCase, refreshTokenRepo } = makeDeps(makeRecord());
+
+    await useCase.execute({ token: 'token-benar', newPassword: 'PasswordBaru1' });
+
+    expect(refreshTokenRepo.revokeAllForUser).toHaveBeenCalledWith('01TESTULIDUSERID00000000');
   });
 });
