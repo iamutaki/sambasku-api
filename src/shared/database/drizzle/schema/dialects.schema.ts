@@ -1,6 +1,7 @@
 import { boolean, pgTable, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
 import { generateId } from '@/shared/utils/ulid';
 import { languages } from './languages.schema';
+import { users } from './users.schema';
 
 export const dialects = pgTable(
   'dialects',
@@ -15,6 +16,8 @@ export const dialects = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at'),
+    deletedAt: timestamp('deleted_at'),
+    deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
   },
   (t) => [unique('dialects_language_code_unique').on(t.languageId, t.code)],
 );

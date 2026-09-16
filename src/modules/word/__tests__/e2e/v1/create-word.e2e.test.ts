@@ -125,15 +125,24 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.data.status).toBe('published');
+    expect(body.data.is_verified).toBe(true); // admin = self-verified
     expect(body.data.word_id).toHaveLength(26);
     expect(body.data.warnings).toBeUndefined(); // lemma pertama, tidak duplikat
   });
 
-  it('POST (contributor, published) → 201 tapi pending_review', async () => {
+  it('POST (contributor, published) → 201 pending_review — TIDAK tayang (Section 22 approval gate)', async () => {
     const res = await post('/api/v1/admin/words', validBody({ lemma: 'minum' }), contributorToken);
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.data.status).toBe('pending_review');
+    expect(body.data.is_verified).toBe(false);
+
+    // Tidak tayang: detail publik 404, tidak muncul di search
+    const detail = await request(`/api/v1/words/${body.data.word_id}`);
+    expect(detail.status).toBe(404);
+    const search = await request('/api/v1/words/search?q=minum');
+    const searchBody = await search.json();
+    expect(searchBody.data.some((w: { lemma: string }) => w.lemma === 'minum')).toBe(false);
   });
 
   it('POST submit kedua lemma sama → warnings duplikat', async () => {
@@ -185,6 +194,7 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data.lemma).toBe('tidur');
+    expect(body.data.meanings[0].word_class).toMatchObject({ code: 'n', name: 'Nomina' });
     expect(body.data.meanings[0].translations[0].translation_text).toBe('makan');
     expect(body.data.meanings[0].examples[0].target_sentence).toBe('Kami sudah makan tadi.');
     expect(body.data.pronunciations[0]).toMatchObject({ notation: 'ipa', value: '/makatn/' });
@@ -194,11 +204,11 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     });
   });
 
-  it('GET detail kata pending → 404 WORD_NOT_FOUND', async () => {
+  it('GET detail kata draft → 404 WORD_NOT_FOUND (draft tidak tayang)', async () => {
     const create = await post(
       '/api/v1/admin/words',
-      validBody({ lemma: 'rahasia', status: 'published' }),
-      contributorToken, // contributor → pending_review
+      validBody({ lemma: 'rahasia', status: 'draft' }),
+      adminToken,
     );
     const { data } = await create.json();
 
@@ -293,6 +303,54 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     const body = await res.json();
     expect(body.error_code).toBe('VALIDATION_ERROR');
     expect(body.details[0].field).toBe('related_words');
+  });
+
+  it('VERIFY: kata pending_review bisa di-verify — tapi tayang tetap lewat antrean approve', async () => {
+    const create = await post('/api/v1/admin/words', validBody({ lemma: 'kata diverifikasi' }), contributorToken);
+    const { data } = await create.json();
+    expect(data.status).toBe('pending_review');
+
+    const res = await request(`/api/v1/admin/words/${data.word_id}/verify`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status).toBe(200);
+
+    // Masih tidak tayang — publikasi lewat antrean review (03 doc), bukan verify
+    const detail = await request(`/api/v1/words/${data.word_id}`);
+    expect(detail.status).toBe(404);
+  });
+
+  it('VERIFY: unverify mengembalikan false', async () => {
+    const create = await post('/api/v1/admin/words', validBody({ lemma: 'kata dibatal verifikasi' }), adminToken);
+    const { data } = await create.json();
+    expect(data.is_verified).toBe(true);
+
+    const res = await request(`/api/v1/admin/words/${data.word_id}/unverify`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status).toBe(200);
+    const detail = await request(`/api/v1/words/${data.word_id}`);
+    expect((await detail.json()).data.is_verified).toBe(false);
+  });
+
+  it('VERIFY: contributor → 403 FORBIDDEN (bukan verifikator)', async () => {
+    const res = await request(`/api/v1/admin/words/${ulid26('01E2EWORDAPA')}/verify`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${contributorToken}` },
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error_code).toBe('FORBIDDEN');
+  });
+
+  it('VERIFY: id tidak dikenal → 404 WORD_NOT_FOUND', async () => {
+    const res = await request(`/api/v1/admin/words/${ulid26('01E2EWORDNGACAK')}/verify`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status).toBe(404);
+    expect((await res.json()).error_code).toBe('WORD_NOT_FOUND');
   });
 
   it('GET /api/v1/word-classes → 200 daftar kelas kata', async () => {

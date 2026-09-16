@@ -14,6 +14,10 @@ import { logger } from '@/shared/logging/logger';
 const SEED_USERS = [
   { username: 'admin', email: 'admin@email.com', role: 'admin' },
   { username: 'root', email: 'root@email.com', role: 'root' },
+  // Untuk uji alur approval gate (Bruno http/auth/login-contributor.bru):
+  // contributor → submit masuk antrean; reviewer → verifikator antrean
+  { username: 'contributor', email: 'contributor@email.com', role: 'contributor' },
+  { username: 'reviewer', email: 'reviewer@email.com', role: 'reviewer' },
 ] as const;
 
 const SEED_PASSWORD = 'pass1234';

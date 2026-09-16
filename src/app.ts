@@ -1,6 +1,7 @@
 import { apiReference } from '@scalar/hono-api-reference';
 import { cors } from 'hono/cors';
 import { env } from '@/shared/config/env';
+import { sql } from 'drizzle-orm';
 import { db } from '@/shared/database/drizzle/client';
 import { errorHandler } from '@/shared/middlewares/error-handler.middleware';
 import { requestIdMiddleware } from '@/shared/middlewares/request-id.middleware';
@@ -25,12 +26,35 @@ import { WordRepositoryImpl } from '@/modules/word/infrastructure/word.repositor
 import { CreateWordUseCase } from '@/modules/word/application/use-cases/create-word.use-case';
 import { GetWordByIdUseCase } from '@/modules/word/application/use-cases/get-word-by-id.use-case';
 import { SearchWordsUseCase } from '@/modules/word/application/use-cases/search-words.use-case';
+import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-word.use-case';
+import { AddPronunciationUseCase } from '@/modules/word/application/use-cases/add-pronunciation.use-case';
+import { AddWordImageUseCase } from '@/modules/word/application/use-cases/add-word-image.use-case';
+import { AddExampleUseCase } from '@/modules/word/application/use-cases/add-example.use-case';
 import { WordController } from '@/modules/word/presentation/v1/word.controller';
 import {
   createAdminWordRoutes,
   createPublicWordRoutes,
 } from '@/modules/word/presentation/v1/word.routes';
+import {
+  createMeaningExampleRoutes,
+  createWordMediaRoutes,
+} from '@/modules/word/presentation/v1/word-media.routes';
 import { createWordClassRoutes } from '@/modules/word/presentation/v1/word-class.routes';
+import { ContributionRepositoryImpl } from '@/modules/contribution/infrastructure/contribution.repository.impl';
+import { ListContributionsUseCase } from '@/modules/contribution/application/use-cases/list-contributions.use-case';
+import { GetContributionDetailUseCase } from '@/modules/contribution/application/use-cases/get-contribution-detail.use-case';
+import { ReviewContributionUseCase } from '@/modules/contribution/application/use-cases/review-contribution.use-case';
+import { CorrectContributionUseCase } from '@/modules/contribution/application/use-cases/correct-contribution.use-case';
+import { ContributionController } from '@/modules/contribution/presentation/v1/contribution.controller';
+import { createContributionRoutes } from '@/modules/contribution/presentation/v1/contribution.routes';
+import { SearchMissRepositoryImpl } from '@/modules/search-miss/infrastructure/search-miss.repository.impl';
+import { ListSearchMissesUseCase } from '@/modules/search-miss/application/use-cases/list-search-misses.use-case';
+import { DismissSearchMissUseCase } from '@/modules/search-miss/application/use-cases/dismiss-search-miss.use-case';
+import { SearchMissController } from '@/modules/search-miss/presentation/v1/search-miss.controller';
+import {
+  createAdminSearchMissRoutes,
+  createSearchMissRoutes,
+} from '@/modules/search-miss/presentation/v1/search-miss.routes';
 import { LanguageRepositoryImpl } from '@/modules/language/infrastructure/language.repository.impl';
 import { ListLanguagesUseCase } from '@/modules/language/application/use-cases/list-languages.use-case';
 import { ListDialectsUseCase } from '@/modules/language/application/use-cases/list-dialects.use-case';
@@ -95,12 +119,36 @@ const authenticate = createAuthenticateMiddleware((token) => tokenService.verify
 // ---- Modul word (+ language & category sebagai data referensi form admin) ----
 const wordRepo = new WordRepositoryImpl(db);
 const imageStorage = new ImageKitStorageService();
+// Search miss: pencarian kosong → peluang kontribusi (03 doc) — direcord
+// dari SearchWordsUseCase lewat interface modul search-miss (Section 4)
+const searchMissRepo = new SearchMissRepositoryImpl(db);
 const wordController = new WordController({
   create: new CreateWordUseCase(wordRepo, auditRepo),
   getById: new GetWordByIdUseCase(wordRepo),
-  search: new SearchWordsUseCase(wordRepo),
+  search: new SearchWordsUseCase(wordRepo, searchMissRepo),
+  verify: new VerifyWordUseCase(wordRepo, auditRepo),
+  addPronunciation: new AddPronunciationUseCase(wordRepo, auditRepo),
+  addWordImage: new AddWordImageUseCase(wordRepo, auditRepo),
+  addExample: new AddExampleUseCase(wordRepo, auditRepo),
   listWordClasses: () => wordRepo.listWordClasses(),
   imageProviderName: imageStorage.providerName,
+});
+
+// ---- Modul contribution — antrean review (Section 22 approval gate,
+// 03-api-kontribusi-verifikasi.md). Baca entity word lewat interface
+// WordRepository (batas modul Section 4). ----
+const contributionRepo = new ContributionRepositoryImpl(db);
+const contributionController = new ContributionController({
+  list: new ListContributionsUseCase(contributionRepo),
+  getDetail: new GetContributionDetailUseCase(contributionRepo, wordRepo),
+  review: new ReviewContributionUseCase(contributionRepo, auditRepo),
+  correct: new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo),
+  imageProviderName: imageStorage.providerName,
+});
+
+const searchMissController = new SearchMissController({
+  list: new ListSearchMissesUseCase(searchMissRepo),
+  dismiss: new DismissSearchMissUseCase(searchMissRepo, auditRepo),
 });
 
 const languageRepo = new LanguageRepositoryImpl(db);
@@ -147,12 +195,34 @@ app.get('/', (c) =>
   }),
 );
 
+// Health check — dipakai orchestrator (Docker/K8s/Railway) untuk liveness
+app.get('/health', async (c) => {
+  try {
+    await db.execute(sql`SELECT 1`);
+    return c.json({ status: 'ok', database: 'up', timestamp: new Date().toISOString() });
+  } catch {
+    return c.json({ status: 'error', database: 'down', timestamp: new Date().toISOString() }, 503);
+  }
+});
+
 app.route('/api/v1/auth', createAuthRoutes({ controller, authenticate }));
 
 // Modul word — admin (write) + publik (read)
 app.route('/api/v1/admin/words', createAdminWordRoutes({ controller: wordController, authenticate }));
+// Kontribusi media (pronounce/gambar/contoh) DI-MOUNT SEBELUM public routes —
+// public punya rate limit IP 100/menit global (use '*'), limit per-user 30/menit
+// tetap jadi batas efektif; urutan mount menentukan middleware yang berlaku
+app.route('/api/v1/words', createWordMediaRoutes({ controller: wordController, authenticate }));
 app.route('/api/v1/words', createPublicWordRoutes({ controller: wordController, authenticate }));
+app.route('/api/v1/meanings', createMeaningExampleRoutes({ controller: wordController, authenticate }));
 app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordController }));
+
+// Antrean review kontribusi — hanya verifikator (Section 22)
+app.route('/api/v1/admin/contributions', createContributionRoutes({ controller: contributionController, authenticate }));
+
+// Search miss — beranda publik (peluang kontribusi) + panel admin
+app.route('/api/v1/search-misses', createSearchMissRoutes({ controller: searchMissController, authenticate }));
+app.route('/api/v1/admin/search-misses', createAdminSearchMissRoutes({ controller: searchMissController, authenticate }));
 
 // Data referensi form admin
 app.route('/api/v1/languages', createLanguageRoutes({ controller: languageController }));

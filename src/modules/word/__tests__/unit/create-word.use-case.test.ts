@@ -47,6 +47,10 @@ function makeWord(overrides: Partial<Word> = {}): Word {
     notes: null,
     wordType: 'word',
     status: 'draft',
+    isVerified: false,
+    verifiedBy: null,
+    verifiedAt: null,
+    isCorrected: false,
     createdBy: '01TESTULIDUSERID00000000',
     updatedBy: null,
     createdAt: new Date(),
@@ -59,8 +63,8 @@ function makeWord(overrides: Partial<Word> = {}): Word {
 
 function makeDeps(missing: Partial<MissingReferences> = {}, duplicate = false) {
   const wordRepo = {
-    saveWithRelations: vi.fn().mockImplementation((w: { status: string }) =>
-      Promise.resolve(makeWord({ status: w.status as Word['status'] })),
+    saveWithRelations: vi.fn().mockImplementation((w: { status: string; isVerified: boolean }) =>
+      Promise.resolve(makeWord({ status: w.status as Word['status'], isVerified: w.isVerified })),
     ),
     findDuplicate: vi.fn().mockResolvedValue(duplicate),
     findDetailById: vi.fn(),
@@ -86,10 +90,32 @@ describe('CreateWordUseCase', () => {
     );
   });
 
-  it('contributor + status published → pending_review (masuk antrian review)', async () => {
-    const { useCase } = makeDeps();
+  it('contributor + status published → pending_review, TIDAK tayang (Section 22 approval gate)', async () => {
+    const { useCase, wordRepo } = makeDeps();
     const result = await useCase.execute(makeDto({ status: 'published' }), CONTRIBUTOR);
     expect(result.word.status).toBe('pending_review');
+    expect(result.word.isVerified).toBe(false);
+    expect(wordRepo.saveWithRelations).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'pending_review', isVerified: false }),
+      CONTRIBUTOR.userId,
+    );
+  });
+
+  it('reviewer + status published → langsung published + self-verified', async () => {
+    const { useCase } = makeDeps();
+    const result = await useCase.execute(makeDto({ status: 'published' }), {
+      userId: '01TESTULIDUSERID00000000',
+      role: 'reviewer',
+    });
+    expect(result.word.status).toBe('published');
+    expect(result.word.isVerified).toBe(true);
+  });
+
+  it('admin + status published → tayang dan self-verified (is_verified true)', async () => {
+    const { useCase } = makeDeps();
+    const result = await useCase.execute(makeDto({ status: 'published' }), ADMIN);
+    expect(result.word.status).toBe('published');
+    expect(result.word.isVerified).toBe(true);
   });
 
   it('status draft tetap draft untuk role apa pun', async () => {
@@ -136,7 +162,7 @@ describe('CreateWordUseCase', () => {
         action: 'create',
         entityType: 'word',
         entityId: '01WORDULID000000000000000',
-        newData: expect.objectContaining({ lemma: 'makatn', status: 'draft', word_type: 'word' }),
+        newData: expect.objectContaining({ lemma: 'makatn', status: 'draft', word_type: 'word', is_verified: false }),
         requestId: 'req-789',
       }),
     );

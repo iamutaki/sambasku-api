@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { dialects, languages } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
@@ -12,7 +12,7 @@ export class LanguageRepositoryImpl implements LanguageRepository {
     const rows = await this.db
       .select()
       .from(languages)
-      .where(activeOnly ? eq(languages.isActive, true) : undefined)
+      .where(activeOnly ? and(eq(languages.isActive, true), isNull(languages.deletedAt)) : isNull(languages.deletedAt))
       .orderBy(asc(languages.name));
     return rows.map((r) => ({
       id: r.id,
@@ -28,9 +28,11 @@ export class LanguageRepositoryImpl implements LanguageRepository {
       .select()
       .from(dialects)
       .where(
-        activeOnly
-          ? and(eq(dialects.languageId, languageId), eq(dialects.isActive, true))
-          : eq(dialects.languageId, languageId),
+        and(
+          eq(dialects.languageId, languageId),
+          isNull(dialects.deletedAt),
+          activeOnly ? eq(dialects.isActive, true) : undefined,
+        ),
       )
       .orderBy(asc(dialects.name));
     return rows.map((r) => ({

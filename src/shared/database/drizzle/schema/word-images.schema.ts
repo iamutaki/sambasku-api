@@ -18,6 +18,11 @@ export const wordImages = pgTable(
     url: varchar('url', { length: 1000 }).notNull(),
     altText: varchar('alt_text', { length: 500 }),
     isPrimary: boolean('is_primary').notNull().default(false),
+    // Approval gate (Section 22) — kontribusi mandiri: pending sampai
+    // disetujui verifikator; identitas reviewer ada di contribution_reviews
+    status: varchar('status', { length: 30 }).notNull().default('published'),
+    isVerified: boolean('is_verified').notNull().default(false),
+    isCorrected: boolean('is_corrected').notNull().default(false),
     createdBy: varchar('created_by', { length: 26 }).references(() => users.id),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     deletedAt: timestamp('deleted_at'),

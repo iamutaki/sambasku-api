@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, text, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
 import { generateId } from '@/shared/utils/ulid';
 import { words } from './words.schema';
 import { dialects } from './dialects.schema';
@@ -17,6 +17,11 @@ export const pronunciations = pgTable(
     audioUrl: text('audio_url'),
     speakerName: varchar('speaker_name', { length: 255 }),
     notes: text('notes'),
+    // Approval gate (Section 22) — kontribusi mandiri: pending sampai
+    // disetujui verifikator; identitas reviewer ada di contribution_reviews
+    status: varchar('status', { length: 30 }).notNull().default('published'),
+    isVerified: boolean('is_verified').notNull().default(false),
+    isCorrected: boolean('is_corrected').notNull().default(false),
     createdBy: varchar('created_by', { length: 26 }).references(() => users.id),
     updatedBy: varchar('updated_by', { length: 26 }).references(() => users.id),
     createdAt: timestamp('created_at').notNull().defaultNow(),

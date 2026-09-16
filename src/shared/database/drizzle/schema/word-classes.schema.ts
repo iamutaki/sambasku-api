@@ -1,5 +1,6 @@
 import { pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { generateId } from '@/shared/utils/ulid';
+import { users } from './users.schema';
 import { relations } from 'drizzle-orm';
 
 // Kelas kata hierarkis (mis. Verba > Verba Transitif)
@@ -10,6 +11,8 @@ export const wordClasses = pgTable('word_classes', {
   name: varchar('name', { length: 100 }).notNull(),
   description: varchar('description', { length: 500 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
   updatedAt: timestamp('updated_at'),
 });
 

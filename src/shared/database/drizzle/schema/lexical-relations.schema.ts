@@ -17,6 +17,8 @@ export const lexicalRelations = pgTable(
     relationType: varchar('relation_type', { length: 50 }).notNull(),
     notes: text('notes'),
     createdBy: varchar('created_by', { length: 26 }).references(() => users.id),
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [

@@ -58,6 +58,7 @@ function baseWord(overrides: Partial<WordToSave> = {}): WordToSave {
     categoryIds: [MAKANAN],
     relatedWords: [],
     status: 'published',
+    isVerified: false,
     ...overrides,
   };
 }
@@ -94,12 +95,65 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(await db.select().from(contributionReviews)).toHaveLength(0);
   });
 
-  it('status pending_review → baris contribution_reviews pending dibuat', async () => {
-    await repo.saveWithRelations(baseWord({ status: 'pending_review' }), ACTOR);
-    const reviews = await db.select().from(contributionReviews);
-    expect(reviews).toHaveLength(1);
-    expect(reviews[0].status).toBe('pending');
-    expect(reviews[0].reviewerId).toBeNull(); // ditunggu penugasan reviewer
+  it('Section 22 approval gate: baris review HANYA dibuat saat keputusan — status antrean turunan', async () => {
+    // input 'published' (setara submit verifikator) → contributions.status approved
+    const word = await repo.saveWithRelations(baseWord(), ACTOR);
+    const [contribRow] = await db.select().from(contributions).where(eq(contributions.entityId, word.id));
+    expect(contribRow.status).toBe('approved');
+
+    // input 'pending_review' (setara submit contributor) → contributions.status pending
+    const pending = await repo.saveWithRelations(
+      baseWord({ lemma: 'kalintiak', status: 'pending_review' }),
+      ACTOR,
+    );
+    expect(pending.status).toBe('pending_review');
+    const [pendingContrib] = await db.select().from(contributions).where(eq(contributions.entityId, pending.id));
+    expect(pendingContrib.status).toBe('pending');
+
+    // tetap: tidak ada baris review otomatis saat submit
+    expect(await db.select().from(contributionReviews)).toHaveLength(0);
+  });
+
+  it('kontribusi media: add* menulis status gerbang + baris contributions turunan', async () => {
+    const word = await repo.saveWithRelations(baseWord(), ACTOR);
+
+    const pron = await repo.addPronunciation(
+      word.id,
+      { notation: 'ipa', value: '/baru/', status: 'pending_review', isVerified: false },
+      ACTOR,
+    );
+    expect(pron.status).toBe('pending_review');
+    const [pronContrib] = await db.select().from(contributions).where(eq(contributions.entityId, pron.id));
+    expect(pronContrib).toMatchObject({ entityType: 'pronunciation', status: 'pending' });
+
+    const img = await repo.addWordImage(
+      word.id,
+      { url: 'https://x.test/a.jpg', providerFileId: 'pf-1', isPrimary: false, status: 'published', isVerified: true },
+      ACTOR,
+    );
+    const [imgContrib] = await db.select().from(contributions).where(eq(contributions.entityId, img.id));
+    expect(imgContrib).toMatchObject({ entityType: 'word_image', status: 'approved' });
+
+    const [meaning] = await db.select().from(meanings).where(eq(meanings.wordId, word.id));
+    const ex = await repo.addExample(
+      meaning.id,
+      { sourceLanguageId: SMB, sourceSentence: 'contoh baru', status: 'pending_review', isVerified: false },
+      ACTOR,
+    );
+    const [exContrib] = await db.select().from(contributions).where(eq(contributions.entityId, ex.id));
+    expect(exContrib).toMatchObject({ entityType: 'example', status: 'pending' });
+
+    // filter publik: anak pending TIDAK tampil di detail, tampil saat includeAllStatuses
+    const publik = await repo.findDetailById(word.id);
+    const contohPublik = publik?.meanings.flatMap((m) => m.examples.map((e) => e.sourceSentence)) ?? [];
+    expect(publik?.pronunciations.map((p) => p.value)).not.toContain('/baru/');
+    expect(contohPublik).not.toContain('contoh baru');
+    expect(publik?.images.map((i) => i.url)).toContain('https://x.test/a.jpg'); // published → tampil
+
+    const review = await repo.findDetailById(word.id, { includeAllStatuses: true });
+    expect(review?.pronunciations.map((p) => p.value)).toContain('/baru/');
+    const contohReview = review?.meanings.flatMap((m) => m.examples) ?? [];
+    expect(contohReview.find((e) => e.sourceSentence === 'contoh baru')?.status).toBe('pending_review');
   });
 
   it('BUKTI ROLLBACK: FK violation di tengah → ValidationError dan TIDAK ada baris words tersisa', async () => {
@@ -139,7 +193,12 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
 
     const detail = await repo.findDetailById(word.id);
     expect(detail?.images).toEqual([
-      { url: 'https://ik.imagekit.io/dev/words/makan.jpg', altText: 'Orang sedang makan', isPrimary: true },
+      {
+        id: expect.any(String),
+        url: 'https://ik.imagekit.io/dev/words/makan.jpg',
+        altText: 'Orang sedang makan',
+        isPrimary: true,
+      },
     ]);
   });
 
@@ -216,6 +275,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
 
     const detail = await repo.findDetailById(published.id);
     expect(detail?.lemma).toBe('terbit');
+    expect(detail?.meanings[0].wordClass).toMatchObject({ id: NOMINA, code: 'n', name: 'Nomina' });
     expect(detail?.meanings[0].translations.map((t) => t.translationText)).toEqual(['makan', 'sudah makan']);
     expect(detail?.meanings[0].examples[0].targetSentence).toBe('Kami sudah makan tadi.');
     expect(detail?.categories).toEqual([{ id: MAKANAN, name: 'Makanan' }]);
@@ -253,6 +313,19 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     // filter bahasa terjemahan bekerja
     const terfilter = await repo.search({ q: 'makan', searchIn: 'translation', translationLanguageId: IDN, limit: 10 });
     expect(terfilter.items).toHaveLength(1);
+  });
+
+  it('EDGE CASE: kata DRAFT tidak muncul di search publik (lemma maupun reverse)', async () => {
+    await repo.saveWithRelations(baseWord({ lemma: 'publik1' }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'draft1', status: 'draft' }), ACTOR);
+
+    // lemma search: hanya publik1
+    const hasil = await repo.search({ q: '', limit: 10 });
+    expect(hasil.items.map((w) => w.lemma)).toEqual(['publik1']);
+
+    // reverse search: draft1 punya terjemahan 'makan' tapi tidak boleh muncul
+    const reverse = await repo.search({ q: 'makan', searchIn: 'translation', limit: 10 });
+    expect(reverse.items.map((w) => w.lemma)).toEqual(['publik1']);
   });
 
   it('search: ilike + cursor-based pagination (Section 13)', async () => {

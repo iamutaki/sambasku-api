@@ -12,6 +12,7 @@
     "start": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
     "seed": "tsx src/scripts/seed.ts",
+    "cleanup-tokens": "tsx src/scripts/cleanup-tokens.ts",
     "test": "vitest run",
     "test:unit": "vitest run --dir '**/__tests__/unit'",
     "test:integration": "vitest run --dir '**/__tests__/integration'",

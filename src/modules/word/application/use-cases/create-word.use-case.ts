@@ -1,8 +1,9 @@
 import { ValidationError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
-import type { Word, WordStatus } from '../../domain/entities/word.entity';
+import type { Word } from '../../domain/entities/word.entity';
 import type { WordRepository, MissingReferences } from '../../domain/repositories/word.repository';
 import type { CreateWordDto } from '../dto/create-word.dto';
+import { resolvePublication } from '../utils/resolve-publication';
 
 export interface CreateWordResult {
   word: Word;
@@ -57,11 +58,12 @@ export class CreateWordUseCase {
       ? [{ field: 'lemma', message: 'Lemma serupa sudah ada di bahasa ini' }]
       : [];
 
-    // 3. Status akhir tergantung role — sumber kebenaran status adalah backend
-    const status: WordStatus = resolveStatus(dto.status, actor.role);
+    // 3. Model publikasi (Section 22 — approval gate): verifikator
+    //    self-verified langsung tayang; contributor masuk antrean review
+    const publication = resolvePublication(dto.status, actor.role);
 
     // 4. Simpan atomik (transaction hidup di implementasi repository)
-    const word = await this.wordRepo.saveWithRelations({ ...dto, status }, actor.userId);
+    const word = await this.wordRepo.saveWithRelations({ ...dto, ...publication }, actor.userId);
 
     // 5. Audit trail (Section 21) — snapshot ringkas, tanpa isi lengkap anak-anak
     await this.auditRepo.record({
@@ -74,6 +76,7 @@ export class CreateWordUseCase {
         word_type: word.wordType,
         language_id: word.languageId,
         status: word.status,
+        is_verified: word.isVerified,
         meanings_count: dto.meanings.length,
       },
       requestId: actor.requestId ?? null,
@@ -83,12 +86,8 @@ export class CreateWordUseCase {
   }
 }
 
-function resolveStatus(requested: 'draft' | 'published', role: string): WordStatus {
-  if (requested === 'draft') return 'draft';
-  return role === 'admin' || role === 'editor' ? 'published' : 'pending_review';
-}
-
-function collectLanguageIds(dto: CreateWordDto): string[] {
+// Dipakai bersama create-word dan correct-contribution (modul contribution)
+export function collectLanguageIds(dto: CreateWordDto): string[] {
   const ids: string[] = [];
   for (const meaning of dto.meanings) {
     for (const t of meaning.translations) ids.push(t.languageId);
@@ -100,7 +99,7 @@ function collectLanguageIds(dto: CreateWordDto): string[] {
   return [...new Set(ids)];
 }
 
-function mapMissingToDetails(
+export function mapMissingToDetails(
   dto: CreateWordDto,
   missing: MissingReferences,
 ): { field: string; message: string }[] {

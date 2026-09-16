@@ -14,11 +14,19 @@ export const contributions = pgTable(
     entityId: varchar('entity_id', { length: 26 }).notNull(),
     // 'create' | 'update' | 'delete' | 'publish' | dst
     action: varchar('action', { length: 50 }).notNull(),
+    // Status antrean review (Section 22 — approval gate):
+    // pending | approved | rejected | corrected — turunan dari status
+    // entity saat insert ('pending_review' → 'pending', selain itu
+    // 'approved'); baris lama di-backfill 'approved' lewat migration
+    status: varchar('status', { length: 30 }).notNull().default('pending'),
     description: text('description'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+    deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
   },
   (t) => [
     index('contributions_user_created_idx').on(t.userId, t.createdAt),
     index('contributions_entity_idx').on(t.entityType, t.entityId),
+    index('contributions_status_idx').on(t.status),
   ],
 );

@@ -13,8 +13,12 @@ Dokumen hidup — wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `FORBIDDEN` | 403 | Role tidak diizinkan akses endpoint |
 | `NOT_FOUND` | 404 | Route/endpoint tidak ditemukan (via `app.notFound`) |
 | `WORD_NOT_FOUND` | 404 | Kata tidak ditemukan by id (modul word — belum implement) |
+| `MEANING_NOT_FOUND` | 404 | Makna tidak ditemukan by id (kontribusi contoh kalimat) |
+| `CONTRIBUTION_NOT_FOUND` | 404 | Kontribusi tidak ditemukan by id (antrean review) |
+| `SEARCH_MISS_NOT_FOUND` | 404 | Pencarian kosong tidak ditemukan by id (dismiss panel admin) |
 | `EMAIL_ALREADY_EXISTS` | 409 | Registrasi dengan email yang sudah dipakai |
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan username yang sudah dipakai |
+| `CONTRIBUTION_ALREADY_REVIEWED` | 409 | Kontribusi sudah punya keputusan (approve/reject/correct) |
 | `RATE_LIMITED` | 429 | Terlalu banyak percobaan (lihat tabel limit di api-base-stack.md Section 15) |
 | `INTERNAL_ERROR` | 500 | Error tak terduga (bug, koneksi DB putus, dst) |
 | `IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider penyimpanan gambar belum dikonfigurasi (env `IMAGEKIT_*`) |

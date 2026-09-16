@@ -1,6 +1,9 @@
 // Entitas domain — murni TypeScript, tidak tahu Drizzle/HTTP
-export type WordStatus = 'draft' | 'pending_review' | 'published';
+// Section 22 (approval gate): pending_review/rejected hanya di-set sistem
+export type WordStatus = 'draft' | 'pending_review' | 'published' | 'rejected';
 export type WordType = 'word' | 'idiom' | 'peribahasa' | 'ungkapan';
+/** Status publikasi konten anak (pronunciations/images/examples) — tanpa draft */
+export type ChildStatus = 'pending_review' | 'published' | 'rejected';
 
 export interface Word {
   id: string;
@@ -9,6 +12,10 @@ export interface Word {
   notes: string | null;
   wordType: WordType;
   status: WordStatus;
+  isVerified: boolean;
+  verifiedBy: string | null;
+  verifiedAt: Date | null;
+  isCorrected: boolean;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: Date;
@@ -24,6 +31,7 @@ export interface WordSummary {
   languageCode: string;
   wordType: WordType;
   status: WordStatus;
+  isVerified: boolean;
   /** terisi saat pencarian terjemahan (Indonesia→Sambas): teks yang cocok */
   matchedTranslation?: string;
 }
@@ -47,8 +55,25 @@ export interface WordVariantRef {
 export interface WordDetail extends Word {
   meanings: import('./meaning.entity').MeaningDetail[];
   categories: { id: string; name: string }[];
-  pronunciations: { id: string; notation: string; value: string; dialectId: string | null }[];
-  images: { url: string; altText: string | null; isPrimary: boolean }[];
+  pronunciations: {
+    id: string;
+    notation: string;
+    value: string;
+    dialectId: string | null;
+    /** terisi saat includeAllStatuses (layar review); publik selalu published */
+    status?: ChildStatus;
+    isVerified?: boolean;
+    isCorrected?: boolean;
+  }[];
+  images: {
+    id: string;
+    url: string;
+    altText: string | null;
+    isPrimary: boolean;
+    status?: ChildStatus;
+    isVerified?: boolean;
+    isCorrected?: boolean;
+  }[];
   /** relasi keluar (mis. peribahasa → komponen; kata → sinonim/antonim) */
   relatedWords: RelatedWordRef[];
   /** relasi masuk (mis. komponen → "muncul dalam" peribahasa) — derived, tak disimpan */

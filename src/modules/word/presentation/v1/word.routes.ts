@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 import { createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { authorizeRole } from '@/shared/middlewares/authorize-role.middleware';
+import { okNullResponseSchema } from '@/shared/openapi/error-response.schema';
 import { rateLimit } from '@/shared/middlewares/rate-limit.middleware';
 import { createOpenApiApp } from '@/shared/openapi/openapi-app';
 import { errorResponseSchema } from '@/shared/openapi/error-response.schema';
@@ -31,7 +32,7 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
   routes.use(
     '/',
     deps.authenticate,
-    authorizeRole('admin', 'editor', 'contributor'),
+    authorizeRole('admin', 'editor', 'contributor', 'root', 'reviewer'),
     rateLimit({
       points: 30,
       duration: 60,
@@ -58,6 +59,42 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
   });
 
   routes.openapi(createWordRoute, (c) => deps.controller.create(c, c.req.valid('json')) as never);
+
+  // Verifikasi (Section 22) — HANYA verifikator: admin, root, reviewer.
+  // Middleware per-path (beda role dari create yang menerima contributor)
+  routes.use('/:id/verify', deps.authenticate, authorizeRole('admin', 'root', 'reviewer'), rateLimit({ points: 500, duration: 60 }));
+  routes.use('/:id/unverify', deps.authenticate, authorizeRole('admin', 'root', 'reviewer'), rateLimit({ points: 500, duration: 60 }));
+
+  const verifyRoute = createRoute({
+    method: 'post',
+    path: '/:id/verify',
+    tags: ['Words', 'Admin'],
+    summary: 'Verifikasi kata oleh verifikator (is_verified → true)',
+    request: { params: z.object({ id: z.string().length(26) }) },
+    responses: {
+      200: { description: 'Kata terverifikasi', content: { 'application/json': { schema: okNullResponseSchema } } },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Bukan verifikator (admin/root/reviewer)', content: json(errorResponseSchema) },
+      404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
+  const unverifyRoute = createRoute({
+    method: 'post',
+    path: '/:id/unverify',
+    tags: ['Words', 'Admin'],
+    summary: 'Cabut verifikasi kata (is_verified → false)',
+    request: { params: z.object({ id: z.string().length(26) }) },
+    responses: {
+      200: { description: 'Verifikasi dicabut', content: { 'application/json': { schema: okNullResponseSchema } } },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Bukan verifikator', content: json(errorResponseSchema) },
+      404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
+  routes.openapi(verifyRoute, (c) => deps.controller.verify(c, c.req.param('id'), true) as never);
+  routes.openapi(unverifyRoute, (c) => deps.controller.verify(c, c.req.param('id'), false) as never);
 
   return routes;
 }

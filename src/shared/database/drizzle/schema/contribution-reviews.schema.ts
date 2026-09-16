@@ -12,9 +12,12 @@ export const contributionReviews = pgTable(
       .references(() => contributions.id),
     // null saat masih menunggu penugasan reviewer — diisi saat review dijalankan
     reviewerId: varchar('reviewer_id', { length: 26 }).references(() => users.id),
-    // pending | approved | rejected
+    // Ditulis saat verifikator mengambil keputusan (bukan saat submit):
+    // approved | rejected | corrected — comment WAJIB untuk rejected
     status: varchar('status', { length: 30 }).notNull().default('pending'),
     comment: text('comment'),
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [index('contribution_reviews_contribution_reviewer_idx').on(t.contributionId, t.reviewerId)],

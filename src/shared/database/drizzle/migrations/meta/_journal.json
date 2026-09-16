@@ -6,35 +6,56 @@
       "idx": 0,
       "version": "7",
       "when": 1788960210926,
-      "tag": "0000_legal_lockheed",
+      "tag": "0000_auth_tables",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
       "when": 1788975062542,
-      "tag": "0001_motionless_swarm",
+      "tag": "0001_word_module_tables",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
       "when": 1788979030639,
-      "tag": "0002_cheerful_mother_askani",
+      "tag": "0002_audit_logs",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "7",
       "when": 1789120721777,
-      "tag": "0003_thick_sentinel",
+      "tag": "0003_word_images",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
       "when": 1789190223668,
-      "tag": "0004_spooky_wolfsbane",
+      "tag": "0004_word_type_variants_relations",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789231338434,
+      "tag": "0005_publish_model_is_verified",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789235920180,
+      "tag": "0006_soft_delete_all_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789559294688,
+      "tag": "0007_contribution-review-workflow",
       "breakpoints": true
     }
   ]

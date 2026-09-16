@@ -18,4 +18,5 @@ export * from './lexical-relations.schema';
 export * from './pronunciations.schema';
 export * from './contributions.schema';
 export * from './contribution-reviews.schema';
+export * from './search-misses.schema';
 export * from './audit-logs.schema';

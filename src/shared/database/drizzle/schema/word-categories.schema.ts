@@ -1,4 +1,4 @@
-import { primaryKey, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { primaryKey, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { words } from './words.schema';
 import { categories } from './categories.schema';
 
@@ -9,6 +9,7 @@ export const wordCategories = pgTable(
     wordId: varchar('word_id', { length: 26 })
       .notNull()
       .references(() => words.id),
+    deletedAt: timestamp('deleted_at'),
     categoryId: varchar('category_id', { length: 26 })
       .notNull()
       .references(() => categories.id),

@@ -5,7 +5,17 @@ import type { AppVariables } from '@/shared/types';
 import type { CreateWordUseCase } from '../../application/use-cases/create-word.use-case';
 import type { GetWordByIdUseCase } from '../../application/use-cases/get-word-by-id.use-case';
 import type { SearchWordsUseCase } from '../../application/use-cases/search-words.use-case';
+import type { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-case';
+import type { AddPronunciationUseCase } from '../../application/use-cases/add-pronunciation.use-case';
+import type { AddWordImageUseCase } from '../../application/use-cases/add-word-image.use-case';
+import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
 import type { CreateWordBody, SearchWordsQueryBody } from './validators/create-word.validator';
+import type {
+  AddExampleBody,
+  AddPronunciationBody,
+  AddWordImageBody,
+} from './validators/word-media.validator';
+import { toCreateWordDto } from './map-create-word';
 import type { WordClassSummary } from '../../domain/entities/word.entity';
 
 export class WordController {
@@ -14,6 +24,10 @@ export class WordController {
       create: CreateWordUseCase;
       getById: GetWordByIdUseCase;
       search: SearchWordsUseCase;
+      verify: VerifyWordUseCase;
+      addPronunciation: AddPronunciationUseCase;
+      addWordImage: AddWordImageUseCase;
+      addExample: AddExampleUseCase;
       listWordClasses: () => Promise<WordClassSummary[]>;
       /** provider gambar aktif — dari composition root, bukan hardcode */
       imageProviderName: string;
@@ -26,52 +40,7 @@ export class WordController {
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
 
     const { word, warnings } = await this.deps.create.execute(
-      {
-        languageId: body.language_id,
-        dialectId: body.dialect_id,
-        lemma: body.lemma,
-        notes: body.notes,
-        wordType: body.word_type,
-        meanings: body.meanings.map((m, i) => ({
-          wordClassId: m.word_class_id,
-          definition: m.definition,
-          orderIndex: m.order_index ?? i + 1,
-          translations: m.translations.map((t) => ({
-            languageId: t.language_id,
-            translationText: t.translation_text,
-            translationType: t.translation_type,
-          })),
-          examples: m.examples?.map((e) => ({
-            sourceLanguageId: e.source_language_id,
-            sourceSentence: e.source_sentence,
-            targetLanguageId: e.target_language_id,
-            targetSentence: e.target_sentence,
-            sourceType: e.source_type,
-          })),
-        })),
-        categoryIds: body.category_ids,
-        relatedWords: (body.related_words ?? []).map((rel) => ({
-          wordId: rel.word_id,
-          relationType: rel.relation_type,
-        })),
-        variants: body.variants?.map((v) => ({
-          form: v.form,
-          variantType: v.variant_type,
-          affixType: v.affix_type,
-          affixValue: v.affix_value,
-          dialectId: v.dialect_id,
-          notes: v.notes,
-        })),
-        pronunciation: body.pronunciation,
-        images: body.images?.map((img) => ({
-          url: img.url,
-          provider: this.deps.imageProviderName,
-          providerFileId: img.provider_file_id,
-          altText: img.alt_text,
-          isPrimary: img.is_primary,
-        })),
-        status: body.status,
-      },
+      toCreateWordDto(body, this.deps.imageProviderName),
       { userId: actor.user_id, role: actor.role, requestId },
     );
 
@@ -89,6 +58,7 @@ export class WordController {
           lemma: word.lemma,
           word_type: word.wordType,
           status: word.status,
+          is_verified: word.isVerified,
           created_at: word.createdAt.toISOString(),
           ...(warnings.length > 0 ? { warnings } : {}),
         },
@@ -108,8 +78,14 @@ export class WordController {
         notes: word.notes,
         word_type: word.wordType,
         status: word.status,
+        is_verified: word.isVerified,
+        is_corrected: word.isCorrected,
+        verified_at: word.verifiedAt ? word.verifiedAt.toISOString() : null,
         meanings: word.meanings.map((m) => ({
-          word_class_id: m.wordClassId,
+          id: m.id,
+          word_class: m.wordClass
+            ? { id: m.wordClass.id, code: m.wordClass.code, name: m.wordClass.name, parent_id: m.wordClass.parentId }
+            : null,
           definition: m.definition,
           order_index: m.orderIndex,
           translations: m.translations.map((t) => ({
@@ -118,6 +94,7 @@ export class WordController {
             translation_type: t.translationType,
           })),
           examples: m.examples.map((e) => ({
+            id: e.id,
             source_language_id: e.sourceLanguageId,
             source_sentence: e.sourceSentence,
             target_language_id: e.targetLanguageId,
@@ -133,6 +110,7 @@ export class WordController {
           dialect_id: p.dialectId,
         })),
         images: word.images.map((img) => ({
+          id: img.id,
           url: img.url,
           alt_text: img.altText,
           is_primary: img.isPrimary,
@@ -168,6 +146,7 @@ export class WordController {
       searchIn: query.search_in,
       translationLanguageId: query.translation_language_id,
       wordType: query.word_type,
+      isVerified: query.is_verified,
     });
     return c.json({
       success: true as const,
@@ -177,6 +156,7 @@ export class WordController {
         language_id: w.languageId,
         language_code: w.languageCode,
         word_type: w.wordType,
+        is_verified: w.isVerified,
         status: w.status,
         ...(w.matchedTranslation !== undefined
           ? { matched_translation: w.matchedTranslation }
@@ -184,6 +164,135 @@ export class WordController {
       })),
       meta,
     });
+  }
+
+  async verify(c: Context, id: string, verified: boolean) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+
+    await this.deps.verify.execute({
+      wordId: id,
+      verified,
+      actorId: actor.user_id,
+      requestId,
+    });
+    return c.json({ success: true as const, data: null });
+  }
+
+  async addPronunciation(c: Context, wordId: string, body: AddPronunciationBody) {
+    const media = await this.withActor(c, (actor) =>
+      this.deps.addPronunciation.execute(
+        wordId,
+        {
+          dialectId: body.dialect_id,
+          notation: body.notation,
+          value: body.value,
+          audioUrl: body.audio_url,
+          speakerName: body.speaker_name,
+          notes: body.notes,
+        },
+        actor,
+      ),
+    );
+    return c.json(
+      {
+        success: true as const,
+        data: {
+          id: media.id,
+          word_id: media.wordId,
+          dialect_id: media.dialectId,
+          notation: media.notation,
+          value: media.value,
+          audio_url: media.audioUrl,
+          speaker_name: media.speakerName,
+          notes: media.notes,
+          status: media.status,
+          is_verified: media.isVerified,
+          is_corrected: media.isCorrected,
+        },
+      },
+      201,
+    );
+  }
+
+  async addWordImage(c: Context, wordId: string, body: AddWordImageBody) {
+    const media = await this.withActor(c, (actor) =>
+      this.deps.addWordImage.execute(
+        wordId,
+        {
+          url: body.url,
+          providerFileId: body.provider_file_id,
+          altText: body.alt_text,
+          isPrimary: body.is_primary,
+        },
+        actor,
+      ),
+    );
+    return c.json(
+      {
+        success: true as const,
+        data: {
+          id: media.id,
+          word_id: media.wordId,
+          url: media.url,
+          provider_file_id: media.providerFileId,
+          alt_text: media.altText,
+          is_primary: media.isPrimary,
+          status: media.status,
+          is_verified: media.isVerified,
+          is_corrected: media.isCorrected,
+        },
+      },
+      201,
+    );
+  }
+
+  async addExample(c: Context, meaningId: string, body: AddExampleBody) {
+    const media = await this.withActor(c, (actor) =>
+      this.deps.addExample.execute(
+        meaningId,
+        {
+          sourceLanguageId: body.source_language_id,
+          sourceSentence: body.source_sentence,
+          targetLanguageId: body.target_language_id,
+          targetSentence: body.target_sentence,
+          sourceType: body.source_type,
+          notes: body.notes,
+        },
+        actor,
+      ),
+    );
+    return c.json(
+      {
+        success: true as const,
+        data: {
+          id: media.id,
+          meaning_id: media.meaningId,
+          source_language_id: media.sourceLanguageId,
+          source_sentence: media.sourceSentence,
+          target_language_id: media.targetLanguageId,
+          target_sentence: media.targetSentence,
+          source_type: media.sourceType,
+          notes: media.notes,
+          status: media.status,
+          is_verified: media.isVerified,
+          is_corrected: media.isCorrected,
+        },
+      },
+      201,
+    );
+  }
+
+  /** Ambil user + requestId dari context, lempar 401 kalau tidak ada token */
+  private async withActor<T>(
+    c: Context,
+    fn: (actor: { userId: string; role: string; requestId?: string | null }) => Promise<T>,
+  ): Promise<T> {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    return fn({ userId: actor.user_id, role: actor.role, requestId });
   }
 
   async wordClasses(c: Context) {

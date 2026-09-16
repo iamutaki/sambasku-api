@@ -2,7 +2,12 @@ import { z } from 'zod';
 
 const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
 
-export const createWordSchema = z.object({
+// Section 22 — approval gate: pending_review/rejected hanya di-set sistem
+export const wordStatusSchema = z.enum(['draft', 'pending_review', 'published', 'rejected']);
+
+// Object schema murni (tanpa refinement) — dipakai juga modul contribution
+// untuk schema correct (`.omit()` tidak bisa dipakai pada schema ber-refine)
+export const createWordBodySchema = z.object({
   language_id: ulid,
   dialect_id: ulid.optional(),
   lemma: z.string().trim().min(1, 'Kata tidak boleh kosong').max(255),
@@ -94,7 +99,9 @@ export const createWordSchema = z.object({
     .max(10, 'Maksimal 10 gambar per kata')
     .optional(),
   status: z.enum(['draft', 'published']).default('draft'),
-})
+});
+
+export const createWordSchema = createWordBodySchema
   .refine(
     (d) => (d.images ?? []).filter((i) => i.is_primary).length <= 1,
     { message: 'Hanya satu gambar yang boleh is_primary', path: ['images'] },
@@ -123,7 +130,8 @@ export const createWordResponseSchema = z.object({
     word_id: z.string(),
     lemma: z.string(),
     word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']),
-    status: z.enum(['draft', 'pending_review', 'published']),
+    status: wordStatusSchema,
+    is_verified: z.boolean(),
     created_at: z.string(),
     warnings: z.array(warningSchema).optional(),
   }),
@@ -137,10 +145,20 @@ export const wordDetailResponseSchema = z.object({
     language_id: z.string(),
     notes: z.string().nullable(),
     word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']),
-    status: z.enum(['draft', 'pending_review', 'published']),
+    status: wordStatusSchema,
+    is_verified: z.boolean(),
+    is_corrected: z.boolean(),
     meanings: z.array(
       z.object({
-        word_class_id: z.string().nullable(),
+        id: z.string(),
+        word_class: z
+          .object({
+            id: z.string(),
+            code: z.string(),
+            name: z.string(),
+            parent_id: z.string().nullable(),
+          })
+          .nullable(),
         definition: z.string(),
         order_index: z.number().int(),
         translations: z.array(
@@ -152,6 +170,7 @@ export const wordDetailResponseSchema = z.object({
         ),
         examples: z.array(
           z.object({
+            id: z.string(),
             source_language_id: z.string(),
             source_sentence: z.string(),
             target_language_id: z.string().nullable(),
@@ -172,6 +191,7 @@ export const wordDetailResponseSchema = z.object({
     ),
     images: z.array(
       z.object({
+        id: z.string(),
         url: z.string(),
         alt_text: z.string().nullable(),
         is_primary: z.boolean(),
@@ -214,7 +234,7 @@ export const wordListResponseSchema = z.object({
       language_id: z.string(),
       language_code: z.string(),
       word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']),
-      status: z.enum(['draft', 'pending_review', 'published']),
+      status: wordStatusSchema,
       matched_translation: z.string().optional(), // hanya search_in=translation
     }),
   ),
@@ -245,6 +265,7 @@ export const searchWordsQuerySchema = z.object({
   search_in: z.enum(['lemma', 'translation']).default('lemma'),
   translation_language_id: z.string().length(26).optional(),
   word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']).optional(),
+  is_verified: z.coerce.boolean().optional(),
 });
 
 export type SearchWordsQueryBody = z.infer<typeof searchWordsQuerySchema>;
