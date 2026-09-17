@@ -40,7 +40,7 @@ import type { CreateWordRelatedDto } from '../application/dto/create-word.dto';
 const FOREIGN_KEY_VIOLATION = '23503';
 const UNIQUE_VIOLATION = '23505';
 
-// Tipe transaction Drizzle (pg) — dipakai helper yang menerima tx
+// Tipe transaction Drizzle (pg) - dipakai helper yang menerima tx
 type Tx = PgTransaction<NodePgQueryResultHKT, typeof schema, ExtractTablesWithRelations<typeof schema>>;
 
 function toWord(row: typeof words.$inferSelect): Word {
@@ -115,19 +115,19 @@ function escapeLike(q: string): string {
   return q.replace(/[\\%_]/g, (m) => `\\${m}`);
 }
 
-// Anak yang ikut submit kata mengikuti gerbang kata-nya (Section 22 —
+// Anak yang ikut submit kata mengikuti gerbang kata-nya (Section 22 -
 // approval gate): kata pending → anak pending; approve/reject kata ikut
 // memutuskan nasib anak-anaknya (lihat ContributionRepositoryImpl.review).
 function childStatusOf(wordStatus: WordStatus): ChildStatus {
   return wordStatus === 'published' ? 'published' : 'pending_review';
 }
 
-// Status baris contributions — turunan dari status entity
+// Status baris contributions - turunan dari status entity
 function contributionStatusOf(entityStatus: string): 'pending' | 'approved' {
   return entityStatus === 'pending_review' ? 'pending' : 'approved';
 }
 
-// Mapping error PostgreSQL untuk insert kontribusi media — jangan bocor 500
+// Mapping error PostgreSQL untuk insert kontribusi media - jangan bocor 500
 function mapMediaViolation(err: unknown, uniqueField: string): void {
   const code = (err as { cause?: { code?: string } }).cause?.code;
   if (code === FOREIGN_KEY_VIOLATION) {
@@ -136,7 +136,7 @@ function mapMediaViolation(err: unknown, uniqueField: string): void {
     ]);
   }
   if (code === UNIQUE_VIOLATION) {
-    throw new ValidationError([{ field: uniqueField, message: 'Data duplikat — sudah ada entri yang sama' }]);
+    throw new ValidationError([{ field: uniqueField, message: 'Data duplikat - sudah ada entri yang sama' }]);
   }
 }
 
@@ -163,7 +163,7 @@ export class WordRepositoryImpl implements WordRepository {
 
         await this.insertChildren(tx, wordId, word, actorId);
 
-        // Catat kontribusi (Section 22 — approval gate): status antrean
+        // Catat kontribusi (Section 22 - approval gate): status antrean
         // turunan dari status entity; baris contribution_reviews dibuat
         // saat verifikator mengambil keputusan (modul contribution)
         await tx.insert(contributions).values({
@@ -178,7 +178,7 @@ export class WordRepositoryImpl implements WordRepository {
       });
     } catch (err) {
       // Race FK: id valid saat pre-check, tapi terhapus sebelum transaksi
-      // jalan — petakan ke VALIDATION_ERROR, jangan bocor jadi 500
+      // jalan - petakan ke VALIDATION_ERROR, jangan bocor jadi 500
       const code = (err as { cause?: { code?: string } }).cause?.code;
       if (code === FOREIGN_KEY_VIOLATION) {
         throw new ValidationError([
@@ -189,7 +189,7 @@ export class WordRepositoryImpl implements WordRepository {
       // sudah dipakai kata lain) → juga 400, bukan 500
       if (code === UNIQUE_VIOLATION) {
         throw new ValidationError([
-          { field: '', message: 'Data duplikat — kategori/terjemahan/gambar yang sama sudah dipakai' },
+          { field: '', message: 'Data duplikat - kategori/terjemahan/gambar yang sama sudah dipakai' },
         ]);
       }
       throw err;
@@ -197,7 +197,7 @@ export class WordRepositoryImpl implements WordRepository {
   }
 
   /**
-   * 04-api-sinonim-inline.md — induk + N kata inline dalam SATU transaksi:
+   * 04-api-sinonim-inline.md - induk + N kata inline dalam SATU transaksi:
    * 1) induk + anak2 + id makna induk utk provenance; 2) tiap kata inline
    * + makna hasil resolusi (kelola inherited_from_meaning_id); 3) relasi
    * lexical (source=induk, target=inline); 4) contributions satu per entitas.
@@ -297,7 +297,7 @@ export class WordRepositoryImpl implements WordRepository {
         return { word: toWord(wordRow), inlineCreatedWords };
       });
     } catch (err) {
-      // Race FK / duplikat unik — petakan ke 400, jangan bocor jadi 500
+      // Race FK / duplikat unik - petakan ke 400, jangan bocor jadi 500
       const code = (err as { cause?: { code?: string } }).cause?.code;
       if (code === FOREIGN_KEY_VIOLATION) {
         throw new ValidationError([
@@ -306,7 +306,7 @@ export class WordRepositoryImpl implements WordRepository {
       }
       if (code === UNIQUE_VIOLATION) {
         throw new ValidationError([
-          { field: '', message: 'Data duplikat — kategori/terjemahan/gambar yang sama sudah dipakai' },
+          { field: '', message: 'Data duplikat - kategori/terjemahan/gambar yang sama sudah dipakai' },
         ]);
       }
       throw err;
@@ -350,7 +350,7 @@ export class WordRepositoryImpl implements WordRepository {
       .where(and(eq(meanings.wordId, id), isNull(meanings.deletedAt)))
       .orderBy(meanings.orderIndex);
 
-    // Kelas kata tersemat per makna (Nomina/Verba/…) — satu query, map by id
+    // Kelas kata tersemat per makna (Nomina/Verba/…) - satu query, map by id
     const wordClassIds = [...new Set(meaningRows.map((m) => m.wordClassId).filter((x): x is string => !!x))];
     const wcRows =
       wordClassIds.length > 0
@@ -431,7 +431,7 @@ export class WordRepositoryImpl implements WordRepository {
         ),
       );
 
-    // Relasi invers (entri lain → entri ini): "muncul dalam" — derived, tak disimpan.
+    // Relasi invers (entri lain → entri ini): "muncul dalam" - derived, tak disimpan.
     // Hanya tampil saat SUMBER relasi published.
     const appearsRows = await this.db
       .select({
@@ -465,7 +465,7 @@ export class WordRepositoryImpl implements WordRepository {
               return { id: wc.id, code: wc.code, name: wc.name, parentId: wc.parentId };
             })()
           : null,
-        // 04: provenance — null = makna mandiri/sudah di-override
+        // 04: provenance - null = makna mandiri/sudah di-override
         inheritedFromMeaningId: m.inheritedFromMeaningId,
         definition: m.definition,
         orderIndex: m.orderIndex,
@@ -526,7 +526,7 @@ export class WordRepositoryImpl implements WordRepository {
   }
 
   // Cursor-based (Section 13): cursor = ULID id item terakhir, id DESC,
-  // fetch limit+1 untuk has_more — tanpa OFFSET, tanpa COUNT(*).
+  // fetch limit+1 untuk has_more - tanpa OFFSET, tanpa COUNT(*).
   // Dua arah: 'lemma' (Sambas→Indonesia, default) atau 'translation'
   // (Indonesia→Sambas: cari meaning_translations.translation_text,
   // hasil = kata Sambas-nya + teks terjemahan yang cocok)
@@ -595,7 +595,7 @@ export class WordRepositoryImpl implements WordRepository {
       params.cursor ? lt(words.id, params.cursor) : undefined,
     );
 
-    // DISTINCT ON (words.id): satu kata bisa punya banyak makna yang cocok —
+    // DISTINCT ON (words.id): satu kata bisa punya banyak makna yang cocok -
     // ambil satu baris per kata (ORDER BY harus diawali words.id).
     // Sort kedua: translation_text ASC → terjemahan TERPENDEK yang cocok
     // (paling mendekati query) dipilih secara deterministik
@@ -644,7 +644,7 @@ export class WordRepositoryImpl implements WordRepository {
     const uniqueIds = (ids: string[]) => [...new Set(ids)];
     const inline = refs.inline;
 
-    // Gabungan id induk + kata inline — SATU query per tabel (04: validasi
+    // Gabungan id induk + kata inline - SATU query per tabel (04: validasi
     // referensi bersama lalu error dipetakan ke field path yang benar)
     const allWordClassIds = uniqueIds([...refs.wordClassIds, ...inline.wordClassIds]);
     const allLanguageIds = uniqueIds([...refs.languageIds, ...inline.languageIds]);
@@ -910,7 +910,7 @@ export class WordRepositoryImpl implements WordRepository {
         // Insert children baru (pola sama dengan saveWithRelations)
         await this.insertChildren(tx, id, word, actorId);
 
-        // Catat kontribusi update — status antrean turunan dari status entity
+        // Catat kontribusi update - status antrean turunan dari status entity
         // (correct oleh verifikator → published → 'approved', tidak mengotori antrean)
         await tx.insert(contributions).values({
           userId: actorId,
@@ -931,7 +931,7 @@ export class WordRepositoryImpl implements WordRepository {
       }
       if (code === UNIQUE_VIOLATION) {
         throw new ValidationError([
-          { field: '', message: 'Data duplikat — kategori/terjemahan/gambar yang sama sudah dipakai' },
+          { field: '', message: 'Data duplikat - kategori/terjemahan/gambar yang sama sudah dipakai' },
         ]);
       }
       throw err;
@@ -949,7 +949,7 @@ export class WordRepositoryImpl implements WordRepository {
 
   // Helper: insert children untuk save & update (dipakai bersama)
   // opts.inheritedFrom = index makna → id makna INDUK (kolom provenance,
-  // 04 — sinonim inline); opts.meaningIdsOut = kumpulan id makna sesuai
+  // 04 - sinonim inline); opts.meaningIdsOut = kumpulan id makna sesuai
   // urutan array (dipakai induk utk memetakan provenance).
   private async insertChildren(
     tx: Tx,

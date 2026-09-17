@@ -3,7 +3,7 @@ import { generateId } from '@/shared/utils/ulid';
 import { words } from './words.schema';
 import { users } from './users.schema';
 
-// Gambar contoh per kata — referensi ke file di provider eksternal
+// Gambar contoh per kata - referensi ke file di provider eksternal
 // (ImageKit via ImageStoragePort). Provider-agnostic: kolom `provider`
 // + `provider_file_id` supaya ganti provider tinggal ganti wrapper.
 export const wordImages = pgTable(
@@ -18,7 +18,7 @@ export const wordImages = pgTable(
     url: varchar('url', { length: 1000 }).notNull(),
     altText: varchar('alt_text', { length: 500 }),
     isPrimary: boolean('is_primary').notNull().default(false),
-    // Approval gate (Section 22) — kontribusi mandiri: pending sampai
+    // Approval gate (Section 22) - kontribusi mandiri: pending sampai
     // disetujui verifikator; identitas reviewer ada di contribution_reviews
     status: varchar('status', { length: 30 }).notNull().default('published'),
     isVerified: boolean('is_verified').notNull().default(false),

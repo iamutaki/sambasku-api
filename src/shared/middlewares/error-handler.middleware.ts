@@ -2,7 +2,7 @@ import type { ErrorHandler } from 'hono';
 import { AppError, ValidationError } from '@/shared/errors/app-error';
 import { logger } from '@/shared/logging/logger';
 
-// Dipasang sekali di main.ts via app.onError(errorHandler) —
+// Dipasang sekali di main.ts via app.onError(errorHandler) -
 // controller tidak perlu try-catch manual.
 export const errorHandler: ErrorHandler = (err, c) => {
   if (err instanceof AppError) {
@@ -17,7 +17,7 @@ export const errorHandler: ErrorHandler = (err, c) => {
     );
   }
 
-  // Error tak terduga — jangan bocorkan detail internal ke client
+  // Error tak terduga - jangan bocorkan detail internal ke client
   logger.error({ err, request_id: c.get('requestId' as never) }, 'Unhandled error');
   return c.json(
     {

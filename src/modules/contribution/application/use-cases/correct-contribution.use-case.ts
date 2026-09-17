@@ -17,7 +17,7 @@ import type {
 } from '../../domain/repositories/contribution.repository';
 
 export interface CorrectContributionInput {
-  /** entity_type 'word' — payload koreksi lengkap (replace semantics) */
+  /** entity_type 'word' - payload koreksi lengkap (replace semantics) */
   word?: CreateWordDto;
   pronunciation?: PronunciationPatch;
   wordImage?: WordImagePatch;
@@ -31,7 +31,7 @@ export interface CorrectContributionCommand {
   comment: string | null;
   /**
    * true (default) = koreksi + publish + verified (kontribusi jadi 'corrected');
-   * false = KOREKSI SAJA — entity ditimpa tapi tetap 'pending_review',
+   * false = KOREKSI SAJA - entity ditimpa tapi tetap 'pending_review',
    * kontribusi tetap 'pending' (bisa di-approve/publish belakangan).
    */
   publish: boolean;
@@ -46,7 +46,7 @@ export interface CorrectContributionCommand {
 //   keputusan review (supaya bisa di-approve/di-correct lagi).
 //
 // Catatan non-atomik (didokumentasikan di docs/api/03): koreksi entity
-// 'word' = DUA tulis — updateWithRelations dulu, baru transaksi review().
+// 'word' = DUA tulis - updateWithRelations dulu, baru transaksi review().
 // Window kecil; koreksi entity anak sepenuhnya atomik di review().
 export class CorrectContributionUseCase {
   constructor(
@@ -61,7 +61,7 @@ export class CorrectContributionUseCase {
       throw new NotFoundError('CONTRIBUTION_NOT_FOUND', 'Kontribusi dengan id tersebut tidak ditemukan');
     }
     if (contrib.status !== 'pending') {
-      throw new ConflictError('CONTRIBUTION_ALREADY_REVIEWED', 'Kontribusi ini sudah diproses — sudah ada keputusan review');
+      throw new ConflictError('CONTRIBUTION_ALREADY_REVIEWED', 'Kontribusi ini sudah diproses - sudah ada keputusan review');
     }
 
     const { input, publish } = cmd;
@@ -73,11 +73,11 @@ export class CorrectContributionUseCase {
     };
     if (!patchPresent[contrib.entityType]) {
       throw new ValidationError([
-        { field: 'entity_type', message: `entity_type tidak cocok — kontribusi ini bertipe ${contrib.entityType}` },
+        { field: 'entity_type', message: `entity_type tidak cocok - kontribusi ini bertipe ${contrib.entityType}` },
       ]);
     }
 
-    // Snapshot pra-koreksi → audit old_data (WAJIB — jejak apa yang diubah)
+    // Snapshot pra-koreksi → audit old_data (WAJIB - jejak apa yang diubah)
     const oldData = await this.snapshot(contrib.entityType, contrib.entityId);
 
     if (contrib.entityType === 'word') {
@@ -160,14 +160,14 @@ export class CorrectContributionUseCase {
       ]);
     }
 
-    // 04: koreksi (replace) TIDAK mendukung kata inline — buat kata inline
+    // 04: koreksi (replace) TIDAK mendukung kata inline - buat kata inline
     // lewat create dulu, lalu tautkan lewat Form A (update endpoint menyusul di 01)
     const inlineIndex = dto.relatedWords.findIndex(isInlineRelation);
     if (inlineIndex >= 0) {
       throw new ValidationError([
         {
           field: `related_words.${inlineIndex}.word`,
-          message: 'Kata baru inline tidak didukung pada koreksi kontribusi — buat kata terpisah lalu tautkan',
+          message: 'Kata baru inline tidak didukung pada koreksi kontribusi - buat kata terpisah lalu tautkan',
         },
       ]);
     }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 
-// Pastikan .env.test (DB test) dipakai SEBELUM app di-import —
+// Pastikan .env.test (DB test) dipakai SEBELUM app di-import -
 // .env dev tidak boleh pernah tersentuh dari test (api-base-stack.md Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
 const hasTestDb = !!parsed?.DATABASE_URL;
@@ -42,7 +42,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
 
   const unique = () => `budi+${Date.now()}${Math.floor(Math.random() * 1000)}@test.com`;
 
-  // Rate-limiter keyed by x-forwarded-for — IP unik per call mengisolasi
+  // Rate-limiter keyed by x-forwarded-for - IP unik per call mengisolasi
   // bucket antar test (register 5/jam, login 5/15menit per IP)
   let ipSeq = 0;
   const xff = () => ({ 'x-forwarded-for': `10.0.0.${++ipSeq}` });

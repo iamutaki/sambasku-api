@@ -1,8 +1,8 @@
-// Entitas domain — murni TypeScript, tidak tahu Drizzle/HTTP
+// Entitas domain - murni TypeScript, tidak tahu Drizzle/HTTP
 // Section 22 (approval gate): pending_review/rejected hanya di-set sistem
 export type WordStatus = 'draft' | 'pending_review' | 'published' | 'rejected';
 export type WordType = 'word' | 'idiom' | 'peribahasa' | 'ungkapan';
-/** Status publikasi konten anak (pronunciations/images/examples) — tanpa draft */
+/** Status publikasi konten anak (pronunciations/images/examples) - tanpa draft */
 export type ChildStatus = 'pending_review' | 'published' | 'rejected';
 
 export interface Word {
@@ -76,7 +76,7 @@ export interface WordDetail extends Word {
   }[];
   /** relasi keluar (mis. peribahasa → komponen; kata → sinonim/antonim) */
   relatedWords: RelatedWordRef[];
-  /** relasi masuk (mis. komponen → "muncul dalam" peribahasa) — derived, tak disimpan */
+  /** relasi masuk (mis. komponen → "muncul dalam" peribahasa) - derived, tak disimpan */
   appearsIn: RelatedWordRef[];
   variants: WordVariantRef[];
 }

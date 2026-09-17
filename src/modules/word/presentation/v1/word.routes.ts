@@ -25,7 +25,7 @@ export interface WordRoutesDeps {
   authenticate: MiddlewareHandler<{ Variables: AppVariables }>;
 }
 
-// POST /api/v1/admin/words — authenticate + authorizeRole + rate limit 30/menit
+// POST /api/v1/admin/words - authenticate + authorizeRole + rate limit 30/menit
 export function createAdminWordRoutes(deps: WordRoutesDeps) {
   const routes = createOpenApiApp();
 
@@ -36,7 +36,7 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
     rateLimit({
       points: 30,
       duration: 60,
-      // per user_id (Section 15) — authenticate sudah jalan lebih dulu
+      // per user_id (Section 15) - authenticate sudah jalan lebih dulu
       keyFn: (c) => {
         const user = (c.get('user') as AuthUser | undefined) ?? null;
         return `word-create:${user?.user_id ?? c.req.header('x-forwarded-for') ?? 'unknown'}`;
@@ -60,7 +60,7 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
 
   routes.openapi(createWordRoute, (c) => deps.controller.create(c, c.req.valid('json')) as never);
 
-  // Verifikasi (Section 22) — HANYA verifikator: admin, root, reviewer.
+  // Verifikasi (Section 22) - HANYA verifikator: admin, root, reviewer.
   // Middleware per-path (beda role dari create yang menerima contributor)
   routes.use('/:id/verify', deps.authenticate, authorizeRole('admin', 'root', 'reviewer'), rateLimit({ points: 500, duration: 60 }));
   routes.use('/:id/unverify', deps.authenticate, authorizeRole('admin', 'root', 'reviewer'), rateLimit({ points: 500, duration: 60 }));
@@ -99,7 +99,7 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
   return routes;
 }
 
-// GET /api/v1/words/:id + /search — publik, rate limit 100/menit per IP
+// GET /api/v1/words/:id + /search - publik, rate limit 100/menit per IP
 export function createPublicWordRoutes(deps: WordRoutesDeps) {
   const routes = createOpenApiApp();
 
@@ -123,7 +123,7 @@ export function createPublicWordRoutes(deps: WordRoutesDeps) {
     method: 'get',
     path: '/search',
     tags: ['Words'],
-    summary: 'Cari kata (dropdown sinonim/antonim form admin) — list + meta pagination',
+    summary: 'Cari kata (dropdown sinonim/antonim form admin) - list + meta pagination',
     request: { query: searchWordsQuerySchema },
     responses: {
       200: { description: 'Hasil pencarian', content: json(wordListResponseSchema) },

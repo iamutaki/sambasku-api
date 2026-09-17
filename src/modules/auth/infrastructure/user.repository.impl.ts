@@ -21,7 +21,7 @@ function toEntity(row: UserRow): User {
   };
 }
 
-// Instance db di-inject lewat constructor — test bisa pakai testDb (Section 10)
+// Instance db di-inject lewat constructor - test bisa pakai testDb (Section 10)
 export class UserRepositoryImpl implements UserRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 

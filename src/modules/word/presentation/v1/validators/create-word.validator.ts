@@ -2,13 +2,13 @@ import { z } from 'zod';
 
 const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
 
-// Section 22 — approval gate: pending_review/rejected hanya di-set sistem
+// Section 22 - approval gate: pending_review/rejected hanya di-set sistem
 export const wordStatusSchema = z.enum(['draft', 'pending_review', 'published', 'rejected']);
 
 const relationTypeSchema = z.enum(['synonym', 'antonym', 'has_component', 'derived_from']);
 const wordTypeSchema = z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']);
 
-// 04-api-sinonim-inline.md — override satu-per-satu atas makna hasil salinan.
+// 04-api-sinonim-inline.md - override satu-per-satu atas makna hasil salinan.
 // indeks 0-based mengacu makna INDUK; field yang tidak disebut tetap asli.
 const meaningOverrideSchema = z.object({
   meaning_index: z.coerce.number().int().min(0, 'meaning_index harus >= 0'),
@@ -38,7 +38,7 @@ const meaningOverrideSchema = z.object({
     .optional(),
 });
 
-// 04-api-sinonim-inline.md — kata baru yang dibuat INLINE (Form B). Per-item
+// 04-api-sinonim-inline.md - kata baru yang dibuat INLINE (Form B). Per-item
 // conflict (inherit vs meanings/overrides) diverifikasi di sini supaya juga
 // berlaku lintas konsumen (create, anonim, correct).
 const inlineWordSchema = z
@@ -52,7 +52,7 @@ const inlineWordSchema = z
       .refine((ids) => new Set(ids).size === ids.length, {
         message: 'category_ids tidak boleh ada duplikat',
       }),
-    // DEFAULT true — ikut definisi/makna induk; meanings dilarang saat ini
+    // DEFAULT true - ikut definisi/makna induk; meanings dilarang saat ini
     inherit_meanings: z.boolean().default(true),
     meaning_overrides: z.array(meaningOverrideSchema).max(20).optional(),
     // wajib DAN hanya saat inherit_meanings=false
@@ -160,7 +160,7 @@ const inlineWordSchema = z
     }
   });
 
-// Object schema murni (tanpa refinement) — dipakai juga modul contribution
+// Object schema murni (tanpa refinement) - dipakai juga modul contribution
 // untuk schema correct (`.omit()` tidak bisa dipakai pada schema ber-refine)
 export const createWordBodySchema = z.object({
   language_id: ulid,
@@ -207,7 +207,7 @@ export const createWordBodySchema = z.object({
     }),
   related_words: z
     .array(
-      // 04-api-sinonim-inline.md — DUA bentuk per item (Form A link | Form B inline).
+      // 04-api-sinonim-inline.md - DUA bentuk per item (Form A link | Form B inline).
       // Kedua field di-optional agar "tepat satu bentuk" bisa diverifikasi secara
       // eksplisit di superRefine (union murni tidak lolos saat keduanya keliru diisi).
       z
@@ -223,7 +223,7 @@ export const createWordBodySchema = z.object({
             ctx.addIssue({
               code: 'custom',
               path: ['word'],
-              message: 'word_id (link) dan word (inline) tidak boleh diisi bersamaan — pilih salah satu',
+              message: 'word_id (link) dan word (inline) tidak boleh diisi bersamaan - pilih salah satu',
             });
           }
           if (!hasLink && !hasInline) {
@@ -358,7 +358,7 @@ export const createWordSchema = createWordBodySchema
             ctx.addIssue({
               code: 'custom',
               path: ['related_words', n, 'word', 'meaning_overrides', m, 'meaning_index'],
-              message: 'meaning_index duplikat dalam satu kata inline — tentukan satu override per makna',
+              message: 'meaning_index duplikat dalam satu kata inline - tentukan satu override per makna',
             });
           }
           seen.add(ov.meaning_index);
@@ -381,7 +381,7 @@ export const createWordResponseSchema = z.object({
     is_verified: z.boolean(),
     created_at: z.string(),
     warnings: z.array(warningSchema).optional(),
-    // 04-api-sinonim-inline.md — hasil tiap kata inline (Form B) yang dibuat,
+    // 04-api-sinonim-inline.md - hasil tiap kata inline (Form B) yang dibuat,
     // urut sesuai request; hanya muncul saat ada Form B
     inline_created_words: z
       .array(
@@ -424,7 +424,7 @@ export const wordDetailResponseSchema = z.object({
             parent_id: z.string().nullable(),
           })
           .nullable(),
-        // 04: provenance — terisi = masih "mengikuti" induk, null = mandiri/di-override
+        // 04: provenance - terisi = masih "mengikuti" induk, null = mandiri/di-override
         inherited_from_meaning_id: z.string().nullable(),
         definition: z.string(),
         order_index: z.number().int(),

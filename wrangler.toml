@@ -1,4 +1,4 @@
-# Cloudflare Workers — konfigurasi deploy (pasangan main.ts untuk Node)
+# Cloudflare Workers - konfigurasi deploy (pasangan main.ts untuk Node)
 #
 # Setup awal (sekali):
 #   1. npx wrangler login
@@ -11,7 +11,7 @@
 #        npx wrangler secret put IMAGEKIT_PRIVATE_KEY # opsional
 #   4. npx wrangler deploy
 #
-# Migration TIDAK lewat Workers — tetap `pnpm drizzle-kit migrate` dari CI
+# Migration TIDAK lewat Workers - tetap `pnpm drizzle-kit migrate` dari CI
 # Node dengan Neon direct URL (Hyperdrive hanya untuk runtime app).
 #
 # Dev lokal tetap pakai `pnpm dev` (Node + Docker Postgres). `npx wrangler dev`
@@ -34,7 +34,7 @@ CORS_ALLOWED_ORIGINS = "https://kamus-sambas.app"
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
 MAIL_FROM = "Kamus Sambas <no-reply@kamus-sambas.app>"
-# Provider gambar: default "imagekit" (tanpa var ini) — kredensial via
+# Provider gambar: default "imagekit" (tanpa var ini) - kredensial via
 # secret: IMAGEKIT_PRIVATE_KEY / IMAGEKIT_PUBLIC_KEY / IMAGEKIT_URL_ENDPOINT.
 # Provider lain kelak: IMAGE_PROVIDER="..." + impl baru (image-storage.factory)
 
@@ -43,8 +43,8 @@ MAIL_FROM = "Kamus Sambas <no-reply@kamus-sambas.app>"
 enabled = true
 
 # ============================================================
-# STAGING — deploy: pnpm deploy:staging (simulasi production)
-# vars/bindings TIDAK diwariskan dari blok atas — harus lengkap sendiri
+# STAGING - deploy: pnpm deploy:staging (simulasi production)
+# vars/bindings TIDAK diwariskan dari blok atas - harus lengkap sendiri
 # ============================================================
 [env.staging]
 name = "sambasku-api-staging"
@@ -67,17 +67,17 @@ CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://cons
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
 MAIL_FROM = "Kamus Sambas Staging <no-reply@iamutaki.com>"
-# Provider gambar: default "imagekit" — kredensial via
+# Provider gambar: default "imagekit" - kredensial via
 # `wrangler secret put --env staging IMAGEKIT_PRIVATE_KEY` dst.
 
-# DB: driver Neon serverless (WebSocket) dari secret DATABASE_URL —
+# DB: driver Neon serverless (WebSocket) dari secret DATABASE_URL -
 # Hyperdrive TIDAK dipakai (lihat catatan Section 8 docs: pg/node:net
 # flaky di Workers; WS tidak lewat Hyperdrive).
 
 [env.staging.observability]
 enabled = true
 
-# Secrets staging (KEY PAIR BERBEDA dari production — §17: token staging
+# Secrets staging (KEY PAIR BERBEDA dari production - §17: token staging
 # tidak boleh valid di production):
 #   npx wrangler secret put JWT_PRIVATE_KEY --env staging
 #   npx wrangler secret put JWT_PUBLIC_KEY --env staging

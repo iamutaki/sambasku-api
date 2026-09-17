@@ -2,7 +2,7 @@ import type { CursorPage } from '@/modules/word/domain/repositories/word.reposit
 import type { Contribution } from '../../domain/entities/contribution.entity';
 import type { ContributionListFilter, ContributionRepository } from '../../domain/repositories/contribution.repository';
 
-// Antrean review — filter + cursor pagination dipakai apa adanya dari
+// Antrean review - filter + cursor pagination dipakai apa adanya dari
 // repository (meta {limit, next_cursor, has_more} dibentuk controller).
 export class ListContributionsUseCase {
   constructor(private readonly contributionRepo: ContributionRepository) {}

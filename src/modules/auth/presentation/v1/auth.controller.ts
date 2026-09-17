@@ -115,7 +115,7 @@ export class AuthController {
 
   async forgot(c: Context, body: ForgotPasswordBody) {
     await this.deps.forgot.execute(body);
-    // Response SAMA persis baik email terdaftar atau tidak — cegah enumeration
+    // Response SAMA persis baik email terdaftar atau tidak - cegah enumeration
     return c.json({
       success: true as const,
       data: { message: 'Jika email terdaftar, link reset telah dikirim' },

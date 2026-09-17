@@ -15,7 +15,7 @@ export class RegisterUserUseCase {
   ) {}
 
   async execute(dto: RegisterDto, requestId?: string | null): Promise<User> {
-    // VO jadi lapis kedua setelah Zod di presentation — domain tetap menjaga invariant-nya sendiri
+    // VO jadi lapis kedua setelah Zod di presentation - domain tetap menjaga invariant-nya sendiri
     const email = Email.create(dto.email);
     Password.create(dto.password);
 
@@ -30,7 +30,7 @@ export class RegisterUserUseCase {
     // role default 'contributor' di-set skema DB
     const user = await this.userRepo.save({ username: dto.username, email: email.value, passwordHash });
 
-    // Audit trail (Section 21) — tanpa password/hash di new_data
+    // Audit trail (Section 21) - tanpa password/hash di new_data
     await this.auditRepo.record({
       userId: user.id,
       action: 'create',

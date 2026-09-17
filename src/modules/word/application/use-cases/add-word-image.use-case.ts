@@ -12,7 +12,7 @@ export interface AddWordImageDto {
 }
 
 // Kontribusi gambar contoh pada kata existing (03-api-kontribusi-verifikasi.md).
-// Gambar hasil direct-upload client (upload-token) — backend hanya simpan referensi.
+// Gambar hasil direct-upload client (upload-token) - backend hanya simpan referensi.
 export class AddWordImageUseCase {
   constructor(
     private readonly wordRepo: WordRepository,

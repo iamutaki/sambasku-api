@@ -10,7 +10,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  # ponytail: DB test terpisah (Section 10) — nyalakan saat mau jalan
+  # ponytail: DB test terpisah (Section 10) - nyalakan saat mau jalan
   # integration/e2e test: `docker compose up -d postgres-test`
   postgres-test:
     image: postgres:16

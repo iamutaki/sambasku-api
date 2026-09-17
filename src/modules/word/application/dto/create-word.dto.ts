@@ -33,7 +33,7 @@ export type WordType = 'word' | 'idiom' | 'peribahasa' | 'ungkapan';
 export type RelationType = 'synonym' | 'antonym' | 'has_component' | 'derived_from';
 export type PublicationRequested = 'draft' | 'published';
 
-// 04-api-sinonim-inline.md — override SATU PER SATU atas hasil salinan
+// 04-api-sinonim-inline.md - override SATU PER SATU atas hasil salinan
 // (inherit makna induk). translate-and-replace: field yang TIDAK disebut
 // tetap memakai hasil salinan; translations/examples = replace total.
 export interface MeaningOverrideDto {
@@ -45,7 +45,7 @@ export interface MeaningOverrideDto {
   examples?: CreateWordExampleDto[];
 }
 
-// 04-api-sinonim-inline.md — kata baru yang dibuat INLINE dalam satu request
+// 04-api-sinonim-inline.md - kata baru yang dibuat INLINE dalam satu request
 // (Form B related_words). Mengikuti kaidah CreateWordDto (subset).
 export interface InlineWordDto {
   lemma: string;
@@ -53,7 +53,7 @@ export interface InlineWordDto {
   wordType?: WordType;
   categoryIds?: string[];
   /**
-   * DEFAULT true — ikut definisi/makna induk (disalin materialized).
+   * DEFAULT true - ikut definisi/makna induk (disalin materialized).
    * false → field `meanings` WAJIB diisi penuh.
    */
   inheritMeanings?: boolean;
@@ -68,8 +68,8 @@ export interface InlineWordDto {
   status?: PublicationRequested;
 }
 
-// Form A — tautkan ke kata yang SUDAH ada (01).
-// Form B — buat kata baru INLINE (04). Tepat satu bentuk per item.
+// Form A - tautkan ke kata yang SUDAH ada (01).
+// Form B - buat kata baru INLINE (04). Tepat satu bentuk per item.
 export type CreateWordRelatedDto =
   | { wordId: string; relationType: RelationType }
   | { relationType: RelationType; word: InlineWordDto };

@@ -6,7 +6,7 @@ import type { ContributionRepository } from '../../domain/repositories/contribut
 export interface ReviewContributionCommand {
   contributionId: string;
   decision: 'approve' | 'reject';
-  /** WAJIB untuk reject (alasan penolakan) — domain rule, bukan cuma validator */
+  /** WAJIB untuk reject (alasan penolakan) - domain rule, bukan cuma validator */
   comment: string | null;
   actorId: string;
   requestId?: string | null;

@@ -30,7 +30,7 @@ export class RefreshTokenUseCase {
       throw new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak valid');
     }
 
-    // Rotasi: revoke yang lama, buat yang baru — cegah replay attack
+    // Rotasi: revoke yang lama, buat yang baru - cegah replay attack
     await this.refreshTokenRepo.revokeByHash(record.tokenHash);
     const { token, tokenHash } = generateToken();
     await this.refreshTokenRepo.create({

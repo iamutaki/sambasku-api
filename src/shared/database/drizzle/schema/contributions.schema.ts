@@ -14,8 +14,8 @@ export const contributions = pgTable(
     entityId: varchar('entity_id', { length: 26 }).notNull(),
     // 'create' | 'update' | 'delete' | 'publish' | dst
     action: varchar('action', { length: 50 }).notNull(),
-    // Status antrean review (Section 22 — approval gate):
-    // pending | approved | rejected | corrected — turunan dari status
+    // Status antrean review (Section 22 - approval gate):
+    // pending | approved | rejected | corrected - turunan dari status
     // entity saat insert ('pending_review' → 'pending', selain itu
     // 'approved'); baris lama di-backfill 'approved' lewat migration
     status: varchar('status', { length: 30 }).notNull().default('pending'),

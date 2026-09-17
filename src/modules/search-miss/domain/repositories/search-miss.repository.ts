@@ -5,7 +5,7 @@ export interface SearchMissListFilter {
   /** public = hanya yang belum terjawab, urut paling dicari; admin = semua + cursor */
   scope: 'public' | 'admin';
   direction?: SearchMissDirection;
-  /** admin only — filter status terjawab (derived) */
+  /** admin only - filter status terjawab (derived) */
   fulfilled?: boolean;
   limit: number;
   cursor?: string;

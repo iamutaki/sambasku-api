@@ -1,4 +1,4 @@
-import 'dotenv/config'; // script CLI jalan di Node — env.ts tidak lagi memuat dotenv
+import 'dotenv/config'; // script CLI jalan di Node - env.ts tidak lagi memuat dotenv
 import { isNull } from 'drizzle-orm';
 import { db, pool } from '@/shared/database/drizzle/client';
 import {
@@ -12,7 +12,7 @@ import { Pbkdf2PasswordService } from '@/modules/auth/infrastructure/pbkdf2-pass
 import { logger } from '@/shared/logging/logger';
 import { ANONIM_EMAIL, ANONIM_USER_ID, ANONIM_USERNAME } from '@/shared/constants/anonim';
 
-// Seeder: user admin & root + data referensi form admin — jalankan: pnpm seed
+// Seeder: user admin & root + data referensi form admin - jalankan: pnpm seed
 // (butuh database sudah up + sudah dimigrate; idempoten, aman dijalankan berulang)
 const SEED_USERS = [
   { username: 'admin', email: 'admin@email.com', role: 'admin' },
@@ -44,7 +44,7 @@ const SEED_WORD_CLASSES = [
 ] as const;
 
 const SEED_CATEGORIES = [
-  // Kelompok dasar — sesuai admin "Kategori / Glosarium" (opsional per kata)
+  // Kelompok dasar - sesuai admin "Kategori / Glosarium" (opsional per kata)
   { name: 'Kekerabatan' },
   { name: 'Alam' },
   { name: 'Makanan' },
@@ -73,12 +73,12 @@ const SEED_CATEGORIES = [
 ] as const;
 
 async function main() {
-  // Hash pakai service yang sama dengan register — tidak pernah simpan plain password
+  // Hash pakai service yang sama dengan register - tidak pernah simpan plain password
   const hasher = new Pbkdf2PasswordService();
   const passwordHash = await hasher.hash(SEED_PASSWORD);
 
   for (const user of SEED_USERS) {
-    // Idempoten: kalau email sudah ada, update password/role — seeder aman dijalankan berulang
+    // Idempoten: kalau email sudah ada, update password/role - seeder aman dijalankan berulang
     await db
       .insert(users)
       .values({ ...user, passwordHash })
@@ -107,7 +107,7 @@ async function main() {
     });
   logger.info(`Seeded user sistem ${ANONIM_EMAIL} (penampung kontribusi anonim)`);
 
-  // Data referensi — upsert by key unik
+  // Data referensi - upsert by key unik
   for (const lang of SEED_LANGUAGES) {
     await db
       .insert(languages)
@@ -127,7 +127,7 @@ async function main() {
       .values({ ...wc })
       .onConflictDoUpdate({ target: wordClasses.code, set: { name: wc.name } });
   }
-  // Kategori TIDAK punya key unik selain PK — onConflictDoNothing() di sini
+  // Kategori TIDAK punya key unik selain PK - onConflictDoNothing() di sini
   // adalah no-op (tidak pernah konflik di PK karena ULID baru tiap insert),
   // itu sebabnya seed lama menumpuk duplikat. Solusi: cek-dulu lalu insert
   // yang belum ada; DB juga dijaga partial unique index pada name aktif
@@ -146,7 +146,7 @@ main()
   .then(() => pool.end())
   .then(() => process.exit(0))
   .catch(async (err) => {
-    logger.error(err, 'Seed gagal — pastikan database up dan sudah dimigrate (pnpm drizzle-kit migrate)');
+    logger.error(err, 'Seed gagal - pastikan database up dan sudah dimigrate (pnpm drizzle-kit migrate)');
     await pool.end().catch(() => {});
     process.exit(1);
   });

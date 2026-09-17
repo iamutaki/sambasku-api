@@ -25,8 +25,8 @@ export const rejectContributionSchema = z.object({
   comment: z.string().trim().min(1, 'Alasan penolakan wajib diisi').max(2000),
 });
 
-// Koreksi — discriminated union pada entity_type. Varian 'word' memakai
-// schema create-word minus status (replace semantics; pakai base object —
+// Koreksi - discriminated union pada entity_type. Varian 'word' memakai
+// schema create-word minus status (replace semantics; pakai base object -
 // `.omit()` tidak bisa pada schema ber-refine); varian anak subset field
 // yang boleh dikoreksi verifikator.
 const correctWordSchema = createWordBodySchema
@@ -99,7 +99,7 @@ export const contributionDetailResponseSchema = z.object({
         created_at: z.string(),
       })
       .nullable(),
-    // payload polymorphic per entity_type — bentuknya didokumentasikan di
+    // payload polymorphic per entity_type - bentuknya didokumentasikan di
     // docs/api/03-api-kontribusi-verifikasi.md (word detail / child + parent)
     entity: z.any(),
   }),

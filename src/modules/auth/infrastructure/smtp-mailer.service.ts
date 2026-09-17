@@ -3,7 +3,7 @@ import { env } from '@/shared/config/env';
 import { logger } from '@/shared/logging/logger';
 import type { MailerPort } from '../application/ports/mailer.port';
 
-// Kalau SMTP belum dikonfigurasi (dev lokal), link reset hanya di-log —
+// Kalau SMTP belum dikonfigurasi (dev lokal), link reset hanya di-log -
 // email asli tidak pernah dikirim diam-diam dari environment sandbox.
 export class SmtpMailerService implements MailerPort {
   private transporter = env.SMTP_HOST
@@ -23,7 +23,7 @@ export class SmtpMailerService implements MailerPort {
     await this.transporter.sendMail({
       from: env.SMTP_USER,
       to,
-      subject: 'Reset Password — Kamus Digital Sambas-Indonesia',
+      subject: 'Reset Password - Kamus Digital Sambas-Indonesia',
       text: `Link reset password Anda (berlaku 1 jam):\n${resetUrl}\n\nAbaikan email ini jika Anda tidak meminta reset password.`,
     });
   }

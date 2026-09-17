@@ -16,7 +16,7 @@ const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
 });
 
-// GET /api/v1/admin/images/upload-token — tanda tangan untuk direct upload
+// GET /api/v1/admin/images/upload-token - tanda tangan untuk direct upload
 // dari client ke ImageKit (backend tidak pernah melewati byte gambar)
 export function createImageRoutes(deps: {
   controller: ImageController;

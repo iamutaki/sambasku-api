@@ -17,7 +17,7 @@ export interface ContributionListFilter {
   cursor?: string;
 }
 
-// Patch koreksi untuk entity anak — replace semantics (field tak dikirim → null)
+// Patch koreksi untuk entity anak - replace semantics (field tak dikirim → null)
 export interface PronunciationPatch {
   notation: string;
   value: string;
@@ -66,7 +66,7 @@ export interface ApplyChildCorrectionCommand {
   example?: ExamplePatch;
 }
 
-/** Baris entity anak + referensi parent — untuk layar review & snapshot koreksi */
+/** Baris entity anak + referensi parent - untuk layar review & snapshot koreksi */
 export interface ChildEntityWithParent {
   id: string;
   wordId: string;
@@ -85,7 +85,7 @@ export type { ContributionEntityType };
 // Kontrak repository modul contribution. review() DIJAMIN satu transaksi:
 // update entity + contributions.status + INSERT contribution_reviews, dengan
 // cek pending DI DALAM transaksi (race double-review → 409, bukan 500).
-// Entity 'word' saat 'correct' TIDAK diubah di sini — use case memakai
+// Entity 'word' saat 'correct' TIDAK diubah di sini - use case memakai
 // WordRepository.updateWithRelations lebih dulu (dua tulis, window kecil,
 // didokumentasikan di docs/api/03-api-kontribusi-verifikasi.md).
 export interface ContributionRepository {

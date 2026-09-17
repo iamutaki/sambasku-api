@@ -90,11 +90,11 @@ const tokenService = new JwtTokenService({
   accessTokenTtlSeconds: env.JWT_ACCESS_TOKEN_TTL,
 });
 const hasher = new Pbkdf2PasswordService();
-// Email: Resend (HTTP) kalau RESEND_API_KEY ter-set — jalur Cloudflare
+// Email: Resend (HTTP) kalau RESEND_API_KEY ter-set - jalur Cloudflare
 // Workers; selain itu SMTP (Node). Keduanya implements MailerPort.
 const mailer = createMailer();
 
-// ---- Modul audit (Section 21) — direkspos ke use case modul lain ----
+// ---- Modul audit (Section 21) - direkspos ke use case modul lain ----
 const auditRepo = new AuditLogRepositoryImpl(db);
 
 const controller = new AuthController({
@@ -124,10 +124,10 @@ const authenticate = createAuthenticateMiddleware((token) => tokenService.verify
 
 // ---- Modul word (+ language & category sebagai data referensi form admin) ----
 const wordRepo = new WordRepositoryImpl(db);
-// Provider gambar dipilih via env IMAGE_PROVIDER (default imagekit) —
+// Provider gambar dipilih via env IMAGE_PROVIDER (default imagekit) -
 // pola factory yang sama dengan createMailer (Section 8)
 const imageStorage = createImageStorage();
-// Search miss: pencarian kosong → peluang kontribusi (03 doc) — direcord
+// Search miss: pencarian kosong → peluang kontribusi (03 doc) - direcord
 // dari SearchWordsUseCase lewat interface modul search-miss (Section 4)
 const searchMissRepo = new SearchMissRepositoryImpl(db);
 const wordController = new WordController({
@@ -142,7 +142,7 @@ const wordController = new WordController({
   imageProviderName: imageStorage.providerName,
 });
 
-// ---- Modul contribution — antrean review (Section 22 approval gate,
+// ---- Modul contribution - antrean review (Section 22 approval gate,
 // 03-api-kontribusi-verifikasi.md). Baca entity word lewat interface
 // WordRepository (batas modul Section 4). ----
 const contributionRepo = new ContributionRepositoryImpl(db);
@@ -173,7 +173,7 @@ const categoryController = new CategoryController({
 export const app = createOpenApiApp();
 app.onError(errorHandler);
 
-// Route tidak ditemukan — HARUS envelope juga (api-base-stack.md Section 13).
+// Route tidak ditemukan - HARUS envelope juga (api-base-stack.md Section 13).
 // Tanpa ini Hono balas plain text "404 Not Found".
 app.notFound((c) =>
   c.json(
@@ -192,7 +192,7 @@ app.use('*', requestIdMiddleware);
 app.use('*', requestDb);
 app.use('/api/*', cors({ origin: env.CORS_ALLOWED_ORIGINS, credentials: true }));
 
-// Info singkat di root — meta route (bukan endpoint fitur, jadi tidak ikut OpenAPI spec)
+// Info singkat di root - meta route (bukan endpoint fitur, jadi tidak ikut OpenAPI spec)
 app.get('/', (c) =>
   c.json({
     success: true as const,
@@ -205,7 +205,7 @@ app.get('/', (c) =>
   }),
 );
 
-// Health check — dipakai orchestrator (Docker/K8s/Railway) untuk liveness
+// Health check - dipakai orchestrator (Docker/K8s/Railway) untuk liveness
 app.get('/health', async (c) => {
   try {
     await db.execute(sql`SELECT 1`);
@@ -215,16 +215,16 @@ app.get('/health', async (c) => {
   }
 });
 
-// Canary CI/CD — dipakai memverifikasi deploy baru end-to-end:
+// Canary CI/CD - dipakai memverifikasi deploy baru end-to-end:
 // push → GitHub Actions → GET /api/v1/ping harus menunjukkan perubahan.
 // `runtime` membuktikan entry mana yang melayani (dual-runtime).
 // Terdaftar via createRoute agar muncul di OpenAPI spec + Scalar (Section 9)
-// — beda dari / dan /health yang memang meta route di luar spec.
+// - beda dari / dan /health yang memang meta route di luar spec.
 const pingRoute = createRoute({
   method: 'get',
   path: '/api/v1/ping',
   tags: ['Misc'],
-  summary: 'Canary CI/CD — verifikasi deploy (tanpa auth, tanpa DB)',
+  summary: 'Canary CI/CD - verifikasi deploy (tanpa auth, tanpa DB)',
   responses: {
     200: {
       description: 'Pong + info runtime yang melayani',
@@ -262,9 +262,9 @@ app.openapi(pingRoute, (c) =>
 
 app.route('/api/v1/auth', createAuthRoutes({ controller, authenticate }));
 
-// Modul word — admin (write) + publik (read)
+// Modul word - admin (write) + publik (read)
 app.route('/api/v1/admin/words', createAdminWordRoutes({ controller: wordController, authenticate }));
-// Kontribusi media (pronounce/gambar/contoh) DI-MOUNT SEBELUM public routes —
+// Kontribusi media (pronounce/gambar/contoh) DI-MOUNT SEBELUM public routes -
 // public punya rate limit IP 100/menit global (use '*'), limit per-user 30/menit
 // tetap jadi batas efektif; urutan mount menentukan middleware yang berlaku
 app.route('/api/v1/words', createWordMediaRoutes({ controller: wordController, authenticate }));
@@ -272,14 +272,14 @@ app.route('/api/v1/words', createPublicWordRoutes({ controller: wordController, 
 app.route('/api/v1/meanings', createMeaningExampleRoutes({ controller: wordController, authenticate }));
 app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordController }));
 
-// Antrean review kontribusi — hanya verifikator (Section 22)
+// Antrean review kontribusi - hanya verifikator (Section 22)
 app.route('/api/v1/admin/contributions', createContributionRoutes({ controller: contributionController, authenticate }));
 
-// Submit kata TANPA login (publik, 5/jam per IP) — atribusi ke user sistem
+// Submit kata TANPA login (publik, 5/jam per IP) - atribusi ke user sistem
 // Anonim, otomatis pending_review (03-api-kontribusi-verifikasi.md)
 app.route('/api/v1/contributions', createAnonContributionRoutes({ controller: wordController }));
 
-// Search miss — beranda publik (peluang kontribusi) + panel admin
+// Search miss - beranda publik (peluang kontribusi) + panel admin
 app.route('/api/v1/search-misses', createSearchMissRoutes({ controller: searchMissController, authenticate }));
 app.route('/api/v1/admin/search-misses', createAdminSearchMissRoutes({ controller: searchMissController, authenticate }));
 
@@ -288,11 +288,11 @@ app.route('/api/v1/languages', createLanguageRoutes({ controller: languageContro
 app.route('/api/v1/dialects', createDialectRoutes({ controller: languageController }));
 app.route('/api/v1/categories', createCategoryRoutes({ controller: categoryController }));
 
-// Audit log — hanya admin & root (Section 21)
+// Audit log - hanya admin & root (Section 21)
 const auditController = new AuditController({ listAuditLogs: new ListAuditLogsUseCase(auditRepo) });
 app.route('/api/v1/admin/audit-logs', createAuditRoutes({ controller: auditController, authenticate }));
 
-// Image provider — wrapper ImageKit via ImageStoragePort (Section 8);
+// Image provider - wrapper ImageKit via ImageStoragePort (Section 8);
 // imageStorage sudah di-instantiate di atas (dipakai wordController juga)
 const imageController = new ImageController({
   createUploadCredentials: new CreateUploadCredentialsUseCase({

@@ -14,5 +14,5 @@ export const users = pgTable('users', {
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at'),
-  deletedAt: timestamp('deleted_at'), // soft delete — tidak boleh bisa login lagi
+  deletedAt: timestamp('deleted_at'), // soft delete - tidak boleh bisa login lagi
 });

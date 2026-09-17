@@ -7,17 +7,17 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from '@/shared/config/env';
 import * as schema from './schema';
 
-// Satu-satunya file koneksi DB — ganti provider/adapter cukup ubah ini
+// Satu-satunya file koneksi DB - ganti provider/adapter cukup ubah ini
 // (pola port, api-base-stack.md Section 8).
 //
 // ADAPTER GANDA PER RUNTIME:
-// - Node (dev/test/script CI): driver `pg` TCP — Docker lokal & drizzle-kit.
+// - Node (dev/test/script CI): driver `pg` TCP - Docker lokal & drizzle-kit.
 // - Cloudflare Workers: driver Neon serverless (WebSocket). WebSocket adalah
 //   objek I/O MILIK request yang membuatnya ("Cannot perform I/O on behalf
-//   of a different request") — jadi di Workers db adalah FACADE per-request
+//   of a different request") - jadi di Workers db adalah FACADE per-request
 //   via AsyncLocalStorage: middleware membuatkan pool per request, semua
 //   import `db` lama tetap bekerja tanpa perubahan di modul lain.
-//   (Driver pg/node:net di Workers terbukti flaky ±25% — staging 2026-09-17.)
+//   (Driver pg/node:net di Workers terbukti flaky ±25% - staging 2026-09-17.)
 const isCloudflareWorkers =
   typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
 
@@ -28,13 +28,13 @@ type RequestDb = { db: NodePgDatabase<typeof schema>; pool: NeonPool };
 const requestDbStorage = new AsyncLocalStorage<RequestDb>();
 
 if (isCloudflareWorkers) {
-  // FACADE — setiap akses properti diteruskan ke instance request aktif.
+  // FACADE - setiap akses properti diteruskan ke instance request aktif.
   // Cast tunggal terkontrol: kedua driver identik di query builder/tx runtime.
   db = new Proxy({} as NodePgDatabase<typeof schema>, {
     get(_target, prop) {
       const store = requestDbStorage.getStore();
       if (!store) {
-        throw new Error('db diakses di luar scope request — middleware requestDb wajib terpasang');
+        throw new Error('db diakses di luar scope request - middleware requestDb wajib terpasang');
       }
       return Reflect.get(store.db, prop, store.db);
     },
@@ -43,7 +43,7 @@ if (isCloudflareWorkers) {
 } else {
   const pgPool = new PgPool({
     connectionString: env.DATABASE_URL,
-    // Hardening runtime Node — koneksi setengah-terbuka gagal cepat
+    // Hardening runtime Node - koneksi setengah-terbuka gagal cepat
     query_timeout: 15_000,
     statement_timeout: 10_000,
     idle_in_transaction_session_timeout: 30_000,

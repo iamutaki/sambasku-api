@@ -48,7 +48,7 @@ describe('RegisterUserUseCase', () => {
     });
     expect(user.role).toBe('contributor');
     // JANGAN pernah kembalikan password_hash di response
-    expect(user.passwordHash).toBe('argon2id$hash'); // internal saja — presentation hanya mapping field aman
+    expect(user.passwordHash).toBe('argon2id$hash'); // internal saja - presentation hanya mapping field aman
   });
 
   it('menolak email yang sudah terdaftar (EMAIL_ALREADY_EXISTS)', async () => {
@@ -75,7 +75,7 @@ describe('RegisterUserUseCase', () => {
     ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
   });
 
-  it('mencatat audit trail user.create — TANPA password/hash di new_data', async () => {
+  it('mencatat audit trail user.create - TANPA password/hash di new_data', async () => {
     const { useCase, auditRepo } = makeDeps();
 
     await useCase.execute(

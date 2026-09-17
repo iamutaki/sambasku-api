@@ -1,14 +1,14 @@
 import type { PasswordHasherPort } from '../application/ports/password-hasher.port';
 
-// PBKDF2-HMAC-SHA256 via Web Crypto — NATIF di Node 18+ dan Cloudflare
+// PBKDF2-HMAC-SHA256 via Web Crypto - NATIF di Node 18+ dan Cloudflare
 // Workers, tanpa WASM. (hash-wasm/argon2 tidak bisa dipakai: Workers
-// melarang kompilasi WASM dinamis — hanya .wasm statis hasil build.)
+// melarang kompilasi WASM dinamis - hanya .wasm statis hasil build.)
 //
 // ponytail: 100.000 iterasi = PLAFON Cloudflare Workers ("iteration counts
-// above 100000 are not supported") — di bawah rekomendasi OWASP 600k.
+// above 100000 are not supported") - di bawah rekomendasi OWASP 600k.
 // Kompensasi: rate limit login ketat (5/15 menit, Section 15). Naikkan ke
 // @noble/hashes scrypt (pure-JS, memory-hard, tanpa plafon) kalau threat
-// model-nya menuntut — format hash self-describing membuat migrasi mulus.
+// model-nya menuntut - format hash self-describing membuat migrasi mulus.
 //
 // Format hash menyimpan parameternya sendiri (self-describing) sehingga
 // verifikasi tetap benar walau parameter naik di masa depan:
@@ -48,7 +48,7 @@ async function derive(
   return new Uint8Array(bits);
 }
 
-// Perbandingan konstan-waktu — jangan bocorkan posisi byte yang beda
+// Perbandingan konstan-waktu - jangan bocorkan posisi byte yang beda
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -72,7 +72,7 @@ export class Pbkdf2PasswordService implements PasswordHasherPort {
       const [prefix, iterationsText, saltB64, hashB64] = passwordHash.split('$');
       if (prefix !== PREFIX) {
         // Hash format lama (mis. argon2 dari era pra-Workers) tidak bisa
-        // diverifikasi di runtime tanpa WASM — gagal login, user lewat
+        // diverifikasi di runtime tanpa WASM - gagal login, user lewat
         // jalur forgot-password. (Staging/dev: jalankan ulang `pnpm seed`
         // untuk meng-hash ulang semua user.)
         return false;

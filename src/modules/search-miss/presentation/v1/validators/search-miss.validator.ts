@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const publicSearchMissQuerySchema = z.object({
   direction: z.enum(['lemma', 'translation']).optional(),
-  // beranda top-N — halaman tunggal, tak ada cursor (order hit_count)
+  // beranda top-N - halaman tunggal, tak ada cursor (order hit_count)
   limit: z.coerce.number().int().min(1).max(50).default(10),
 });
 

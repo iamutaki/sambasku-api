@@ -24,7 +24,7 @@ import type { WordToSave } from '../../domain/repositories/word.repository';
 const { parsed } = config({ path: '.env.test', quiet: true });
 const hasTestDb = !!parsed?.DATABASE_URL;
 
-// Fixture ULID — selalu 26 karakter (varchar(26))
+// Fixture ULID - selalu 26 karakter (varchar(26))
 const ulid26 = (prefix: string) => prefix.padEnd(26, '0').slice(0, 26);
 const SMB = ulid26('01TESTLANGSMB');
 const IDN = ulid26('01TESTLANGIDN');
@@ -65,7 +65,7 @@ function baseWord(overrides: Partial<WordToSave> = {}): WordToSave {
   };
 }
 
-// 04: satu related inline (Form B) ter-resolusi — bentuk yang sama dengan
+// 04: satu related inline (Form B) ter-resolusi - bentuk yang sama dengan
 // output resolveInlineRelations use case (inherit + override).
 function inlineSynonym(
   lemma: string,
@@ -96,7 +96,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
   const repo = new WordRepositoryImpl(db);
 
   beforeEach(async () => {
-    // urutan hapus: anak dulu (FK) — satu util untuk semua test
+    // urutan hapus: anak dulu (FK) - satu util untuk semua test
     await truncateAll(db);
 
     await db.insert(users).values({ id: ACTOR, username: 'actor', email: 'actor@test.com', passwordHash: 'x' });
@@ -123,7 +123,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(await db.select().from(contributionReviews)).toHaveLength(0);
   });
 
-  it('Section 22 approval gate: baris review HANYA dibuat saat keputusan — status antrean turunan', async () => {
+  it('Section 22 approval gate: baris review HANYA dibuat saat keputusan - status antrean turunan', async () => {
     // input 'published' (setara submit verifikator) → contributions.status approved
     const word = await repo.saveWithRelations(baseWord(), ACTOR);
     const [contribRow] = await db.select().from(contributions).where(eq(contributions.entityId, word.id));
@@ -243,7 +243,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
       repo.saveWithRelations(baseWord({ lemma: 'kedua', images: [gambar] }), ACTOR),
     ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR', statusCode: 400 });
 
-    // kata kedua ter-rollback — hanya kata pertama yang ada
+    // kata kedua ter-rollback - hanya kata pertama yang ada
     expect(await db.select().from(words)).toHaveLength(1);
   });
 
@@ -286,7 +286,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
       affixValue: 'me-',
     });
 
-    // Detail komponen: muncul dalam peribahasa (invers — derived, tak disimpan)
+    // Detail komponen: muncul dalam peribahasa (invers - derived, tak disimpan)
     const detailMiyang = await repo.findDetailById(miyang.id);
     expect(detailMiyang?.appearsIn).toEqual([
       { wordId: pb.id, lemma: 'miyang rabong', relationType: 'has_component' },
@@ -403,7 +403,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(items[0]).toMatchObject({ code: 'n', name: 'Nomina', parentId: null });
   });
 
-  it('04: saveWithInlineRelations — SATU transaksi: induk + kata inline + relasi + contributions', async () => {
+  it('04: saveWithInlineRelations - SATU transaksi: induk + kata inline + relasi + contributions', async () => {
     const result = await repo.saveWithInlineRelations(baseWord(), ACTOR, [
       inlineSynonym('ngamakn'),
       inlineSynonym('badikn'),
@@ -426,7 +426,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     );
     expect(rels.every((r) => r.relationType === 'synonym')).toBe(true);
 
-    // contributions SATU per entitas (induk + 2 inline) — semua 'create'
+    // contributions SATU per entitas (induk + 2 inline) - semua 'create'
     const contribs = await db.select().from(contributions);
     expect(contribs).toHaveLength(3);
     expect(new Set(contribs.map((c) => c.entityId))).toEqual(
@@ -435,7 +435,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(contribs.every((c) => c.action === 'create' && c.entityType === 'word')).toBe(true);
   });
 
-  it('04: provenance — makna inline berisi inherited_from_meaning_id yang mengarah ke makna induk', async () => {
+  it('04: provenance - makna inline berisi inherited_from_meaning_id yang mengarah ke makna induk', async () => {
     // induk 2 makna, inline menyalin 2 makna (inheritedFrom 0→0 dan 1→1)
     const duaMakna = [
       {
@@ -493,7 +493,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(inlineMeanings[0].wordClassId).toBe(NOMINA);
   });
 
-  it('04: rollback — kata inline kedua pakai word_class FK palsu', async () => {
+  it('04: rollback - kata inline kedua pakai word_class FK palsu', async () => {
     await expect(
       repo.saveWithInlineRelations(baseWord({ lemma: 'induk' }), ACTOR, [
         inlineSynonym('ngamakn'),
@@ -517,10 +517,10 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(await db.select().from(contributions)).toHaveLength(0);
   });
 
-  it('04: findDetailById — makna inline memuat provenance; inline pending_review belumlah related_words induk', async () => {
+  it('04: findDetailById - makna inline memuat provenance; inline pending_review belumlah related_words induk', async () => {
     const result = await repo.saveWithInlineRelations(baseWord({ lemma: 'induk4' }), ACTOR, [
       inlineSynonym('inlinepublik', {}, { inheritedFrom: { 0: 0 }, inheritedMeaningsCount: 1, overriddenMeaningsCount: 0 }),
-      // contributor-style: pending_review — TIDAK tayang
+      // contributor-style: pending_review - TIDAK tayang
       inlineSynonym('inlinepending', { status: 'pending_review', isVerified: false }),
     ]);
 

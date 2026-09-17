@@ -24,7 +24,7 @@ function toEntity(row: typeof auditLogs.$inferSelect, userName: string | null): 
 export class AuditLogRepositoryImpl implements AuditLogRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
 
-  // Best-effort — kontrak Section 21: gagal insert tidak boleh
+  // Best-effort - kontrak Section 21: gagal insert tidak boleh
   // meruntuhkan request utama, cukup tercatat di log aplikasi.
   async record(entry: NewAuditLog): Promise<void> {
     try {

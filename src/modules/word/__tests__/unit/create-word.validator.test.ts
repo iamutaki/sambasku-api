@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createWordSchema } from '../../presentation/v1/validators/create-word.validator';
 
-// 04-api-sinonim-inline.md — validasi related_words union (Form A link |
+// 04-api-sinonim-inline.md - validasi related_words union (Form A link |
 // Form B inline), inherit semantics & aturan silang induk↔inline.
-// Semua pengujian TANPA akses DB — murni schema (resolve di use case).
+// Semua pengujian TANPA akses DB - murni schema (resolve di use case).
 
 const ULID = (s: string) => s.padEnd(26, '0');
 
@@ -32,8 +32,8 @@ function build(overrides: Record<string, unknown> = {}) {
 const FORM_A = { relation_type: 'synonym', word_id: ULID('01WORDPADU') };
 const FORM_B = { relation_type: 'synonym', word: { lemma: 'ngamakn' } };
 
-describe('createWordSchema — related_words dua bentuk (04)', () => {
-  it('Form A (link kata existing) tetap valid — regresi 01', () => {
+describe('createWordSchema - related_words dua bentuk (04)', () => {
+  it('Form A (link kata existing) tetap valid - regresi 01', () => {
     const result = createWordSchema.safeParse(build({ related_words: [FORM_A] }));
     expect(result.success).toBe(true);
   });

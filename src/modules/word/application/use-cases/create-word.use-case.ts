@@ -16,7 +16,7 @@ import type {
 import { resolvePublication } from '../utils/resolve-publication';
 
 export interface InlineCreatedResult {
-  /** skema, urut sesuai request — diteruskan ke respons (04) */
+  /** skema, urut sesuai request - diteruskan ke respons (04) */
   inlineCreatedWords: import('../../domain/repositories/word.repository').InlineCreatedWordSummary[];
   /** warnings per kata inline, urut sama → di-pasang controller per-item */
   inlineWarnings: { field: string; message: string }[][];
@@ -30,7 +30,7 @@ export interface CreateWordResult extends InlineCreatedResult {
 export interface Actor {
   userId: string;
   role: string;
-  /** dari requestIdMiddleware — menyambung audit DB ↔ log aplikasi (Section 14 & 21) */
+  /** dari requestIdMiddleware - menyambung audit DB ↔ log aplikasi (Section 14 & 21) */
   requestId?: string | null;
 }
 
@@ -83,7 +83,7 @@ export class CreateWordUseCase {
     const details = mapMissingToDetails(dto, missing);
     if (details.length > 0) throw new ValidationError(details);
 
-    // 2. Cek duplikat — warning, bukan error (induk + tiap lemma inline)
+    // 2. Cek duplikat - warning, bukan error (induk + tiap lemma inline)
     const warnings: { field: string; message: string }[] = [];
     const isDuplicate = await this.wordRepo.findDuplicate(dto.languageId, dto.lemma);
     if (isDuplicate) {
@@ -100,18 +100,18 @@ export class CreateWordUseCase {
       }
     }
 
-    // 3. Model publikasi (Section 22) PER ENTITAS — induk & tiap kata inline
+    // 3. Model publikasi (Section 22) PER ENTITAS - induk & tiap kata inline
     const parentPublication = resolvePublication(dto.status, actor.role);
     const resolvedRelations = resolveInlineRelations(dto, inlineRelations, actor);
 
-    // 4. Simpan atomik — induk + kata inline dlm SATU transaksi (bila ada)
+    // 4. Simpan atomik - induk + kata inline dlm SATU transaksi (bila ada)
     const parentToSave = { ...dto, ...parentPublication };
     const hasInline = resolvedRelations.length > 0;
     const { word, inlineCreatedWords } = hasInline
       ? await this.wordRepo.saveWithInlineRelations(parentToSave, actor.userId, resolvedRelations)
       : { word: await this.wordRepo.saveWithRelations(parentToSave, actor.userId), inlineCreatedWords: [] };
 
-    // 5. Audit trail (Section 21) — SATU entri per entitas yang dibuat
+    // 5. Audit trail (Section 21) - SATU entri per entitas yang dibuat
     await this.auditRepo.record({
       userId: actor.userId,
       action: 'create',
@@ -373,7 +373,7 @@ interface InlineRefPath {
   path: string;
 }
 
-// Semua id referensi eksternal per kata inline + field path-nya — untuk
+// Semua id referensi eksternal per kata inline + field path-nya - untuk
 // memetakan missing id ke path yang benar saat VALIDATION_ERROR.
 function collectInlineRefPaths(dto: CreateWordDto): InlineRefPath[] {
   const refs: InlineRefPath[] = [];

@@ -6,7 +6,7 @@ import type { ImageStoragePort, UploadCredentials } from '../application/ports/i
 const UPLOAD_ENDPOINT = 'https://upload.imagekit.io/api/v1/files/upload';
 const TOKEN_TTL_SECONDS = 30 * 60;
 
-// Web Crypto (crypto.subtle / getRandomValues) — jalan sama di Node 18+
+// Web Crypto (crypto.subtle / getRandomValues) - jalan sama di Node 18+
 // dan Cloudflare Workers, tanpa node:crypto/Buffer. Algoritma tidak berubah:
 // signature = HMAC-SHA1(token + expire) dengan private key.
 async function hmacSha1Hex(key: string, message: string): Promise<string> {
@@ -28,32 +28,32 @@ function randomToken(bytes: number): string {
 }
 
 function basicAuth(user: string): string {
-  // Basic auth = base64("privateKey:") — tanpa Buffer, pakai btoa (standar web)
+  // Basic auth = base64("privateKey:") - tanpa Buffer, pakai btoa (standar web)
   return `Basic ${btoa(`${user}:`)}`;
 }
 
-// Implementasi ImageKit dari ImageStoragePort — SATU-SATUNYA file yang
+// Implementasi ImageKit dari ImageStoragePort - SATU-SATUNYA file yang
 // tahu ImageKit. Ganti provider = file baru (mis. s3-storage.service.ts)
 // + satu baris di composition root.
 export class ImageKitStorageService implements ImageStoragePort {
   readonly providerName = 'imagekit';
 
-  // Cek konfigurasi saat REQUEST, bukan saat wiring — app tetap bisa boot
+  // Cek konfigurasi saat REQUEST, bukan saat wiring - app tetap bisa boot
   // walau provider belum diset (endpoint membalas 503)
   private assertConfigured(): { privateKey: string; publicKey: string } {
     if (!env.IMAGEKIT_PRIVATE_KEY || !env.IMAGEKIT_PUBLIC_KEY) {
       throw new ServiceUnavailableError(
         'IMAGE_UPLOAD_UNAVAILABLE',
-        'Penyimpanan gambar belum dikonfigurasi — isi IMAGEKIT_* di .env',
+        'Penyimpanan gambar belum dikonfigurasi - isi IMAGEKIT_* di .env',
       );
     }
     return { privateKey: env.IMAGEKIT_PRIVATE_KEY, publicKey: env.IMAGEKIT_PUBLIC_KEY };
   }
 
   // ImageKit client-side upload: token bebas, signature = HMAC-SHA1
-  // dari (token + expire) dengan private key — client membawa ketiganya.
+  // dari (token + expire) dengan private key - client membawa ketiganya.
   // folder dikirim CLIENT saat upload (param upload, bukan bagian signature
-  // ImageKit) — param ini tetap ada demi kontrak port (provider lain
+  // ImageKit) - param ini tetap ada demi kontrak port (provider lain
   // mungkin me-scope token per folder)
   async createUploadCredentials(_folder: string): Promise<UploadCredentials> {
     const { privateKey, publicKey } = this.assertConfigured();
@@ -71,7 +71,7 @@ export class ImageKitStorageService implements ImageStoragePort {
   }
 
   async deleteFile(providerFileId: string): Promise<void> {
-    // Best-effort: file yatim di CDN tidak fatal — log saja (pola audit record)
+    // Best-effort: file yatim di CDN tidak fatal - log saja (pola audit record)
     try {
       const { privateKey } = this.assertConfigured();
       const res = await fetch(`https://api.imagekit.io/v1/files/${providerFileId}`, {

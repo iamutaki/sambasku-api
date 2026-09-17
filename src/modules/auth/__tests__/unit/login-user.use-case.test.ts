@@ -75,7 +75,7 @@ describe('LoginUserUseCase', () => {
     ).rejects.toMatchObject(GENERIC_ERROR);
   });
 
-  it('EDGE CASE: menolak user yang dinonaktifkan (is_active=false) — pesan generik sama', async () => {
+  it('EDGE CASE: menolak user yang dinonaktifkan (is_active=false) - pesan generik sama', async () => {
     const { useCase } = makeDeps(makeUser({ isActive: false }));
 
     await expect(

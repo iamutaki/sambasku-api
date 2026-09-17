@@ -19,7 +19,7 @@ export const examples = pgTable('examples', {
   sourceType: varchar('source_type', { length: 50 }),
   sourceReference: text('source_reference'),
   notes: text('notes'),
-  // Approval gate (Section 22) — kontribusi mandiri: pending sampai
+  // Approval gate (Section 22) - kontribusi mandiri: pending sampai
   // disetujui verifikator; identitas reviewer ada di contribution_reviews
   status: varchar('status', { length: 30 }).notNull().default('published'),
   isVerified: boolean('is_verified').notNull().default(false),

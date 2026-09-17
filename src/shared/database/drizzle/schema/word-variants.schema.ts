@@ -4,7 +4,7 @@ import { words } from './words.schema';
 import { dialects } from './dialects.schema';
 import { users } from './users.schema';
 
-// Bentuk surface kata — variasi bentuk TANPA entri kamus sendiri
+// Bentuk surface kata - variasi bentuk TANPA entri kamus sendiri
 // (mis. "memakan" milik entri "makan"). Punya makna sendiri → entri words
 // + lexical_relations, bukan tabel ini (lihat 01-api-tambah-kata.md).
 export const wordVariants = pgTable(
@@ -17,7 +17,7 @@ export const wordVariants = pgTable(
     form: varchar('form', { length: 255 }).notNull(),
     // inflection | derivation | alternative | reduplication
     variantType: varchar('variant_type', { length: 50 }).notNull().default('alternative'),
-    // prefix | suffix | circumfix | reduplication (nullable — bentuk tanpa afiks)
+    // prefix | suffix | circumfix | reduplication (nullable - bentuk tanpa afiks)
     affixType: varchar('affix_type', { length: 30 }),
     affixValue: varchar('affix_value', { length: 50 }),
     dialectId: varchar('dialect_id', { length: 26 }).references(() => dialects.id),

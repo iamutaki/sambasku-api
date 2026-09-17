@@ -16,7 +16,7 @@ export const categories = pgTable(
     deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
   },
   (t) => [
-    // Nama kategori unik di antara baris aktif — cegah duplikat seed/form.
+    // Nama kategori unik di antara baris aktif - cegah duplikat seed/form.
     // Parsial agar nama yang sudah soft-deleted boleh dipakai ulang.
     uniqueIndex('categories_active_name_idx')
       .on(t.name)

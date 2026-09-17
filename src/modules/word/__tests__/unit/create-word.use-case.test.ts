@@ -5,7 +5,7 @@ import type { CreateWordDto } from '../../application/dto/create-word.dto';
 import type { Word } from '../../domain/entities/word.entity';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 
-// "tidak ada referensi yang hilang" — dialectId false karena memang
+// "tidak ada referensi yang hilang" - dialectId false karena memang
 // tidak dikirim (implementasi: tidak ada dialect → tidak dianggap hilang)
 const NO_MISSING: MissingReferences = {
   languageId: false,

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// Bentuk gagal standar (api-base-stack.md Section 13) — dipakai semua modul
+// Bentuk gagal standar (api-base-stack.md Section 13) - dipakai semua modul
 // sebagai schema response error di createRoute()
 export const errorResponseSchema = z.object({
   success: z.literal(false),
@@ -14,7 +14,7 @@ export const errorResponseSchema = z.object({
 
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 
-// Sukses tanpa payload (logout, dst) — data: null
+// Sukses tanpa payload (logout, dst) - data: null
 export const okNullResponseSchema = z.object({
   success: z.literal(true),
   data: z.null(),

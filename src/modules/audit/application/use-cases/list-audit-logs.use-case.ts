@@ -6,7 +6,7 @@ export interface ListAuditLogsResult {
   meta: { limit: number; next_cursor: string | null; has_more: boolean };
 }
 
-// Auditor: role admin & root — dicek di route, bukan di use case.
+// Auditor: role admin & root - dicek di route, bukan di use case.
 // Pagination cursor-based (base-stack.md Section 13).
 export class ListAuditLogsUseCase {
   constructor(private readonly auditRepo: AuditLogRepository) {}

@@ -2,7 +2,7 @@ import { primaryKey, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { words } from './words.schema';
 import { categories } from './categories.schema';
 
-// Junction table — composite PK, tanpa kolom tambahan (Section 19)
+// Junction table - composite PK, tanpa kolom tambahan (Section 19)
 export const wordCategories = pgTable(
   'word_categories',
   {

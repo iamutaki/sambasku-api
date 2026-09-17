@@ -17,7 +17,7 @@ export interface PasswordResetTokenRepository {
   findByHash(tokenHash: string): Promise<PasswordResetTokenRecord | null>;
   /**
    * Tandai token terpakai secara ATOMIK (UPDATE ... WHERE is_used = false).
-   * Return false kalau token sudah pernah dikonsumsi — ini yang menjamin
+   * Return false kalau token sudah pernah dikonsumsi - ini yang menjamin
    * token hanya bisa dipakai sekali, bahkan oleh request konkuren.
    */
   consume(tokenHash: string): Promise<boolean>;

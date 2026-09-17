@@ -3,9 +3,9 @@ import type { WordClassSummary } from './word.entity';
 export interface Meaning {
   id: string;
   wordId: string;
-  /** kelas kata tersemat (Nomina/Verba/…) — null kalau makna tanpa kelas */
+  /** kelas kata tersemat (Nomina/Verba/…) - null kalau makna tanpa kelas */
   wordClass: WordClassSummary | null;
-  /** 04: provenance makna hasil SALINAN sinonim inline — null = mandiri/
+  /** 04: provenance makna hasil SALINAN sinonim inline - null = mandiri/
    *  di-override; terisi = masih "mengikuti" makna induk */
   inheritedFromMeaningId: string | null;
   definition: string;

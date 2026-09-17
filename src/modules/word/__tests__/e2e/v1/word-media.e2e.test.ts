@@ -12,7 +12,7 @@ const SMB = ulid26('01E2ELANGSMB');
 const IDN = ulid26('01E2ELANGIDN');
 const NOMINA = ulid26('01E2EWCNOMINA');
 
-describe.skipIf(!hasTestDb)('Word Media E2E v1 — kontribusi pronounce/gambar/contoh', () => {
+describe.skipIf(!hasTestDb)('Word Media E2E v1 - kontribusi pronounce/gambar/contoh', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let app: any;
   let adminToken: string;
@@ -68,7 +68,7 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 — kontribusi pronounce/gambar/c
     adminToken = await login(`adm${stamp}@test.com`);
     contributorToken = await login(`kon${stamp}@test.com`);
 
-    // Kata published dari admin — induk kontribusi media
+    // Kata published dari admin - induk kontribusi media
     const create = await post(
       '/api/v1/admin/words',
       {

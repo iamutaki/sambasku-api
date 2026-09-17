@@ -6,14 +6,14 @@ import type { CursorPage } from '@/modules/word/domain/repositories/word.reposit
 import type { SearchMiss, SearchMissDirection } from '../domain/entities/search-miss.entity';
 import type { SearchMissListFilter, SearchMissRepository } from '../domain/repositories/search-miss.repository';
 
-// Normalisasi istilah: trim + lowercase + rapikan spasi ganda — kunci unik
+// Normalisasi istilah: trim + lowercase + rapikan spasi ganda - kunci unik
 // upsert, sekaligus bikin "Kalintiak" dan "kalintiak" dihitung sama
 export function normalizeTerm(term: string): string {
   return term.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 255);
 }
 
 // Miss 'lemma' terjawab kalau sudah ada kata published dengan lemma sama
-// (case-insensitive). Dievaluasi saat BACA — tanpa kolom status yang harus
+// (case-insensitive). Dievaluasi saat BACA - tanpa kolom status yang harus
 // disinkronkan tiap ada kata baru di-approve.
 const lemmaFulfilledSql = sql`EXISTS (
   SELECT 1 FROM ${words} w
@@ -58,7 +58,7 @@ export class SearchMissRepositoryImpl implements SearchMissRepository {
           // Beranda: hanya yang BELUM terjawab (masih jadi peluang kontribusi)
           isPublic ? sql`NOT ${lemmaFulfilledSql}` : undefined,
           // Cursor id DESC hanya untuk panel admin (order stabil & unik);
-          // beranda pakai hit_count DESC — top-N single page (lihat routes)
+          // beranda pakai hit_count DESC - top-N single page (lihat routes)
           !isPublic && filter.cursor ? lt(searchMisses.id, filter.cursor) : undefined,
         ),
       )
@@ -89,7 +89,7 @@ export class SearchMissRepositoryImpl implements SearchMissRepository {
     return {
       items,
       // Beranda top-N: halaman tunggal, tak perlu cursor majemuk (hit_count
-      // tidak unik) — ponytail: tambahkan compound-cursor kalau butuh paging
+      // tidak unik) - ponytail: tambahkan compound-cursor kalau butuh paging
       nextCursor: !isPublic && hasMore && items.length > 0 ? items[items.length - 1].id : null,
       hasMore,
     };

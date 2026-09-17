@@ -18,7 +18,7 @@ export class ContributionController {
       getDetail: GetContributionDetailUseCase;
       review: ReviewContributionUseCase;
       correct: CorrectContributionUseCase;
-      /** provider gambar aktif — untuk mapping koreksi entity word */
+      /** provider gambar aktif - untuk mapping koreksi entity word */
       imageProviderName: string;
     },
   ) {}
@@ -70,7 +70,7 @@ export class ContributionController {
               created_at: review.createdAt.toISOString(),
             }
           : null,
-        // payload polymorphic — snake_case untuk entity anak; word detail
+        // payload polymorphic - snake_case untuk entity anak; word detail
         // bentuknya sama seperti GET /words/:id (semua status)
         entity: serializeEntity(entity),
       },

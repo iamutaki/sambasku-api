@@ -5,7 +5,7 @@ import type {
 } from '../../application/dto/create-word.dto';
 import type { CreateWordBody } from './validators/create-word.validator';
 
-// Mapping snake_case (API) → camelCase (DTO) — dipakai create-word dan
+// Mapping snake_case (API) → camelCase (DTO) - dipakai create-word dan
 // correct-contribution (modul contribution) supaya mapping tidak dobel.
 // provider gambar selalu dari provider AKTIF (composition root), bukan client.
 export function toCreateWordDto(body: CreateWordBody, imageProviderName: string): CreateWordDto {
@@ -123,6 +123,6 @@ function toInlineWordDto(w: InlineWordBody, imageProviderName: string): InlineWo
   };
 }
 
-// Bentuk body kata inline (Form B) — ditarik dari tipe validator supaya
+// Bentuk body kata inline (Form B) - ditarik dari tipe validator supaya
 // mapping tetap sinkron dengan skema (CreateWordBody['related_words'][number]['word'])
 type InlineWordBody = NonNullable<CreateWordBody['related_words'][number]['word']>;

@@ -23,7 +23,7 @@ import {
   words,
 } from './schema';
 
-// Hapus semua tabel dalam urutan aman FK (anak dulu) — pakai ini di
+// Hapus semua tabel dalam urutan aman FK (anak dulu) - pakai ini di
 // beforeEach/beforeAll integration & e2e test, jangan delete per tabel.
 export async function truncateAll(db: NodePgDatabase<typeof schema>): Promise<void> {
   for (const table of [

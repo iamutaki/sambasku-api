@@ -1,6 +1,6 @@
 import { env } from '@/shared/config/env';
 
-// Logger JSON tipis via console.* — jalan identik di Node dan Cloudflare
+// Logger JSON tipis via console.* - jalan identik di Node dan Cloudflare
 // Workers (Workers Logs menangkap console; di Node bisa di-pipe ke
 // `pino-pretty` CLI kalau mau human-readable). API sengaja meniru pino
 // (logger.info(obj, 'msg') / logger.info('msg') / logger.error(err, 'msg'))
@@ -9,10 +9,10 @@ import { env } from '@/shared/config/env';
 type Level = 'debug' | 'info' | 'warn' | 'error';
 
 const LEVELS: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
-// §17: staging menyamai production (level info) — hanya dev/test yang debug
+// §17: staging menyamai production (level info) - hanya dev/test yang debug
 const minLevel = env.NODE_ENV === 'production' || env.NODE_ENV === 'staging' ? LEVELS.info : LEVELS.debug;
 
-// Jaring pengaman yang sama dengan pino `redact` lama — password/token
+// Jaring pengaman yang sama dengan pino `redact` lama - password/token
 // tidak pernah bocor ke log walau developer lupa menyaring (Section 14)
 const REDACT_KEYS = new Set(['password', 'password_hash', 'token', 'access_token', 'refresh_token']);
 

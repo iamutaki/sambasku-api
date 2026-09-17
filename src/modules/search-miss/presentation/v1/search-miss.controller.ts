@@ -16,7 +16,7 @@ export class SearchMissController {
     },
   ) {}
 
-  /** Beranda publik — peluang kontribusi (paling dicari, belum terjawab) */
+  /** Beranda publik - peluang kontribusi (paling dicari, belum terjawab) */
   async listPublic(c: Context, query: PublicSearchMissQueryBody) {
     const { items, nextCursor, hasMore } = await this.deps.list.execute({
       scope: 'public',
@@ -30,7 +30,7 @@ export class SearchMissController {
     });
   }
 
-  /** Panel admin — semua miss + filter status terjawab */
+  /** Panel admin - semua miss + filter status terjawab */
   async listAdmin(c: Context, query: AdminSearchMissQueryBody) {
     const { items, nextCursor, hasMore } = await this.deps.list.execute({
       scope: 'admin',

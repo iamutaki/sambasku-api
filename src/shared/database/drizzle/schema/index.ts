@@ -1,4 +1,4 @@
-// Barrel schema — Drizzle butuh semua tabel terdaftar di satu tempat.
+// Barrel schema - Drizzle butuh semua tabel terdaftar di satu tempat.
 // Tabel modul lain ditambahkan seiring modulnya dibuat.
 export * from './users.schema';
 export * from './auth-identities.schema';

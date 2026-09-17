@@ -7,7 +7,7 @@ const { parsed } = config({ path: '.env.test', quiet: true });
 const hasTestDb = !!parsed?.DATABASE_URL;
 if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL;
 
-// Fixture ULID — selalu 26 karakter (varchar(26))
+// Fixture ULID - selalu 26 karakter (varchar(26))
 const ulid26 = (prefix: string) => prefix.padEnd(26, '0').slice(0, 26);
 const SMB = ulid26('01E2ELANGSMB');
 const IDN = ulid26('01E2ELANGIDN');
@@ -130,7 +130,7 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect(body.data.warnings).toBeUndefined(); // lemma pertama, tidak duplikat
   });
 
-  it('POST (contributor, published) → 201 pending_review — TIDAK tayang (Section 22 approval gate)', async () => {
+  it('POST (contributor, published) → 201 pending_review - TIDAK tayang (Section 22 approval gate)', async () => {
     const res = await post('/api/v1/admin/words', validBody({ lemma: 'minum' }), contributorToken);
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -305,7 +305,7 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect(body.details[0].field).toBe('related_words');
   });
 
-  it('VERIFY: kata pending_review bisa di-verify — tapi tayang tetap lewat antrean approve', async () => {
+  it('VERIFY: kata pending_review bisa di-verify - tapi tayang tetap lewat antrean approve', async () => {
     const create = await post('/api/v1/admin/words', validBody({ lemma: 'kata diverifikasi' }), contributorToken);
     const { data } = await create.json();
     expect(data.status).toBe('pending_review');
@@ -316,7 +316,7 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     });
     expect(res.status).toBe(200);
 
-    // Masih tidak tayang — publikasi lewat antrean review (03 doc), bukan verify
+    // Masih tidak tayang - publikasi lewat antrean review (03 doc), bukan verify
     const detail = await request(`/api/v1/words/${data.word_id}`);
     expect(detail.status).toBe(404);
   });
@@ -366,9 +366,9 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
       validBody({
         lemma: 'makn',
         related_words: [
-          // Form A — link ke kata lama
+          // Form A - link ke kata lama
           { word_id: existingData.word_id, relation_type: 'synonym' },
-          // Form B — buat sinonim baru inline, default inherit makna induk
+          // Form B - buat sinonim baru inline, default inherit makna induk
           { relation_type: 'synonym', word: { lemma: 'ngamakn' } },
           // Form B + override satu makna → makna itu "selesai mengikuti" induk
           {

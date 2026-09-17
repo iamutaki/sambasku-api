@@ -8,7 +8,7 @@ export interface JwtTokenServiceOptions {
   accessTokenTtlSeconds: number;
 }
 
-// RS256: private key menandatangani, public key memverifikasi —
+// RS256: private key menandatangani, public key memverifikasi -
 // service yang hanya perlu verifikasi tidak perlu pegang private key.
 export class JwtTokenService implements TokenServicePort {
   private privateKeyPromise?: Promise<CryptoKey>;

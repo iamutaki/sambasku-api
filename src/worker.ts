@@ -1,12 +1,12 @@
-// Entry CLOUDFLARE WORKERS — pasangan runtime untuk main.ts (Node).
+// Entry CLOUDFLARE WORKERS - pasangan runtime untuk main.ts (Node).
 // Dua entry berbagi satu composition root (app.ts) tanpa perubahan.
 //
 // Pola: LAZY IMPORT. app.ts (dan env.ts/client.ts di dalamnya) membaca
-// process.env saat module load — di Workers, env datang dari BINDINGS,
+// process.env saat module load - di Workers, env datang dari BINDINGS,
 // jadi isi process.env dulu (via nodejs_compat), baru import aplikasi.
 // Satu kali per isolate; isolate dipakai ulang antar request.
 //
-// Hyperdrive: binding proxy TCP ke PostgreSQL — driver tetap `pg`
+// Hyperdrive: binding proxy TCP ke PostgreSQL - driver tetap `pg`
 // (Section 8: tanpa vendor lock-in). Tanpa binding (mis. wrangler dev
 // sebelum Hyperdrive dibuat), fallback ke DATABASE_URL dari .env/dev.
 
@@ -16,7 +16,7 @@ interface Env {
   [key: string]: unknown;
 }
 
-// Tipe `app` via import type-only (dihapus saat build — runtime tetap lazy)
+// Tipe `app` via import type-only (dihapus saat build - runtime tetap lazy)
 type App = typeof import('./app').app;
 
 let appPromise: Promise<App> | null = null;

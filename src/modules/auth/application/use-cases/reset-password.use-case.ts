@@ -26,22 +26,22 @@ export class ResetPasswordUseCase {
       throw new UnauthorizedError('RESET_TOKEN_INVALID', 'Token reset tidak valid atau kadaluarsa');
     }
 
-    // Konsumsi token secara atomik DULU — dua request konkuren dengan
+    // Konsumsi token secara atomik DULU - dua request konkuren dengan
     // token sama: hanya satu yang lolos, satunya dapat false → ditolak.
     const consumed = await this.resetTokenRepo.consume(tokenHash);
     if (!consumed) {
       throw new UnauthorizedError('RESET_TOKEN_INVALID', 'Token reset tidak valid atau kadaluarsa');
     }
 
-    // Kalau gagal di sini, token sudah terbakar dan user minta link baru —
+    // Kalau gagal di sini, token sudah terbakar dan user minta link baru -
     // failure mode aman (lebih baik token hangus daripada terpakai dua kali)
     await this.userRepo.updatePassword(record.userId, await this.hasher.hash(dto.newPassword));
 
-    // EDGE CASE: logout paksa semua perangkat — reset password biasanya
+    // EDGE CASE: logout paksa semua perangkat - reset password biasanya
     // berarti akun tercompromi; session (refresh token) lama harus mati
     await this.refreshTokenRepo.revokeAllForUser(record.userId);
 
-    // Audit trail (Section 21) — new_data TIDAK memuat hash password
+    // Audit trail (Section 21) - new_data TIDAK memuat hash password
     await this.auditRepo.record({
       userId: record.userId,
       action: 'password_change',

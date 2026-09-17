@@ -9,7 +9,7 @@ const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
 });
 
-// GET /api/v1/word-classes — dropdown kelas kata (hierarki parent_id)
+// GET /api/v1/word-classes - dropdown kelas kata (hierarki parent_id)
 export function createWordClassRoutes(deps: { controller: WordController }) {
   const routes = createOpenApiApp();
   routes.use('*', rateLimit({ points: 100, duration: 60 })); // publik baca (Section 15)

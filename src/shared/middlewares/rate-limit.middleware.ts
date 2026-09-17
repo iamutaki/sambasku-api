@@ -1,7 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import type { Context } from 'hono';
-// ponytail: in-memory, satu instance — ganti ke RateLimiterRedis saat multi-instance
+// ponytail: in-memory, satu instance - ganti ke RateLimiterRedis saat multi-instance
 
 interface RateLimitOpts {
   points: number;
@@ -10,7 +10,7 @@ interface RateLimitOpts {
 }
 
 // Key default per-IP: Cloudflare Workers menyediakan cf-connecting-ip
-// (x-forwarded-for TIDAK diset di sana) — tanpa ini semua klien anonim
+// (x-forwarded-for TIDAK diset di sana) - tanpa ini semua klien anonim
 // berbagi satu bucket "unknown" dan saling mengunci (Section 15).
 function clientIpKey(c: Context): string {
   return c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? 'unknown';

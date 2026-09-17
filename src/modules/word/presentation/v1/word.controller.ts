@@ -30,7 +30,7 @@ export class WordController {
       addWordImage: AddWordImageUseCase;
       addExample: AddExampleUseCase;
       listWordClasses: () => Promise<WordClassSummary[]>;
-      /** provider gambar aktif — dari composition root, bukan hardcode */
+      /** provider gambar aktif - dari composition root, bukan hardcode */
       imageProviderName: string;
     },
   ) {}

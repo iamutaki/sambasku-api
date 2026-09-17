@@ -15,7 +15,7 @@ function unauthorized(c: Context, error_code: string, message: string) {
 }
 
 // Factory: verify function di-inject dari composition root (main.ts), supaya
-// shared/ tidak import internal modul auth — arah dependency tetap ke dalam.
+// shared/ tidak import internal modul auth - arah dependency tetap ke dalam.
 export function createAuthenticateMiddleware(verifyAccessToken: VerifyFn) {
   return createMiddleware<{ Variables: AppVariables }>(async (c, next) => {
     const header = c.req.header('Authorization') ?? '';

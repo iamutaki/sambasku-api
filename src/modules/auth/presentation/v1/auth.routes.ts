@@ -52,7 +52,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     method: 'post',
     path: '/login',
     tags: ['Auth'],
-    summary: 'Login — dapatkan access token + refresh token (httpOnly cookie)',
+    summary: 'Login - dapatkan access token + refresh token (httpOnly cookie)',
     request: { body: { content: json(loginSchema) } },
     responses: {
       200: { description: 'Login berhasil', content: json(loginResponseSchema) },
@@ -77,7 +77,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     method: 'post',
     path: '/logout',
     tags: ['Auth'],
-    summary: 'Logout — revoke refresh token perangkat ini (web: cookie, mobile: body)',
+    summary: 'Logout - revoke refresh token perangkat ini (web: cookie, mobile: body)',
     request: { body: { content: json(refreshTokenBodySchema) } },
     responses: {
       200: { description: 'Logout berhasil', content: json(okNullResponseSchema) },
@@ -88,7 +88,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     method: 'post',
     path: '/logout-all-devices',
     tags: ['Auth'],
-    summary: 'Logout semua perangkat — revoke semua refresh token user',
+    summary: 'Logout semua perangkat - revoke semua refresh token user',
     responses: {
       200: { description: 'Semua perangkat berhasil di-logout', content: json(okNullResponseSchema) },
       401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
@@ -120,7 +120,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     },
   });
 
-  // ponytail: cast `as never` — controller memakai Context generik (untuk cookie),
+  // ponytail: cast `as never` - controller memakai Context generik (untuk cookie),
   // jadi status literal tidak ter-infer; bentuk response dicek e2e test + schema validator
   authRoutes.openapi(registerRoute, (c) => deps.controller.register(c, c.req.valid('json')) as never);
   authRoutes.openapi(loginRoute, (c) => deps.controller.login(c, c.req.valid('json')) as never);

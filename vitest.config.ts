@@ -9,7 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    // Integration/e2e berbagi satu database test — jalankan file test
+    // Integration/e2e berbagi satu database test - jalankan file test
     // berurutan supaya cleanup beforeEach antar file tidak saling serobot
     fileParallelism: false,
   },

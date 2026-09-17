@@ -41,7 +41,7 @@ function mediaMiddleware(deps: WordMediaRoutesDeps, ...roles: string[]) {
   ];
 }
 
-// POST /api/v1/words/:wordId/pronunciations + /:wordId/images —
+// POST /api/v1/words/:wordId/pronunciations + /:wordId/images -
 // kontribusi media pada kata existing (03-api-kontribusi-verifikasi.md)
 export function createWordMediaRoutes(deps: WordMediaRoutesDeps) {
   const routes = createOpenApiApp();
@@ -95,7 +95,7 @@ export function createWordMediaRoutes(deps: WordMediaRoutesDeps) {
   return routes;
 }
 
-// POST /api/v1/meanings/:meaningId/examples — kontribusi contoh kalimat
+// POST /api/v1/meanings/:meaningId/examples - kontribusi contoh kalimat
 export function createMeaningExampleRoutes(deps: WordMediaRoutesDeps) {
   const routes = createOpenApiApp();
 

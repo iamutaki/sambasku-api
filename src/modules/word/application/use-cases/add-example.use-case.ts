@@ -27,7 +27,7 @@ export class AddExampleUseCase {
       throw new NotFoundError('MEANING_NOT_FOUND', 'Makna dengan id tersebut tidak ditemukan');
     }
 
-    // Bahasa sumber/target harus valid — FK violation di-repository jadi
+    // Bahasa sumber/target harus valid - FK violation di-repository jadi
     // 500 kalau tidak dicek di sini (pola findMissingReferences create-word)
     const missing = await this.wordRepo.findMissingReferences({
       languageId: dto.sourceLanguageId,

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
 
-// Status konten anak (03-api-kontribusi-verifikasi.md): tanpa draft —
+// Status konten anak (03-api-kontribusi-verifikasi.md): tanpa draft -
 // kontribusi media langsung masuk gerbang pending/published per role
 export const childStatusSchema = z.enum(['pending_review', 'published', 'rejected']);
 
@@ -35,7 +35,7 @@ export type AddPronunciationBody = z.infer<typeof addPronunciationSchema>;
 export type AddWordImageBody = z.infer<typeof addWordImageSchema>;
 export type AddExampleBody = z.infer<typeof addExampleSchema>;
 
-// Response 201 — field publikasi per role (contributor → pending_review)
+// Response 201 - field publikasi per role (contributor → pending_review)
 export const addPronunciationResponseSchema = z.object({
   success: z.literal(true),
   data: z.object({

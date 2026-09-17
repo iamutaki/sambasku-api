@@ -72,7 +72,7 @@ describe('ResetPasswordUseCase', () => {
     expect(userRepo.updatePassword).toHaveBeenCalledWith('01TESTULIDUSERID00000000', 'argon2id$baru');
   });
 
-  it('menolak token yang sudah dipakai (is_used) — tidak menyentuh password', async () => {
+  it('menolak token yang sudah dipakai (is_used) - tidak menyentuh password', async () => {
     const { useCase, userRepo } = makeDeps(makeRecord({ isUsed: true }));
 
     await expect(useCase.execute(dto)).rejects.toMatchObject({ errorCode: 'RESET_TOKEN_INVALID' });
@@ -92,7 +92,7 @@ describe('ResetPasswordUseCase', () => {
   });
 
   it('race konkuren: consume mengembalikan false → ditolak, password TIDAK diubah', async () => {
-    // Simulasi request kedua kalah race — token sudah dikonsumsi request pertama
+    // Simulasi request kedua kalah race - token sudah dikonsumsi request pertama
     const { useCase, userRepo } = makeDeps(makeRecord(), /* consumeResult */ false);
 
     await expect(useCase.execute(dto)).rejects.toMatchObject({ errorCode: 'RESET_TOKEN_INVALID' });
@@ -107,7 +107,7 @@ describe('ResetPasswordUseCase', () => {
     ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
   });
 
-  it('mencatat audit password_change — new_data tanpa hash password', async () => {
+  it('mencatat audit password_change - new_data tanpa hash password', async () => {
     const { useCase, auditRepo } = makeDeps(makeRecord());
 
     await useCase.execute({ token: 'token-benar', newPassword: 'PasswordBaru1' }, 'req-456');

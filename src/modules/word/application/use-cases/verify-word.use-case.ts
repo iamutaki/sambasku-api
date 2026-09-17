@@ -9,7 +9,7 @@ export interface VerifyWordCommand {
   requestId?: string | null;
 }
 
-// Verifikator (admin/root/reviewer) memflip is_verified — Section 22.
+// Verifikator (admin/root/reviewer) memflip is_verified - Section 22.
 // Role check ada di route; use case murni aksi + audit.
 export class VerifyWordUseCase {
   constructor(

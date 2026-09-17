@@ -17,7 +17,7 @@ export interface SearchWordsResult extends CursorPage<WordSummary> {
   meta: { limit: number; next_cursor: string | null; has_more: boolean };
 }
 
-// Searchable dropdown sinonim/antonim di form admin — HANYA kata
+// Searchable dropdown sinonim/antonim di form admin - HANYA kata
 // published + belum soft-deleted (draft tidak bocor ke publik).
 // Pagination cursor-based (base-stack.md Section 13).
 //

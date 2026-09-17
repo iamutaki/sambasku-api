@@ -23,7 +23,7 @@ export interface SearchMissRoutesDeps {
   authenticate: MiddlewareHandler<{ Variables: AppVariables }>;
 }
 
-// GET /api/v1/search-misses — beranda publik: "sedang dicari, belum ada
+// GET /api/v1/search-misses - beranda publik: "sedang dicari, belum ada
 // artinya" → peluang kontribusi (03-api-kontribusi-verifikasi.md)
 export function createSearchMissRoutes(deps: SearchMissRoutesDeps) {
   const routes = createOpenApiApp();
@@ -34,7 +34,7 @@ export function createSearchMissRoutes(deps: SearchMissRoutesDeps) {
     method: 'get',
     path: '/',
     tags: ['Search Misses'],
-    summary: 'Pencarian kosong terpopuler — peluang kontribusi untuk beranda',
+    summary: 'Pencarian kosong terpopuler - peluang kontribusi untuk beranda',
     request: { query: publicSearchMissQuerySchema },
     responses: {
       200: { description: 'Daftar miss belum terjawab (paling dicari)', content: json(searchMissListResponseSchema) },
@@ -75,7 +75,7 @@ export function createAdminSearchMissRoutes(deps: SearchMissRoutesDeps) {
     method: 'post',
     path: '/:id/dismiss',
     tags: ['Search Misses', 'Admin'],
-    summary: 'Singkirkan miss dari panel/beranda (spam / tidak layak) — soft delete',
+    summary: 'Singkirkan miss dari panel/beranda (spam / tidak layak) - soft delete',
     request: { params: z.object({ id: z.string().length(26) }) },
     responses: {
       200: { description: 'Miss disembunyikan', content: { 'application/json': { schema: okNullResponseSchema } } },

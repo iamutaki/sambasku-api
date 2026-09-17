@@ -5,7 +5,7 @@ import { words } from './words.schema';
 import { wordClasses } from './word-classes.schema';
 import { users } from './users.schema';
 
-// 04-api-sinonim-inline.md: self-referencing FK — makna hasil SALINAN ketika
+// 04-api-sinonim-inline.md: self-referencing FK - makna hasil SALINAN ketika
 // sinonim dibuat inline (inherit makna induk). Terisi = masih "mengikuti"
 // induknya; NULL = makna mandiri / sudah di-override (provenance utk fitur
 // reset ke induk & re-sync di masa depan).

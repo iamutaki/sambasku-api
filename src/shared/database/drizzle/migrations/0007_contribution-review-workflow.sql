@@ -26,5 +26,5 @@ ALTER TABLE "words" ADD COLUMN "is_corrected" boolean DEFAULT false NOT NULL;-->
 ALTER TABLE "search_misses" ADD CONSTRAINT "search_misses_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "contributions_status_idx" ON "contributions" USING btree ("status");--> statement-breakpoint
 -- Backfill (Section 22 approval gate): kontribsi lama sudah live sebagai
--- konten published — jangan biarkan membanjiri antrean review sebagai pending
+-- konten published - jangan biarkan membanjiri antrean review sebagai pending
 UPDATE "contributions" SET "status" = 'approved';

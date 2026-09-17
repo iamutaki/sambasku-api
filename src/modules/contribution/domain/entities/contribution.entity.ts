@@ -1,5 +1,5 @@
-// Entitas domain — murni TypeScript, tidak tahu Drizzle/HTTP
-// (03-api-kontribusi-verifikasi.md, Section 22 — approval gate)
+// Entitas domain - murni TypeScript, tidak tahu Drizzle/HTTP
+// (03-api-kontribusi-verifikasi.md, Section 22 - approval gate)
 
 /** Status antrean di tabel contributions */
 export type ContributionStatus = 'pending' | 'approved' | 'rejected' | 'corrected';

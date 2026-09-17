@@ -3,7 +3,7 @@ import { generateId } from '@/shared/utils/ulid';
 import { languages } from './languages.schema';
 import { users } from './users.schema';
 
-// 'draft' | 'pending_review' | 'published' | 'rejected' — alur per role
+// 'draft' | 'pending_review' | 'published' | 'rejected' - alur per role
 // ada di resolvePublication (docs/api/03-api-kontribusi-verifikasi.md)
 export const words = pgTable(
   'words',
@@ -14,10 +14,10 @@ export const words = pgTable(
       .references(() => languages.id),
     lemma: varchar('lemma', { length: 255 }).notNull(),
     notes: text('notes'),
-    // word | idiom | peribahasa | ungkapan — jenis entri, bukan topik
+    // word | idiom | peribahasa | ungkapan - jenis entri, bukan topik
     // (topik = categories). Mengaktifkan relasi has_component & filter search.
     wordType: varchar('word_type', { length: 30 }).notNull().default('word'),
-    // Model publikasi (base-stack.md Section 22 — approval gate):
+    // Model publikasi (base-stack.md Section 22 - approval gate):
     // kontribusi contributor masuk antrean review (pending_review, tidak
     // tayang); pending_review/rejected hanya di-set sistem.
     status: varchar('status', { length: 30 }).notNull().default('draft'),

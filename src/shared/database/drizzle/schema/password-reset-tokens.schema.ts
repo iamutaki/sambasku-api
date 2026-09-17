@@ -2,7 +2,7 @@ import { boolean, index, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
-// Khusus modul auth — lihat 00-api-auth.md
+// Khusus modul auth - lihat 00-api-auth.md
 export const passwordResetTokens = pgTable(
   'password_reset_tokens',
   {

@@ -1,4 +1,4 @@
-// Hierarki error lintas modul — lihat api-base-stack.md Section 13.
+// Hierarki error lintas modul - lihat api-base-stack.md Section 13.
 // Use case melempar class ini langsung; mereka tidak tahu soal Hono.
 export abstract class AppError extends Error {
   abstract readonly statusCode: number;

@@ -17,7 +17,7 @@ export const pronunciations = pgTable(
     audioUrl: text('audio_url'),
     speakerName: varchar('speaker_name', { length: 255 }),
     notes: text('notes'),
-    // Approval gate (Section 22) — kontribusi mandiri: pending sampai
+    // Approval gate (Section 22) - kontribusi mandiri: pending sampai
     // disetujui verifikator; identitas reviewer ada di contribution_reviews
     status: varchar('status', { length: 30 }).notNull().default('published'),
     isVerified: boolean('is_verified').notNull().default(false),

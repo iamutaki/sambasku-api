@@ -14,7 +14,7 @@ export class ForgotPasswordUseCase {
     private readonly resetUrlBase: string, // mis. https://kamus-sambas.app/reset-password
   ) {}
 
-  // Tidak pernah melempar error "email tidak terdaftar" — response selalu sama
+  // Tidak pernah melempar error "email tidak terdaftar" - response selalu sama
   async execute(dto: ForgotPasswordDto): Promise<void> {
     const user = await this.userRepo.findByEmail(dto.email);
     if (!user || user.deletedAt) return;

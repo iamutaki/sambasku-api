@@ -9,7 +9,7 @@ import { generateToken } from '../utils/token';
 export interface LoginResult {
   accessToken: string;
   expiresIn: number;
-  refreshToken: string; // plain — di-hash hanya saat disimpan
+  refreshToken: string; // plain - di-hash hanya saat disimpan
   user: { id: string; username: string; role: string };
 }
 
@@ -24,7 +24,7 @@ export class LoginUserUseCase {
   ) {}
 
   async execute(dto: LoginDto, meta: LoginMeta = {}): Promise<LoginResult> {
-    // Pesan error generik untuk semua kasus gagal — cegah user enumeration
+    // Pesan error generik untuk semua kasus gagal - cegah user enumeration
     const invalid = new UnauthorizedError('INVALID_CREDENTIALS', 'Email atau password salah');
 
     const user = await this.userRepo.findByEmail(dto.email);

@@ -17,7 +17,7 @@ export const wordClasses = pgTable('word_classes', {
 });
 
 // Self-reference dideklarasikan lewat relasi Drizzle (bukan FK constraint
-// self-join di column — Drizzle tidak support .references ke diri sendiri
+// self-join di column - Drizzle tidak support .references ke diri sendiri
 // saat deklarasi). parent_id divalidasi di aplikasi.
 export const wordClassesRelations = relations(wordClasses, ({ one }) => ({
   parent: one(wordClasses, {

@@ -30,7 +30,7 @@ import type {
   ReviewCommand,
 } from '../domain/repositories/contribution.repository';
 
-// Tipe transaction Drizzle (pg) — sama dengan word.repository.impl.ts
+// Tipe transaction Drizzle (pg) - sama dengan word.repository.impl.ts
 type Tx = PgTransaction<NodePgQueryResultHKT, typeof schema, ExtractTablesWithRelations<typeof schema>>;
 
 function decisionToStatus(decision: ReviewCommand['decision']): ContributionStatus {
@@ -256,7 +256,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
 
   async review(cmd: ReviewCommand): Promise<ReviewOutcome> {
     return this.db.transaction(async (tx) => {
-      // Kunci baris kontribsi — dua verifikator klik bersamaan: satu
+      // Kunci baris kontribsi - dua verifikator klik bersamaan: satu
       // sukses, satu dapat 409 (bukan 500). Cek pending DI DALAM transaksi.
       const [contrib] = await tx
         .select()
@@ -270,7 +270,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
       if (contrib.status !== 'pending') {
         throw new ConflictError(
           'CONTRIBUTION_ALREADY_REVIEWED',
-          'Kontribusi ini sudah diproses — sudah ada keputusan review',
+          'Kontribusi ini sudah diproses - sudah ada keputusan review',
         );
       }
 
@@ -307,7 +307,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
 
   // Koreksi entity anak TANPA publish (publish=false pada endpoint correct):
   // patch diterapkan + is_corrected true, status tetap 'pending_review'
-  // (kontribusi tetap pending — belum ada keputusan review).
+  // (kontribusi tetap pending - belum ada keputusan review).
   async applyChildCorrection(cmd: ApplyChildCorrectionCommand): Promise<void> {
     const now = new Date();
     await this.db.transaction(async (tx) => {
@@ -374,11 +374,11 @@ export class ContributionRepositoryImpl implements ContributionRepository {
   }
 
   // Kata: keputusan pada kata ikut memutuskan anak-anaknya (anak yang ikut
-  // submit kata mengikuti gerbang kata — lihat childStatusOf word repository)
+  // submit kata mengikuti gerbang kata - lihat childStatusOf word repository)
   private async reviewWord(tx: Tx, wordId: string, cmd: ReviewCommand, now: Date): Promise<void> {
     if (cmd.decision === 'correct') {
       // Isi + status/isVerified/isCorrected sudah diterapkan use case lewat
-      // WordRepository.updateWithRelations — di sini tinggal jejak verifikator
+      // WordRepository.updateWithRelations - di sini tinggal jejak verifikator
       await tx
         .update(words)
         .set({ verifiedBy: cmd.reviewerId, verifiedAt: now, updatedBy: cmd.reviewerId, updatedAt: now })
@@ -422,7 +422,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
     await tx.update(wordImages).set({ status, isVerified }).where(eq(wordImages.wordId, wordId));
   }
 
-  // ponytail: patch koreksi anak tidak memvalidasi FK baru (dialect dsb) —
+  // ponytail: patch koreksi anak tidak memvalidasi FK baru (dialect dsb) -
   // input sudah ULID-validated & hanya verifikator yang bisa memanggil;
   // tambahkan pre-check kalau suatu saat dibuka untuk role lain
   private async reviewPronunciation(tx: Tx, entityId: string, cmd: ReviewCommand, now: Date): Promise<void> {
@@ -453,7 +453,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
     }
   }
 
-  // word_images tidak punya updated_by/updated_at (lihat schema) — tanpa param now
+  // word_images tidak punya updated_by/updated_at (lihat schema) - tanpa param now
   private async reviewWordImage(tx: Tx, entityId: string, cmd: ReviewCommand): Promise<void> {
     const where = and(eq(wordImages.id, entityId), isNull(wordImages.deletedAt));
     if (cmd.decision === 'approve') {

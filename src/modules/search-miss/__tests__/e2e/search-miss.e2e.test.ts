@@ -12,7 +12,7 @@ const SMB = ulid26('01E2ELANGSMB');
 const IDN = ulid26('01E2ELANGIDN');
 const NOMINA = ulid26('01E2EWCNOMINA');
 
-describe.skipIf(!hasTestDb)('Search Miss E2E — pencarian kosong jadi peluang kontribusi', () => {
+describe.skipIf(!hasTestDb)('Search Miss E2E - pencarian kosong jadi peluang kontribusi', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let app: any;
   let adminToken: string;

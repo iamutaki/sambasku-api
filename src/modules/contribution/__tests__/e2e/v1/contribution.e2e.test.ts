@@ -34,7 +34,7 @@ function validWordBody(lemma: string) {
   };
 }
 
-describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 approval gate)', () => {
+describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 approval gate)', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let app: any;
   let adminToken: string;
@@ -118,7 +118,7 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 
     expect(typeof item.contributor_username).toBe('string');
     expect(listBody.meta).toMatchObject({ limit: 20, has_more: false });
 
-    // 3. Detail untuk layar review — payload entity utuh (semua status)
+    // 3. Detail untuk layar review - payload entity utuh (semua status)
     const detail = await get(`/api/v1/admin/contributions/${item.id}`, adminToken);
     const detailBody = await detail.json();
     expect(detailBody.data.contribution.id).toBe(item.id);

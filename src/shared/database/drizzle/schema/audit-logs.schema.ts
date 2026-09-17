@@ -2,7 +2,7 @@ import { index, json, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
-// Jejak audit setiap mutasi data — base-stack.md Section 21.
+// Jejak audit setiap mutasi data - base-stack.md Section 21.
 // old_data/new_data TIDAK BOLEH berisi password/token/kredensial.
 export const auditLogs = pgTable(
   'audit_logs',

@@ -2,7 +2,7 @@ import { env } from '@/shared/config/env';
 import type { ImageStoragePort } from '../application/ports/image-storage.port';
 import { ImageKitStorageService } from './imagekit-storage.service';
 
-// Pilih impl ImageStoragePort dari env (Section 8 — pola yang sama dengan
+// Pilih impl ImageStoragePort dari env (Section 8 - pola yang sama dengan
 // createMailer): IMAGE_PROVIDER=imagekit (default: satu-satunya provider
 // hari ini). Provider baru = file impl baru + satu case di sini.
 // Kredensial tetap per-provider (IMAGEKIT_*) karena bentuknya beda-beda:
@@ -15,7 +15,7 @@ export function createImageStorage(): ImageStoragePort {
       return new ImageKitStorageService();
     default:
       throw new Error(
-        `IMAGE_PROVIDER "${env.IMAGE_PROVIDER}" tidak dikenal — tersedia: imagekit`,
+        `IMAGE_PROVIDER "${env.IMAGE_PROVIDER}" tidak dikenal - tersedia: imagekit`,
       );
   }
 }
