@@ -44,9 +44,32 @@ const SEED_WORD_CLASSES = [
 ] as const;
 
 const SEED_CATEGORIES = [
+  // Kelompok dasar — sesuai admin "Kategori / Glosarium" (opsional per kata)
   { name: 'Kekerabatan' },
   { name: 'Alam' },
   { name: 'Makanan' },
+  { name: 'Binatang & Hewan' },
+  { name: 'Tumbuhan & Tanaman' },
+  { name: 'Tubuh & Kesehatan' },
+  { name: 'Pakaian & Aksesori' },
+  { name: 'Rumah & Bangunan' },
+  { name: 'Pertanian & Perkebunan' },
+  { name: 'Perikanan & Kelautan' },
+  { name: 'Alat & Perkakas' },
+  { name: 'Transportasi' },
+  { name: 'Warna' },
+  { name: 'Waktu & Musim' },
+  { name: 'Cuaca' },
+  { name: 'Geografi & Tempat' },
+  { name: 'Seni & Budaya' },
+  { name: 'Adat & Tradisi' },
+  { name: 'Agama & Kepercayaan' },
+  { name: 'Pekerjaan & Profesi' },
+  { name: 'Aktivitas Harian' },
+  { name: 'Sifat & Perasaan' },
+  { name: 'Ekonomi & Perdagangan' },
+  { name: 'Angka & Ukuran' },
+  { name: 'Permainan & Hiburan' },
 ] as const;
 
 async function main() {
