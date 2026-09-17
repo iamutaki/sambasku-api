@@ -60,7 +60,10 @@ NODE_ENV = "staging"
 # APP_URL = basis link reset-password; CORS = origin frontend admin/web
 # (tambahkan origin web staging di sini kalau frontend sudah deploy)
 APP_URL = "https://sambasku-staging.iamutaki.com"
-CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174"
+# console-sambasku-staging = admin console (Cloudflare Pages, custom domain).
+# Wajib same registrable domain (iamutaki.com) agar cookie refresh_token
+# sameSite=Strict terkirim ke API.
+CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://console-sambasku-staging.iamutaki.com"
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
 MAIL_FROM = "Kamus Sambas Staging <no-reply@iamutaki.com>"
