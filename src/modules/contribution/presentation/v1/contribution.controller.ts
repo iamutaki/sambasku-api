@@ -104,14 +104,16 @@ export class ContributionController {
   async correct(c: Context, id: string, body: CorrectContributionBody) {
     const actor = this.requireActor(c);
     const comment = body.comment ?? null;
+    const publish = body.publish ?? true;
 
     if (body.entity_type === 'word') {
-      const { entity_type: _type, comment: _comment, ...wordBody } = body;
+      const { entity_type: _type, comment: _comment, publish: _publish, ...wordBody } = body;
       const outcome = await this.deps.correct.execute({
         contributionId: id,
         actorId: actor.userId,
         requestId: actor.requestId,
         comment,
+        publish,
         input: { word: toCreateWordDto({ ...wordBody, status: 'published' }, this.deps.imageProviderName) },
       });
       return decisionResponse(c, outcome, true);
@@ -123,6 +125,7 @@ export class ContributionController {
         actorId: actor.userId,
         requestId: actor.requestId,
         comment,
+        publish,
         input: {
           pronunciation: {
             notation: body.notation,
@@ -143,6 +146,7 @@ export class ContributionController {
         actorId: actor.userId,
         requestId: actor.requestId,
         comment,
+        publish,
         input: {
           wordImage: {
             url: body.url,
@@ -160,6 +164,7 @@ export class ContributionController {
       actorId: actor.userId,
       requestId: actor.requestId,
       comment,
+      publish,
       input: {
         example: {
           sourceSentence: body.source_sentence,

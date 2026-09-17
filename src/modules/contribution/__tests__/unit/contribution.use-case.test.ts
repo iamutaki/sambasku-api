@@ -37,6 +37,7 @@ function makeDeps() {
       entityId: '01WORDULID000000000000000',
       status: decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'corrected',
     })),
+    applyChildCorrection: vi.fn().mockResolvedValue(undefined),
   } as unknown as ContributionRepository;
   const wordRepo = {
     findDetailById: vi.fn().mockResolvedValue({ id: '01WORDULID000000000000000', lemma: 'makatn', status: 'pending_review', isVerified: false }),
@@ -112,7 +113,7 @@ describe('CorrectContributionUseCase', () => {
     status: 'published' as const,
   };
 
-  it('entity word → updateWithRelations dengan published+verified+corrected, lalu review correct + audit old/new', async () => {
+  it('entity word + publish → updateWithRelations published+verified+corrected, review correct + audit old/new', async () => {
     const { contributionRepo, wordRepo, auditRepo } = makeDeps();
     const useCase = new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo as unknown as AuditLogRepository);
     const outcome = await useCase.execute({
@@ -120,6 +121,7 @@ describe('CorrectContributionUseCase', () => {
       actorId: ACTOR.userId,
       requestId: 'req-1',
       comment: 'perbaiki definisi',
+      publish: true,
       input: { word: wordDto },
     });
     expect(outcome.status).toBe('corrected');
@@ -129,13 +131,59 @@ describe('CorrectContributionUseCase', () => {
       ACTOR.userId,
     );
     expect(contributionRepo.review).toHaveBeenCalledWith(expect.objectContaining({ decision: 'correct' }));
+    expect(contributionRepo.applyChildCorrection).not.toHaveBeenCalled();
     expect(auditRepo.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'correct',
         oldData: expect.objectContaining({ lemma: 'makatn' }),
-        newData: expect.objectContaining({ is_corrected: true }),
+        newData: expect.objectContaining({ status: 'published', is_verified: true, is_corrected: true }),
       }),
     );
+  });
+
+  it('entity word + publish=false → koreksi saja: pending_review, TANPA review, kontribusi tetap pending', async () => {
+    const { contributionRepo, wordRepo, auditRepo } = makeDeps();
+    const useCase = new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo as unknown as AuditLogRepository);
+    const outcome = await useCase.execute({
+      contributionId: '01CONTRIBULID0000000000000',
+      actorId: ACTOR.userId,
+      requestId: 'req-1',
+      comment: 'perbaiki ejaan dulu',
+      publish: false,
+      input: { word: wordDto },
+    });
+    expect(outcome.status).toBe('pending');
+    expect(wordRepo.updateWithRelations).toHaveBeenCalledWith(
+      '01WORDULID000000000000000',
+      expect.objectContaining({ status: 'pending_review', isVerified: false, isCorrected: true }),
+      ACTOR.userId,
+    );
+    expect(contributionRepo.review).not.toHaveBeenCalled();
+    expect(contributionRepo.applyChildCorrection).not.toHaveBeenCalled();
+    expect(auditRepo.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'correct',
+        newData: expect.objectContaining({ status: 'pending', is_verified: false, published: false }),
+      }),
+    );
+  });
+
+  it('entity example + publish=false → applyChildCorrection, TANPA review, kontribusi tetap pending', async () => {
+    const { contributionRepo, wordRepo, auditRepo } = makeDeps();
+    contributionRepo.findById = vi.fn().mockResolvedValue(makeContribution({ entityType: 'example' }));
+    const useCase = new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo as unknown as AuditLogRepository);
+    const outcome = await useCase.execute({
+      contributionId: '01CONTRIBULID0000000000000',
+      actorId: ACTOR.userId,
+      comment: null,
+      publish: false,
+      input: { example: { sourceSentence: 'x', targetSentence: null, sourceType: null, notes: null } },
+    });
+    expect(outcome.status).toBe('pending');
+    expect(contributionRepo.applyChildCorrection).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'example', entityId: '01WORDULID000000000000000' }),
+    );
+    expect(contributionRepo.review).not.toHaveBeenCalled();
   });
 
   it('entity_type body tidak cocok → VALIDATION_ERROR', async () => {
@@ -146,6 +194,7 @@ describe('CorrectContributionUseCase', () => {
         contributionId: '01CONTRIBULID0000000000000',
         actorId: ACTOR.userId,
         comment: null,
+        publish: true,
         input: { example: { sourceSentence: 'x', targetSentence: null, sourceType: null, notes: null } },
       }),
     ).rejects.toMatchObject({
@@ -159,7 +208,7 @@ describe('CorrectContributionUseCase', () => {
     contributionRepo.findById = vi.fn().mockResolvedValue(makeContribution({ status: 'approved' }));
     const useCase = new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo as unknown as AuditLogRepository);
     await expect(
-      useCase.execute({ contributionId: '01CONTRIBULID0000000000000', actorId: ACTOR.userId, comment: null, input: { word: wordDto } }),
+      useCase.execute({ contributionId: '01CONTRIBULID0000000000000', actorId: ACTOR.userId, comment: null, publish: true, input: { word: wordDto } }),
     ).rejects.toMatchObject({ errorCode: 'CONTRIBUTION_ALREADY_REVIEWED', statusCode: 409 });
   });
 });

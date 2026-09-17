@@ -16,6 +16,9 @@ export const listContributionsQuerySchema = z.object({
 export type ListContributionsQueryBody = z.infer<typeof listContributionsQuerySchema>;
 
 const commentField = z.string().trim().max(2000).optional();
+// true (default) = koreksi langsung tayang (published + verified);
+// false = koreksi saja, entity tetap menunggu review (pending_review)
+const publishField = z.boolean().default(true);
 
 export const approveContributionSchema = z.object({ comment: commentField });
 export const rejectContributionSchema = z.object({
@@ -31,6 +34,7 @@ const correctWordSchema = createWordBodySchema
   .extend({
     entity_type: z.literal('word'),
     comment: commentField,
+    publish: publishField,
   })
   .refine((d) => (d.images ?? []).filter((i) => i.is_primary).length <= 1, {
     message: 'Hanya satu gambar yang boleh is_primary',
@@ -42,14 +46,17 @@ export const correctContributionSchema = z.discriminatedUnion('entity_type', [
   addPronunciationSchema.extend({
     entity_type: z.literal('pronunciation'),
     comment: commentField,
+    publish: publishField,
   }),
   addWordImageSchema.extend({
     entity_type: z.literal('word_image'),
     comment: commentField,
+    publish: publishField,
   }),
   z.object({
     entity_type: z.literal('example'),
     comment: commentField,
+    publish: publishField,
     source_sentence: z.string().trim().min(1, 'Contoh kalimat tidak boleh kosong'),
     target_sentence: z.string().optional(),
     source_type: z.enum(['native_speaker', 'book', 'corpus', 'interview', 'other']).optional(),
@@ -104,7 +111,7 @@ export const reviewDecisionResponseSchema = z.object({
     contribution_id: z.string(),
     entity_type: entityTypeSchema,
     entity_id: z.string(),
-    status: z.enum(['approved', 'rejected', 'corrected']),
+    status: z.enum(['pending', 'approved', 'rejected', 'corrected']),
     is_corrected: z.boolean().optional(),
   }),
 });

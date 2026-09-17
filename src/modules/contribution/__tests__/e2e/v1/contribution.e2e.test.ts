@@ -238,4 +238,40 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 
       (e: { source_sentence: string }) => e.source_sentence === 'Kami makatn kalintiak.',
     )).toBe(true);
   });
+
+  it('correct publish=false → koreksi saja: kontribusi tetap pending & belum tayang', async () => {
+    const create = await post('/api/v1/admin/words', validWordBody('kata koreksi tunda'), adminToken);
+    const { data } = await create.json();
+    const detail = await get(`/api/v1/words/${data.word_id}`);
+    const meaningId = (await detail.json()).data.meanings[0].id;
+
+    const add = await post(
+      `/api/v1/meanings/${meaningId}/examples`,
+      { source_language_id: SMB, source_sentence: 'Salah ejaan.', target_language_id: IDN, target_sentence: 'Salah.' },
+      contributorToken,
+    );
+    const added = (await add.json()).data;
+
+    const list = await get('/api/v1/admin/contributions?status=pending&entity_type=example', adminToken);
+    const item = (await list.json()).data.find((c: { entity_id: string }) => c.entity_id === added.id);
+
+    const correct = await post(
+      `/api/v1/admin/contributions/${item.id}/correct`,
+      { entity_type: 'example', publish: false, source_sentence: 'Sudah diperbaiki.' },
+      adminToken,
+    );
+    expect(correct.status).toBe(200);
+    expect((await correct.json()).data).toMatchObject({ status: 'pending', is_corrected: true });
+
+    // kontribusi masih di antrean pending
+    const stillPending = await get('/api/v1/admin/contributions?status=pending&entity_type=example', adminToken);
+    expect((await stillPending.json()).data.some((c: { id: string }) => c.id === item.id)).toBe(true);
+
+    // contoh belum tayang di detail publik
+    const after = await get(`/api/v1/words/${data.word_id}`);
+    const afterBody = await after.json();
+    expect(afterBody.data.meanings[0].examples.some(
+      (e: { source_sentence: string }) => e.source_sentence === 'Sudah diperbaiki.',
+    )).toBe(false);
+  });
 });

@@ -1,15 +1,16 @@
 import { and, desc, eq, gte, lt, lte } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { auditLogs } from '@/shared/database/drizzle/schema';
+import { auditLogs, users } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
 import { logger } from '@/shared/logging/logger';
 import type { AuditLog, AuditLogFilter, AuditLogPage, NewAuditLog } from '../domain/entities/audit-log.entity';
 import type { AuditLogRepository } from '../domain/repositories/audit-log.repository';
 
-function toEntity(row: typeof auditLogs.$inferSelect): AuditLog {
+function toEntity(row: typeof auditLogs.$inferSelect, userName: string | null): AuditLog {
   return {
     id: row.id,
     userId: row.userId,
+    userName,
     action: row.action,
     entityType: row.entityType,
     entityId: row.entityId,
@@ -46,14 +47,15 @@ export class AuditLogRepositoryImpl implements AuditLogRepository {
     );
 
     const rows = await this.db
-      .select()
+      .select({ log: auditLogs, userName: users.username })
       .from(auditLogs)
+      .leftJoin(users, eq(auditLogs.userId, users.id))
       .where(where)
       .orderBy(desc(auditLogs.id))
       .limit(filter.limit + 1);
 
     const hasMore = rows.length > filter.limit;
-    const page = (hasMore ? rows.slice(0, filter.limit) : rows).map(toEntity);
+    const page = (hasMore ? rows.slice(0, filter.limit) : rows).map((row) => toEntity(row.log, row.userName));
 
     return {
       items: page,

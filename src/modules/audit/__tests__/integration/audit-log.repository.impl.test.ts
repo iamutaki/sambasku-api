@@ -53,6 +53,7 @@ describe.skipIf(!hasTestDb)('AuditLogRepositoryImpl', () => {
     const byType = await repo.list({ entityType: 'word', limit: 10 });
     expect(byType.items.length).toBeGreaterThanOrEqual(1);
     expect(byType.items[0].entityId).toBe(WORD_1);
+    expect(byType.items[0].userName).toBe('audita');
     expect(typeof byType.hasMore).toBe('boolean');
 
     const byUser = await repo.list({ userId: USER_A, limit: 10 });

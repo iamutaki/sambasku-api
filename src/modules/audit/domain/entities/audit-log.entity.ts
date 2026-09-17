@@ -1,6 +1,8 @@
 export interface AuditLog {
   id: string;
   userId: string | null;
+  /** username pelaku (JOIN users); null jika user_id null / user terhapus */
+  userName: string | null;
   action: string;
   entityType: string;
   entityId: string;

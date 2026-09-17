@@ -54,6 +54,18 @@ export interface ReviewCommand {
   };
 }
 
+// Koreksi entity anak TANPA publish (publish=false pada endpoint correct):
+// patch diterapkan, is_corrected=true, tapi status tetap 'pending_review'
+// dan tidak ada keputusan review (kontribusi tetap di antrean).
+export interface ApplyChildCorrectionCommand {
+  entityType: 'pronunciation' | 'word_image' | 'example';
+  entityId: string;
+  actorId: string;
+  pronunciation?: PronunciationPatch;
+  wordImage?: WordImagePatch;
+  example?: ExamplePatch;
+}
+
 /** Baris entity anak + referensi parent — untuk layar review & snapshot koreksi */
 export interface ChildEntityWithParent {
   id: string;
@@ -86,4 +98,6 @@ export interface ContributionRepository {
     entityId: string,
   ): Promise<ChildEntityWithParent | null>;
   review(cmd: ReviewCommand): Promise<ReviewOutcome>;
+  /** koreksi entity anak tanpa publish (lihat ApplyChildCorrectionCommand) */
+  applyChildCorrection(cmd: ApplyChildCorrectionCommand): Promise<void>;
 }

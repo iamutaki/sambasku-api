@@ -21,6 +21,7 @@ export class AuditController {
       data: items.map((log) => ({
         id: log.id,
         user_id: log.userId,
+        user_name: log.userName,
         action: log.action,
         entity_type: log.entityType,
         entity_id: log.entityId,

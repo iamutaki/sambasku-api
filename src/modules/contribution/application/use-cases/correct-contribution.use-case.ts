@@ -29,11 +29,21 @@ export interface CorrectContributionCommand {
   actorId: string;
   requestId?: string | null;
   comment: string | null;
+  /**
+   * true (default) = koreksi + publish + verified (kontribusi jadi 'corrected');
+   * false = KOREKSI SAJA — entity ditimpa tapi tetap 'pending_review',
+   * kontribusi tetap 'pending' (bisa di-approve/publish belakangan).
+   */
+  publish: boolean;
   input: CorrectContributionInput;
 }
 
-// Verifikator mengoreksi langsung isi kontribusi saat review: entity
-// diperbarui + is_corrected true, lalu published + verified.
+// Verifikator mengoreksi langsung isi kontribusi saat review.
+// - publish=true: entity diperbarui + is_corrected true, lalu published +
+//   verified + contributions.status='corrected'.
+// - publish=false: entity diperbarui + is_corrected true TAPI tetap
+//   pending_review; contributions.status TETAP 'pending' dan tidak ada
+//   keputusan review (supaya bisa di-approve/di-correct lagi).
 //
 // Catatan non-atomik (didokumentasikan di docs/api/03): koreksi entity
 // 'word' = DUA tulis — updateWithRelations dulu, baru transaksi review().
@@ -54,7 +64,7 @@ export class CorrectContributionUseCase {
       throw new ConflictError('CONTRIBUTION_ALREADY_REVIEWED', 'Kontribusi ini sudah diproses — sudah ada keputusan review');
     }
 
-    const { input } = cmd;
+    const { input, publish } = cmd;
     const patchPresent: Record<string, boolean> = {
       word: !!input.word,
       pronunciation: !!input.pronunciation,
@@ -71,20 +81,42 @@ export class CorrectContributionUseCase {
     const oldData = await this.snapshot(contrib.entityType, contrib.entityId);
 
     if (contrib.entityType === 'word') {
-      await this.applyWordCorrection(contrib.entityId, input.word!, cmd.actorId);
+      await this.applyWordCorrection(contrib.entityId, input.word!, cmd.actorId, publish);
     }
 
-    const outcome = await this.contributionRepo.review({
-      contributionId: cmd.contributionId,
-      decision: 'correct',
-      reviewerId: cmd.actorId,
-      comment: cmd.comment,
-      childPatch: {
-        pronunciation: input.pronunciation,
-        wordImage: input.wordImage,
-        example: input.example,
-      },
-    });
+    let outcome: ReviewOutcome;
+    if (publish) {
+      outcome = await this.contributionRepo.review({
+        contributionId: cmd.contributionId,
+        decision: 'correct',
+        reviewerId: cmd.actorId,
+        comment: cmd.comment,
+        childPatch: {
+          pronunciation: input.pronunciation,
+          wordImage: input.wordImage,
+          example: input.example,
+        },
+      });
+    } else {
+      // Koreksi saja: patch anak diterapkan tanpa mengubah status kontribusi.
+      // (word sudah ditangani applyWordCorrection di atas)
+      if (contrib.entityType !== 'word') {
+        await this.contributionRepo.applyChildCorrection({
+          entityType: contrib.entityType as 'pronunciation' | 'word_image' | 'example',
+          entityId: contrib.entityId,
+          actorId: cmd.actorId,
+          pronunciation: input.pronunciation,
+          wordImage: input.wordImage,
+          example: input.example,
+        });
+      }
+      outcome = {
+        contributionId: cmd.contributionId,
+        entityType: contrib.entityType,
+        entityId: contrib.entityId,
+        status: 'pending',
+      };
+    }
 
     await this.auditRepo.record({
       userId: cmd.actorId,
@@ -94,9 +126,10 @@ export class CorrectContributionUseCase {
       oldData,
       newData: {
         contribution_id: outcome.contributionId,
-        status: 'published',
-        is_verified: true,
+        status: publish ? 'published' : 'pending',
+        is_verified: publish,
         is_corrected: true,
+        published: publish,
         comment: cmd.comment,
       },
       requestId: cmd.requestId ?? null,
@@ -120,7 +153,7 @@ export class CorrectContributionUseCase {
   }
 
   // Validasi referensi (pola create-word) lalu replace semantics
-  private async applyWordCorrection(wordId: string, dto: CreateWordDto, actorId: string): Promise<void> {
+  private async applyWordCorrection(wordId: string, dto: CreateWordDto, actorId: string, publish: boolean): Promise<void> {
     if (dto.wordType === 'word' && dto.relatedWords.some((r) => r.relationType === 'has_component')) {
       throw new ValidationError([
         { field: 'related_words', message: 'has_component hanya untuk entri idiom/peribahasa/ungkapan' },
@@ -161,7 +194,7 @@ export class CorrectContributionUseCase {
 
     await this.wordRepo.updateWithRelations(
       wordId,
-      { ...dto, status: 'published', isVerified: true, isCorrected: true },
+      { ...dto, status: publish ? 'published' : 'pending_review', isVerified: publish, isCorrected: true },
       actorId,
     );
   }

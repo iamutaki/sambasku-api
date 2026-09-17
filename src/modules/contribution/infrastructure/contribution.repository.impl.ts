@@ -23,6 +23,7 @@ import type {
   ReviewOutcome,
 } from '../domain/entities/contribution.entity';
 import type {
+  ApplyChildCorrectionCommand,
   ChildEntityWithParent,
   ContributionListFilter,
   ContributionRepository,
@@ -301,6 +302,74 @@ export class ContributionRepositoryImpl implements ContributionRepository {
       });
 
       return { contributionId: contrib.id, entityType, entityId: contrib.entityId, status };
+    });
+  }
+
+  // Koreksi entity anak TANPA publish (publish=false pada endpoint correct):
+  // patch diterapkan + is_corrected true, status tetap 'pending_review'
+  // (kontribusi tetap pending — belum ada keputusan review).
+  async applyChildCorrection(cmd: ApplyChildCorrectionCommand): Promise<void> {
+    const now = new Date();
+    await this.db.transaction(async (tx) => {
+      switch (cmd.entityType) {
+        case 'pronunciation': {
+          const p = cmd.pronunciation;
+          if (!p) throw new Error('patch pronunciation hilang pada koreksi tanpa publish');
+          await tx
+            .update(pronunciations)
+            .set({
+              notation: p.notation,
+              value: p.value,
+              dialectId: p.dialectId,
+              audioUrl: p.audioUrl,
+              speakerName: p.speakerName,
+              notes: p.notes,
+              status: 'pending_review',
+              isVerified: false,
+              isCorrected: true,
+              updatedBy: cmd.actorId,
+              updatedAt: now,
+            })
+            .where(and(eq(pronunciations.id, cmd.entityId), isNull(pronunciations.deletedAt)));
+          break;
+        }
+        case 'word_image': {
+          const p = cmd.wordImage;
+          if (!p) throw new Error('patch word_image hilang pada koreksi tanpa publish');
+          await tx
+            .update(wordImages)
+            .set({
+              url: p.url,
+              providerFileId: p.providerFileId,
+              altText: p.altText,
+              isPrimary: p.isPrimary,
+              status: 'pending_review',
+              isVerified: false,
+              isCorrected: true,
+            })
+            .where(and(eq(wordImages.id, cmd.entityId), isNull(wordImages.deletedAt)));
+          break;
+        }
+        case 'example': {
+          const p = cmd.example;
+          if (!p) throw new Error('patch example hilang pada koreksi tanpa publish');
+          await tx
+            .update(examples)
+            .set({
+              sourceSentence: p.sourceSentence,
+              targetSentence: p.targetSentence,
+              sourceType: p.sourceType,
+              notes: p.notes,
+              status: 'pending_review',
+              isVerified: false,
+              isCorrected: true,
+              updatedBy: cmd.actorId,
+              updatedAt: now,
+            })
+            .where(and(eq(examples.id, cmd.entityId), isNull(examples.deletedAt)));
+          break;
+        }
+      }
     });
   }
 
