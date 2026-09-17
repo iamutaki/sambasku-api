@@ -40,6 +40,7 @@ import {
   createMeaningExampleRoutes,
   createWordMediaRoutes,
 } from '@/modules/word/presentation/v1/word-media.routes';
+import { createAnonContributionRoutes } from '@/modules/word/presentation/v1/anon-contribution.routes';
 import { createWordClassRoutes } from '@/modules/word/presentation/v1/word-class.routes';
 import { ContributionRepositoryImpl } from '@/modules/contribution/infrastructure/contribution.repository.impl';
 import { ListContributionsUseCase } from '@/modules/contribution/application/use-cases/list-contributions.use-case';
@@ -212,6 +213,25 @@ app.get('/health', async (c) => {
   }
 });
 
+// Canary CI/CD — meta route di luar OpenAPI spec (pola yang sama dengan
+// / dan /health, §9/§13). Dipakai memverifikasi deploy baru end-to-end:
+// push → GitHub Actions → GET /api/v1/ping harus menunjukkan perubahan.
+// `runtime` membuktikan entry mana yang melayani (dual-runtime).
+app.get('/api/v1/ping', (c) =>
+  c.json({
+    success: true as const,
+    data: {
+      pong: true,
+      time: new Date().toISOString(),
+      env: env.NODE_ENV,
+      runtime:
+        typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers'
+          ? 'cloudflare-workers'
+          : 'node',
+    },
+  }),
+);
+
 app.route('/api/v1/auth', createAuthRoutes({ controller, authenticate }));
 
 // Modul word — admin (write) + publik (read)
@@ -226,6 +246,10 @@ app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordContro
 
 // Antrean review kontribusi — hanya verifikator (Section 22)
 app.route('/api/v1/admin/contributions', createContributionRoutes({ controller: contributionController, authenticate }));
+
+// Submit kata TANPA login (publik, 5/jam per IP) — atribusi ke user sistem
+// Anonim, otomatis pending_review (03-api-kontribusi-verifikasi.md)
+app.route('/api/v1/contributions', createAnonContributionRoutes({ controller: wordController }));
 
 // Search miss — beranda publik (peluang kontribusi) + panel admin
 app.route('/api/v1/search-misses', createSearchMissRoutes({ controller: searchMissController, authenticate }));

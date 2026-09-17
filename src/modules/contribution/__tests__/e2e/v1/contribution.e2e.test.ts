@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
+import { ANONIM_EMAIL, ANONIM_USER_ID, ANONIM_USERNAME } from '@/shared/constants/anonim';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -83,6 +84,15 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 
         await db.update(users).set({ role }).where(eq(users.email, email));
       }
     }
+
+    // User sistem Anonim - penampung kontribusi tanpa login (03 doc)
+    await db.insert(users).values({
+      id: ANONIM_USER_ID,
+      username: ANONIM_USERNAME,
+      email: ANONIM_EMAIL,
+      passwordHash: 'bukan-hash-login',
+      role: 'contributor',
+    });
     const login = async (email: string) =>
       (await (await post('/api/v1/auth/login', { email, password: 'Password123' })).json()).data.access_token;
     adminToken = await login(`adm${stamp}@test.com`);
@@ -165,6 +175,24 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 
     const bogus = await post(`/api/v1/admin/contributions/${ulid26('01E2ENGACAK')}/approve`, {}, adminToken);
     expect(bogus.status).toBe(404);
     expect((await bogus.json()).error_code).toBe('CONTRIBUTION_NOT_FOUND');
+  });
+
+  it('ANONIM: submit kata TANPA login → 201 pending_review, atribusi ke user Anonim', async () => {
+    // endpoint publik /api/v1/contributions/words - tanpa token sama sekali
+    const res = await post('/api/v1/contributions/words', validWordBody('kata dari anonim'));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.data.status).toBe('pending_review');
+    expect(body.data.is_verified).toBe(false);
+
+    // antrean admin: kontribusi ini tercatat atas nama user Anonim
+    const list = await get('/api/v1/admin/contributions?status=pending&entity_type=word', adminToken);
+    const listBody = await list.json();
+    const item = listBody.data.find((c: { entity_id: string }) => c.entity_id === body.data.word_id);
+    expect(item).toMatchObject({ contributor_username: 'anonim', status: 'pending' });
+
+    // dan tidak tayang sampai di-approve
+    expect((await get(`/api/v1/words/${body.data.word_id}`)).status).toBe(404);
   });
 
   it('correct contoh kalimat → is_corrected true + tayang; entity_type salah → 400', async () => {

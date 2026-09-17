@@ -16,6 +16,7 @@ import type {
   AddWordImageBody,
 } from './validators/word-media.validator';
 import { toCreateWordDto } from './map-create-word';
+import { ANONIM_USER_ID } from '@/shared/constants/anonim';
 import type { WordClassSummary } from '../../domain/entities/word.entity';
 
 export class WordController {
@@ -178,6 +179,38 @@ export class WordController {
       requestId,
     });
     return c.json({ success: true as const, data: null });
+  }
+
+  /**
+   * Submit kata oleh pengunjung ANONIM (tanpa login) - endpoint publik
+   * /api/v1/contributions/words. Reuse use case create yang sama; actor
+   * = user sistem Anonim (role contributor) sehingga otomatis masuk
+   * antrean pending_review via resolvePublication. Status dipaksa
+   * 'published' (= "kirim untuk direview") karena draft milik anonim
+   * tidak bermakna (tidak bisa kembali melanjutkannya).
+   */
+  async createAnon(c: Context, body: Omit<CreateWordBody, 'status'>) {
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    const { word, warnings } = await this.deps.create.execute(
+      toCreateWordDto({ ...body, status: 'published' }, this.deps.imageProviderName),
+      { userId: ANONIM_USER_ID, role: 'contributor', requestId },
+    );
+
+    return c.json(
+      {
+        success: true as const,
+        data: {
+          word_id: word.id,
+          lemma: word.lemma,
+          word_type: word.wordType,
+          status: word.status,
+          is_verified: word.isVerified,
+          created_at: word.createdAt.toISOString(),
+          ...(warnings.length > 0 ? { warnings } : {}),
+        },
+      },
+      201,
+    );
   }
 
   async addPronunciation(c: Context, wordId: string, body: AddPronunciationBody) {

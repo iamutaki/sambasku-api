@@ -2,13 +2,13 @@
 
 Backend API Kamus Digital Sambas-Indonesia.
 
-Stack & konvensi mengikuti `docs/api/api-base-stack.md` — Hono + Drizzle ORM +
+Stack & konvensi mengikuti `docs/api/api-base-stack.md` - Hono + Drizzle ORM +
 PostgreSQL, clean architecture feature-based (`src/modules/<fitur>/`).
 Dokumentasi API interaktif tersedia di `GET /docs` (Scalar) saat server jalan.
 
 ## Menjalankan Database (Docker)
 
-Prasyarat: Docker daemon jalan — di mesin ini pakai [colima](https://github.com/abiosoft/colima):
+Prasyarat: Docker daemon jalan - di mesin ini pakai [colima](https://github.com/abiosoft/colima):
 
 ```bash
 colima start                # sekali per sesi (kalau daemon Docker belum jalan)
@@ -25,7 +25,7 @@ docker compose up -d        # naikkan 2 container:
 ```bash
 pnpm install
 
-# 1. Environment — copy template lalu isi
+# 1. Environment - copy template lalu isi
 cp .env.example .env
 
 # 2. Generate JWT keypair dev (RS256)
@@ -41,7 +41,7 @@ pnpm drizzle-kit migrate
 pnpm seed
 
 # 5. Jalankan API
-pnpm dev                    # http://localhost:3000 — docs di /docs
+pnpm dev                    # http://localhost:3000 - docs di /docs
 ```
 
 ### Database test (untuk integration & e2e test)
@@ -70,10 +70,10 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5433/db_sambasku_test \
 ## Cloudflare Workers (deploy)
 
 Dua runtime berbagi satu composition root: `main.ts` (Node, default dev)
-dan `worker.ts` (Workers — env dari bindings, DB via driver Neon
+dan `worker.ts` (Workers - env dari bindings, DB via driver Neon
 serverless WebSocket per-request, email via Resend). Setup deploy pertama
 kali (secrets + urutan lengkap): lihat **Section 17 "Deploy ke Cloudflare
-Workers"** di `docs/api/api-base-stack.md`. Migration tetap dari CI Node —
+Workers"** di `docs/api/api-base-stack.md`. Migration tetap dari CI Node -
 tidak lewat Workers.
 
 ### Deploy otomatis dari GitHub (CI/CD)
@@ -89,7 +89,7 @@ otomatis: test penuh (Postgres service) → migrate Neon (direct URL) →
 | `CLOUDFLARE_ACCOUNT_ID`       | `547e27ab971bbd809dfd57626049a131`                                                  |
 | `STAGING_DATABASE_URL_DIRECT` | Neon staging**direct** URL (`?sslmode=require`, tanpa `-pooler`)            |
 
-Secret Worker (DATABASE_URL pooled, JWT, dst.) tidak ikut CI — `wrangler deploy` mempertahankan secret yang sudah terpasang. Deploy manual
+Secret Worker (DATABASE_URL pooled, JWT, dst.) tidak ikut CI - `wrangler deploy` mempertahankan secret yang sudah terpasang. Deploy manual
 `pnpm deploy:staging` tetap tersedia sebagai fallback.
 
 ## Akses Database

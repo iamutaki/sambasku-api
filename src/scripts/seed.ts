@@ -9,6 +9,7 @@ import {
 } from '@/shared/database/drizzle/schema';
 import { Pbkdf2PasswordService } from '@/modules/auth/infrastructure/pbkdf2-password.service';
 import { logger } from '@/shared/logging/logger';
+import { ANONIM_EMAIL, ANONIM_USER_ID, ANONIM_USERNAME } from '@/shared/constants/anonim';
 
 // Seeder: user admin & root + data referensi form admin — jalankan: pnpm seed
 // (butuh database sudah up + sudah dimigrate; idempoten, aman dijalankan berulang)
@@ -63,6 +64,24 @@ async function main() {
       });
     logger.info(`Seeded user ${user.email} (role: ${user.role})`);
   }
+
+  // User sistem Anonim - penampung kontribusi pengunjung tanpa login
+  // (03-api-kontribusi-verifikasi.md). Password = acak permanen: akun ini
+  // TIDAK bisa dipakai login; hanya sebagai atribusi created_by/user_id.
+  await db
+    .insert(users)
+    .values({
+      id: ANONIM_USER_ID,
+      username: ANONIM_USERNAME,
+      email: ANONIM_EMAIL,
+      passwordHash: await hasher.hash(crypto.randomUUID()),
+      role: 'contributor', // non-verifikator: submit selalu pending_review
+    })
+    .onConflictDoUpdate({
+      target: users.id,
+      set: { role: 'contributor', updatedAt: new Date() },
+    });
+  logger.info(`Seeded user sistem ${ANONIM_EMAIL} (penampung kontribusi anonim)`);
 
   // Data referensi — upsert by key unik
   for (const lang of SEED_LANGUAGES) {
