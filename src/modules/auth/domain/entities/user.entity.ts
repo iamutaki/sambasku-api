@@ -3,7 +3,8 @@ export interface User {
   id: string; // ULID
   username: string;
   email: string;
-  passwordHash: string;
+  // NULL untuk user OAuth-only (Section 23) - login password wajib menolaknya
+  passwordHash: string | null;
   role: string;
   isActive: boolean;
   createdAt: Date;

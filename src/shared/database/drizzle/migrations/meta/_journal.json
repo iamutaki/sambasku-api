@@ -57,6 +57,13 @@
       "when": 1789559294688,
       "tag": "0007_contribution-review-workflow",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789660308568,
+      "tag": "0008_auth-identities-oauth",
+      "breakpoints": true
     }
   ]
 }

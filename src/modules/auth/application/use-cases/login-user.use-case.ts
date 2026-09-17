@@ -28,7 +28,9 @@ export class LoginUserUseCase {
     const invalid = new UnauthorizedError('INVALID_CREDENTIALS', 'Email atau password salah');
 
     const user = await this.userRepo.findByEmail(dto.email);
-    if (!user || !(await this.hasher.compare(dto.password, user.passwordHash))) {
+    // passwordHash NULL = user OAuth-only (Section 23) - tidak punya jalur
+    // login password; pesan tetap generik anti-enumeration
+    if (!user || !user.passwordHash || !(await this.hasher.compare(dto.password, user.passwordHash))) {
       throw invalid;
     }
     // Soft-deleted ATAU dinonaktifkan (is_active=false) → pesan generik yang sama
