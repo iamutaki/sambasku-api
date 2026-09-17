@@ -1,4 +1,7 @@
-import 'dotenv/config';
+// NOTE: file ini TIDAK lagi memuat dotenv — .env hanya relevan di runtime
+// Node (main.ts + script CLI yang meng-import 'dotenv/config' sendiri).
+// Di Cloudflare Workers, entry src/worker.ts mengisi process.env dari
+// bindings SEBELUM modul aplikasi di-import (lazy import).
 import { z } from 'zod';
 
 const envSchema = z.object({
@@ -17,10 +20,20 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
 
+  // Email HTTP (Resend) — jalur utama di Cloudflare Workers (SMTP = TCP,
+  // tidak tersedia). Kalau di-set, dipakai LEBIH DULU daripada SMTP
+  RESEND_API_KEY: z.string().optional(),
+  MAIL_FROM: z.string().optional(),
+
   CORS_ALLOWED_ORIGINS: z.string(), // comma-separated
 
-  // Image provider (ImageKit) — opsional; tanpa ini endpoint upload-token
-  // membalas 503 IMAGE_UPLOAD_UNAVAILABLE (lihat modules/image/)
+  // Image provider — dipilih via IMAGE_PROVIDER (default 'imagekit',
+  // lihat modules/image/infrastructure/image-storage.factory.ts).
+  // Kredensial tetap per-provider: IMAGEKIT_* (bentuk kredensial tiap
+  // provider memang beda — jangan dipaksa generik).
+  // Tanpa kredensial: endpoint upload-token membalas 503
+  // IMAGE_UPLOAD_UNAVAILABLE.
+  IMAGE_PROVIDER: z.string().optional(),
   IMAGEKIT_PRIVATE_KEY: z.string().optional(),
   IMAGEKIT_PUBLIC_KEY: z.string().optional(),
   IMAGEKIT_URL_ENDPOINT: z.string().optional(), // mis. https://ik.imagekit.io/akun

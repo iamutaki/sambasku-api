@@ -1,3 +1,4 @@
+import 'dotenv/config'; // .env hanya untuk runtime Node — worker.ts pakai bindings
 import { serve } from '@hono/node-server';
 import { env } from '@/shared/config/env';
 import { logger } from '@/shared/logging/logger';

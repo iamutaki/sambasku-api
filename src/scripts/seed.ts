@@ -1,3 +1,4 @@
+import 'dotenv/config'; // script CLI jalan di Node — env.ts tidak lagi memuat dotenv
 import { db, pool } from '@/shared/database/drizzle/client';
 import {
   categories,
@@ -6,7 +7,7 @@ import {
   users,
   wordClasses,
 } from '@/shared/database/drizzle/schema';
-import { Argon2PasswordService } from '@/modules/auth/infrastructure/argon2-password.service';
+import { Pbkdf2PasswordService } from '@/modules/auth/infrastructure/pbkdf2-password.service';
 import { logger } from '@/shared/logging/logger';
 
 // Seeder: user admin & root + data referensi form admin — jalankan: pnpm seed
@@ -48,7 +49,7 @@ const SEED_CATEGORIES = [
 
 async function main() {
   // Hash pakai service yang sama dengan register — tidak pernah simpan plain password
-  const hasher = new Argon2PasswordService();
+  const hasher = new Pbkdf2PasswordService();
   const passwordHash = await hasher.hash(SEED_PASSWORD);
 
   for (const user of SEED_USERS) {

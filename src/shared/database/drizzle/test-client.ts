@@ -7,6 +7,7 @@ import * as schema from './schema';
 // Khusus integration & e2e test (api-base-stack.md Section 10):
 // DATABASE_URL HARUS mengarah ke database test terpisah lewat .env.test.
 // override:true — .env.test selalu menang atas .env dev / env shell.
+// Test selalu dijalankan di Node → driver `pg` TCP (bukan adapter Workers).
 loadEnv({ path: '.env.test', quiet: true, override: true });
 
 let testDb: NodePgDatabase<typeof schema> | undefined;

@@ -1,4 +1,4 @@
-# sambasku-api
+# SambasKu-API
 
 Backend API Kamus Digital Sambas-Indonesia.
 
@@ -54,16 +54,43 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5433/db_sambasku_test \
 
 ## Command Sehari-hari
 
-| Command | Fungsi |
-| --- | --- |
-| `pnpm dev` | Jalankan API (watch mode) |
-| `pnpm test` | Semua test (unit + integration + e2e) |
-| `pnpm test:unit` / `test:integration` / `test:e2e` | Test per lapisan |
-| `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm seed` | Seeder user admin & root (idempoten) |
-| `pnpm drizzle-kit generate` | Generate migration SQL dari perubahan schema |
-| `pnpm drizzle-kit migrate` | Apply migration ke database |
-| `pnpm drizzle-kit studio` | GUI browser untuk lihat isi database |
+| Command                                                  | Fungsi                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------ |
+| `pnpm dev`                                             | Jalankan API (watch mode, Node runtime)                |
+| `pnpm dev:worker`                                      | Jalankan API via wrangler (paritas Cloudflare Workers) |
+| `pnpm deploy`                                          | Deploy ke Cloudflare Workers (`wrangler deploy`)     |
+| `pnpm test`                                            | Semua test (unit + integration + e2e)                  |
+| `pnpm test:unit` / `test:integration` / `test:e2e` | Test per lapisan                                       |
+| `pnpm typecheck`                                       | `tsc --noEmit`                                       |
+| `pnpm seed`                                            | Seeder user admin & root (idempoten)                   |
+| `pnpm drizzle-kit generate`                            | Generate migration SQL dari perubahan schema           |
+| `pnpm drizzle-kit migrate`                             | Apply migration ke database                            |
+| `pnpm drizzle-kit studio`                              | GUI browser untuk lihat isi database                   |
+
+## Cloudflare Workers (deploy)
+
+Dua runtime berbagi satu composition root: `main.ts` (Node, default dev)
+dan `worker.ts` (Workers — env dari bindings, DB via driver Neon
+serverless WebSocket per-request, email via Resend). Setup deploy pertama
+kali (secrets + urutan lengkap): lihat **Section 17 "Deploy ke Cloudflare
+Workers"** di `docs/api/api-base-stack.md`. Migration tetap dari CI Node —
+tidak lewat Workers.
+
+### Deploy otomatis dari GitHub (CI/CD)
+
+Push ke branch **`staging`** di repo ini →
+[.github/workflows/deploy-staging.yml](.github/workflows/deploy-staging.yml)
+otomatis: test penuh (Postgres service) → migrate Neon (direct URL) →
+`wrangler deploy --env staging`. Sekali setup, tambahkan 3 secrets GitHub:
+
+| Secret                          | Nilai                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`        | dashboard CF → My Profile → API Tokens → template**Edit Cloudflare Workers** |
+| `CLOUDFLARE_ACCOUNT_ID`       | `547e27ab971bbd809dfd57626049a131`                                                  |
+| `STAGING_DATABASE_URL_DIRECT` | Neon staging**direct** URL (`?sslmode=require`, tanpa `-pooler`)            |
+
+Secret Worker (DATABASE_URL pooled, JWT, dst.) tidak ikut CI — `wrangler deploy` mempertahankan secret yang sudah terpasang. Deploy manual
+`pnpm deploy:staging` tetap tersedia sebagai fallback.
 
 ## Akses Database
 
@@ -81,7 +108,8 @@ src/
 ├── modules/auth/          # fitur auth (domain → application → infrastructure → presentation/v1)
 ├── shared/                # lintas modul: db, middlewares, errors, config, logging
 ├── scripts/seed.ts        # seeder CLI
-└── app.ts / main.ts       # composition root + server
+├── app.ts                 # composition root (dibagi 2 runtime)
+└── main.ts / worker.ts    # entry Node (@hono/node-server) / Cloudflare Workers
 ```
 
 Detail lengkap: `docs/api/api-base-stack.md`.

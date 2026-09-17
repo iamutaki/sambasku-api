@@ -5,14 +5,15 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/shared/database/drizzle/client';
 import { errorHandler } from '@/shared/middlewares/error-handler.middleware';
 import { requestIdMiddleware } from '@/shared/middlewares/request-id.middleware';
+import { requestDb } from '@/shared/middlewares/request-db.middleware';
 import { createAuthenticateMiddleware } from '@/shared/middlewares/authenticate.middleware';
 import { createOpenApiApp } from '@/shared/openapi/openapi-app';
 import { UserRepositoryImpl } from '@/modules/auth/infrastructure/user.repository.impl';
 import { RefreshTokenRepositoryImpl } from '@/modules/auth/infrastructure/refresh-token.repository.impl';
 import { PasswordResetTokenRepositoryImpl } from '@/modules/auth/infrastructure/password-reset-token.repository.impl';
 import { JwtTokenService } from '@/modules/auth/infrastructure/jwt-token.service';
-import { Argon2PasswordService } from '@/modules/auth/infrastructure/argon2-password.service';
-import { SmtpMailerService } from '@/modules/auth/infrastructure/smtp-mailer.service';
+import { Pbkdf2PasswordService } from '@/modules/auth/infrastructure/pbkdf2-password.service';
+import { createMailer } from '@/modules/auth/infrastructure/mailer.factory';
 import { RegisterUserUseCase } from '@/modules/auth/application/use-cases/register-user.use-case';
 import { LoginUserUseCase } from '@/modules/auth/application/use-cases/login-user.use-case';
 import { RefreshTokenUseCase } from '@/modules/auth/application/use-cases/refresh-token.use-case';
@@ -71,7 +72,7 @@ import { AuditLogRepositoryImpl } from '@/modules/audit/infrastructure/audit-log
 import { ListAuditLogsUseCase } from '@/modules/audit/application/use-cases/list-audit-logs.use-case';
 import { AuditController } from '@/modules/audit/presentation/v1/audit.controller';
 import { createAuditRoutes } from '@/modules/audit/presentation/v1/audit.routes';
-import { ImageKitStorageService } from '@/modules/image/infrastructure/imagekit-storage.service';
+import { createImageStorage } from '@/modules/image/infrastructure/image-storage.factory';
 import { CreateUploadCredentialsUseCase } from '@/modules/image/application/use-cases/create-upload-credentials.use-case';
 import { ImageController } from '@/modules/image/presentation/v1/image.controller';
 import { createImageRoutes } from '@/modules/image/presentation/v1/image.routes';
@@ -85,8 +86,10 @@ const tokenService = new JwtTokenService({
   publicKeyPem: env.JWT_PUBLIC_KEY,
   accessTokenTtlSeconds: env.JWT_ACCESS_TOKEN_TTL,
 });
-const hasher = new Argon2PasswordService();
-const mailer = new SmtpMailerService();
+const hasher = new Pbkdf2PasswordService();
+// Email: Resend (HTTP) kalau RESEND_API_KEY ter-set — jalur Cloudflare
+// Workers; selain itu SMTP (Node). Keduanya implements MailerPort.
+const mailer = createMailer();
 
 // ---- Modul audit (Section 21) — direkspos ke use case modul lain ----
 const auditRepo = new AuditLogRepositoryImpl(db);
@@ -118,7 +121,9 @@ const authenticate = createAuthenticateMiddleware((token) => tokenService.verify
 
 // ---- Modul word (+ language & category sebagai data referensi form admin) ----
 const wordRepo = new WordRepositoryImpl(db);
-const imageStorage = new ImageKitStorageService();
+// Provider gambar dipilih via env IMAGE_PROVIDER (default imagekit) —
+// pola factory yang sama dengan createMailer (Section 8)
+const imageStorage = createImageStorage();
 // Search miss: pencarian kosong → peluang kontribusi (03 doc) — direcord
 // dari SearchWordsUseCase lewat interface modul search-miss (Section 4)
 const searchMissRepo = new SearchMissRepositoryImpl(db);
@@ -180,6 +185,8 @@ app.notFound((c) =>
 );
 
 app.use('*', requestIdMiddleware);
+// Workers: pool DB per-request (WebSocket = I/O milik request, lihat client.ts)
+app.use('*', requestDb);
 app.use('/api/*', cors({ origin: env.CORS_ALLOWED_ORIGINS, credentials: true }));
 
 // Info singkat di root — meta route (bukan endpoint fitur, jadi tidak ikut OpenAPI spec)
