@@ -1,4 +1,6 @@
 import { apiReference } from '@scalar/hono-api-reference';
+import { createRoute } from '@hono/zod-openapi';
+import { z } from 'zod';
 import { cors } from 'hono/cors';
 import { env } from '@/shared/config/env';
 import { sql } from 'drizzle-orm';
@@ -213,11 +215,37 @@ app.get('/health', async (c) => {
   }
 });
 
-// Canary CI/CD — meta route di luar OpenAPI spec (pola yang sama dengan
-// / dan /health, §9/§13). Dipakai memverifikasi deploy baru end-to-end:
+// Canary CI/CD — dipakai memverifikasi deploy baru end-to-end:
 // push → GitHub Actions → GET /api/v1/ping harus menunjukkan perubahan.
 // `runtime` membuktikan entry mana yang melayani (dual-runtime).
-app.get('/api/v1/ping', (c) =>
+// Terdaftar via createRoute agar muncul di OpenAPI spec + Scalar (Section 9)
+// — beda dari / dan /health yang memang meta route di luar spec.
+const pingRoute = createRoute({
+  method: 'get',
+  path: '/api/v1/ping',
+  tags: ['Misc'],
+  summary: 'Canary CI/CD — verifikasi deploy (tanpa auth, tanpa DB)',
+  responses: {
+    200: {
+      description: 'Pong + info runtime yang melayani',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.literal(true),
+            data: z.object({
+              pong: z.boolean(),
+              time: z.string(),
+              env: z.string(),
+              runtime: z.enum(['node', 'cloudflare-workers']),
+            }),
+          }),
+        },
+      },
+    },
+  },
+});
+
+app.openapi(pingRoute, (c) =>
   c.json({
     success: true as const,
     data: {

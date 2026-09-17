@@ -49,16 +49,21 @@ enabled = true
 [env.staging]
 name = "sambasku-api-staging"
 
+# Custom domain staging (zone iamutaki.com harus di akun CF yang sama;
+# wrangler otomatis membuat DNS + sertifikat saat deploy pertama)
+[[env.staging.routes]]
+pattern = "sambasku-staging.iamutaki.com"
+custom_domain = true
+
 [env.staging.vars]
 NODE_ENV = "staging"
-# Sesuai realitas deploy saat ini (workers.dev). GANTI bersamaan saat custom
-# domain dipasang (routes/custom_domain di file ini + DNS) — APP_URL adalah
-# basis link reset-password, CORS adalah origin frontend admin/web.
-APP_URL = "https://sambasku-api-staging.ibnuul.workers.dev"
-CORS_ALLOWED_ORIGINS = "http://localhost:5173,https://staging.kamus-sambas.app"
+# APP_URL = basis link reset-password; CORS = origin frontend admin/web
+# (tambahkan origin web staging di sini kalau frontend sudah deploy)
+APP_URL = "https://sambasku-staging.iamutaki.com"
+CORS_ALLOWED_ORIGINS = "http://localhost:5173"
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
-MAIL_FROM = "Kamus Sambas Staging <no-reply@kamus-sambas.app>"
+MAIL_FROM = "Kamus Sambas Staging <no-reply@iamutaki.com>"
 # Provider gambar: default "imagekit" — kredensial via
 # `wrangler secret put --env staging IMAGEKIT_PRIVATE_KEY` dst.
 
