@@ -36,6 +36,7 @@ export class AddExampleUseCase {
       categoryIds: [],
       relatedWordIds: [],
       variantDialectIds: [],
+      inline: { wordClassIds: [], languageIds: [], categoryIds: [], variantDialectIds: [] },
     });
     const details: { field: string; message: string }[] = [];
     if (missing.languageId) {

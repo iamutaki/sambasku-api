@@ -4,6 +4,8 @@ import type { WordRepository } from '@/modules/word/domain/repositories/word.rep
 import type { CreateWordDto } from '@/modules/word/application/dto/create-word.dto';
 import {
   collectLanguageIds,
+  isInlineRelation,
+  isLinkRelation,
   mapMissingToDetails,
 } from '@/modules/word/application/use-cases/create-word.use-case';
 import type { ReviewOutcome } from '../../domain/entities/contribution.entity';
@@ -125,16 +127,34 @@ export class CorrectContributionUseCase {
       ]);
     }
 
+    // 04: koreksi (replace) TIDAK mendukung kata inline — buat kata inline
+    // lewat create dulu, lalu tautkan lewat Form A (update endpoint menyusul di 01)
+    const inlineIndex = dto.relatedWords.findIndex(isInlineRelation);
+    if (inlineIndex >= 0) {
+      throw new ValidationError([
+        {
+          field: `related_words.${inlineIndex}.word`,
+          message: 'Kata baru inline tidak didukung pada koreksi kontribusi — buat kata terpisah lalu tautkan',
+        },
+      ]);
+    }
+
     const missing = await this.wordRepo.findMissingReferences({
       languageId: dto.languageId,
       dialectId: dto.dialectId,
       wordClassIds: dto.meanings.map((m) => m.wordClassId),
       languageIds: collectLanguageIds(dto),
       categoryIds: dto.categoryIds,
-      relatedWordIds: dto.relatedWords.map((r) => r.wordId),
+      relatedWordIds: dto.relatedWords.filter(isLinkRelation).map((r) => r.wordId),
       variantDialectIds: (dto.variants ?? [])
         .map((v) => v.dialectId)
         .filter((id): id is string => !!id),
+      inline: {
+        wordClassIds: [],
+        languageIds: [],
+        categoryIds: [],
+        variantDialectIds: [],
+      },
     });
     const details = mapMissingToDetails(dto, missing);
     if (details.length > 0) throw new ValidationError(details);

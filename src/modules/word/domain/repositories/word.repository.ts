@@ -5,8 +5,9 @@ import type {
   WordDetail,
   WordStatus,
   WordSummary,
+  WordType,
 } from '../entities/word.entity';
-import type { CreateWordDto } from '../../application/dto/create-word.dto';
+import type { CreateWordDto, RelationType } from '../../application/dto/create-word.dto';
 
 // status & isVerified & isCorrected di-override use case
 // (Section 22 — approval gate; resolvePublication)
@@ -25,6 +26,13 @@ export interface ReferenceCheck {
   categoryIds: string[];
   relatedWordIds: string[];
   variantDialectIds: string[];
+  /** 04: referensi dari kata inline (Form B) — SATU query gabungan dgn induk */
+  inline: {
+    wordClassIds: string[];
+    languageIds: string[];
+    categoryIds: string[];
+    variantDialectIds: string[];
+  };
 }
 
 export interface MissingReferences {
@@ -35,6 +43,48 @@ export interface MissingReferences {
   categories: string[];
   words: string[];
   dialects: string[];
+  /** 04: id hilang milik kata inline — dipetakan use case ke field path
+   *  related_words.N.word.* */
+  inlineWordClasses: string[];
+  inlineLanguages: string[];
+  inlineCategories: string[];
+  inlineDialects: string[];
+}
+
+// 04-api-sinonim-inline.md — Related ter-resolusi use case, siap insert
+// dalam transaksi yang sama dgn kata induk.
+export interface ResolvedInlineRelation {
+  relationType: RelationType;
+  inlineWord: WordToSave;
+  /**
+   * Provenance inherit makna (kolom meanings.inherited_from_meaning_id).
+   * key = indeks 0-based di meanings inline; value = indeks 0-based makna
+   * INDUK yang jadi sumber salinan (dipecahkan ke row id di dalam transaksi).
+   * ABSENT = makna mandiri (inherit=false) ATAU sudah di-override →
+   * kolom NULL (= makna sudah "selesai mengikuti" induknya).
+   */
+  inheritedFrom?: Record<number, number>;
+  /** 04: berapa makna yang asalnya disalin dari induk (inherit path) */
+  inheritedMeaningsCount: number;
+  /** 04: berapa makna yang di-override lewat meaning_overrides */
+  overriddenMeaningsCount: number;
+}
+
+export interface InlineCreatedWordSummary {
+  id: string;
+  lemma: string;
+  relationType: RelationType;
+  wordType: WordType;
+  status: WordStatus;
+  isVerified: boolean;
+  meaningsCount: number;
+  inheritedMeaningsCount: number;
+  overriddenMeaningsCount: number;
+}
+
+export interface SaveWithInlineResult {
+  word: Word;
+  inlineCreatedWords: InlineCreatedWordSummary[];
 }
 
 // Pagination cursor-based (base-stack.md Section 13): cursor = ULID id
@@ -60,10 +110,21 @@ export interface CursorPage<T> {
 }
 
 // Kontrak repository modul word — implementasi Drizzle di infrastructure/.
-// saveWithRelations DIJAMIN atomik (satu db.transaction) — use case tidak
-// perlu tahu soal transaction (docs/api/01-api-tambah-kata.md).
+// saveWithRelations & saveWithInlineRelations DIJAMIN atomik (satu
+// db.transaction) — use case tidak perlu tahu soal transaction
+// (docs/api/01-api-tambah-kata.md & 04-api-sinonim-inline.md).
 export interface WordRepository {
   saveWithRelations(word: WordToSave, actorId: string): Promise<Word>;
+  /**
+   * 04: simpan induk + N kata inline (Form B) + relasi + contributions dalam
+   * SATU transaksi atomik. Rollback jika salah satu insert gagal → TIDAK ada
+   * baris tersisa (induk pun).
+   */
+  saveWithInlineRelations(
+    word: WordToSave,
+    actorId: string,
+    related: ResolvedInlineRelation[],
+  ): Promise<SaveWithInlineResult>;
   /** true kalau lemma sama sudah ada di language itu (belum soft-deleted) */
   findDuplicate(languageId: string, lemma: string): Promise<boolean>;
   /** hanya published + belum soft-deleted; includeAllStatuses = layar review */

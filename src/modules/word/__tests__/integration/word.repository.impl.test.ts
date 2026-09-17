@@ -7,6 +7,7 @@ import {
   contributions,
   examples,
   languages,
+  lexicalRelations,
   meanings,
   meaningTranslations,
   wordCategories,
@@ -17,6 +18,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { truncateAll } from '@/shared/database/drizzle/test-utils';
 import { WordRepositoryImpl } from '../../infrastructure/word.repository.impl';
+import type { ResolvedInlineRelation } from '../../domain/repositories/word.repository';
 import type { WordToSave } from '../../domain/repositories/word.repository';
 
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -60,6 +62,32 @@ function baseWord(overrides: Partial<WordToSave> = {}): WordToSave {
     status: 'published',
     isVerified: false,
     ...overrides,
+  };
+}
+
+// 04: satu related inline (Form B) ter-resolusi — bentuk yang sama dengan
+// output resolveInlineRelations use case (inherit + override).
+function inlineSynonym(
+  lemma: string,
+  overrides: Partial<WordToSave> = {},
+  inherit: { inheritedFrom?: Record<number, number>; inheritedMeaningsCount?: number; overriddenMeaningsCount?: number } = {},
+): ResolvedInlineRelation {
+  return {
+    relationType: 'synonym',
+    inlineWord: {
+      languageId: SMB,
+      lemma,
+      wordType: 'word',
+      meanings: baseWord().meanings,
+      categoryIds: [],
+      relatedWords: [],
+      status: 'published',
+      isVerified: true,
+      ...overrides,
+    },
+    inheritedFrom: inherit.inheritedFrom ?? {},
+    inheritedMeaningsCount: inherit.inheritedMeaningsCount ?? 0,
+    overriddenMeaningsCount: inherit.overriddenMeaningsCount ?? 0,
   };
 }
 
@@ -362,6 +390,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
       categoryIds: [MAKANAN],
       relatedWordIds: [ulid26('01TESTWORDNGACAK')],
       variantDialectIds: [],
+      inline: { wordClassIds: [], languageIds: [], categoryIds: [], variantDialectIds: [] },
     });
     expect(missing.languageId).toBe(true);
     expect(missing.wordClasses).toEqual([ulid26('01TESTWCNGACAK')]);
@@ -372,5 +401,145 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
   it('listWordClasses mengembalikan hierarki', async () => {
     const items = await repo.listWordClasses();
     expect(items[0]).toMatchObject({ code: 'n', name: 'Nomina', parentId: null });
+  });
+
+  it('04: saveWithInlineRelations — SATU transaksi: induk + kata inline + relasi + contributions', async () => {
+    const result = await repo.saveWithInlineRelations(baseWord(), ACTOR, [
+      inlineSynonym('ngamakn'),
+      inlineSynonym('badikn'),
+    ]);
+
+    // kata induk + 2 inline tersimpan
+    expect(await db.select().from(words)).toHaveLength(3);
+    expect(result.inlineCreatedWords).toHaveLength(2);
+    expect(result.inlineCreatedWords.map((i) => i.lemma)).toEqual(['ngamakn', 'badikn']);
+
+    const [parentRow] = await db.select().from(words).where(eq(words.id, result.word.id));
+    expect(parentRow.status).toBe('published');
+
+    // relasi source=induk → target=masing-masing inline
+    const rels = await db.select().from(lexicalRelations);
+    expect(rels).toHaveLength(2);
+    expect(new Set(rels.map((r) => r.sourceWordId))).toEqual(new Set([result.word.id]));
+    expect(new Set(rels.map((r) => r.targetWordId))).toEqual(
+      new Set(result.inlineCreatedWords.map((i) => i.id)),
+    );
+    expect(rels.every((r) => r.relationType === 'synonym')).toBe(true);
+
+    // contributions SATU per entitas (induk + 2 inline) — semua 'create'
+    const contribs = await db.select().from(contributions);
+    expect(contribs).toHaveLength(3);
+    expect(new Set(contribs.map((c) => c.entityId))).toEqual(
+      new Set([result.word.id, ...result.inlineCreatedWords.map((i) => i.id)]),
+    );
+    expect(contribs.every((c) => c.action === 'create' && c.entityType === 'word')).toBe(true);
+  });
+
+  it('04: provenance — makna inline berisi inherited_from_meaning_id yang mengarah ke makna induk', async () => {
+    // induk 2 makna, inline menyalin 2 makna (inheritedFrom 0→0 dan 1→1)
+    const duaMakna = [
+      {
+        wordClassId: NOMINA,
+        definition: 'makna satu',
+        orderIndex: 1,
+        translations: [{ languageId: IDN, translationText: 'satu', translationType: 'direct' }],
+      },
+      {
+        wordClassId: NOMINA,
+        definition: 'makna dua',
+        orderIndex: 2,
+        translations: [{ languageId: IDN, translationText: 'dua', translationType: 'direct' }],
+      },
+    ];
+    const result = await repo.saveWithInlineRelations(
+      baseWord({ lemma: 'induk42', meanings: duaMakna }),
+      ACTOR,
+      [
+        {
+          relationType: 'synonym',
+          inlineWord: {
+            languageId: SMB,
+            lemma: 'ngamakn',
+            wordType: 'word',
+            meanings: duaMakna,
+            categoryIds: [],
+            relatedWords: [],
+            status: 'published',
+            isVerified: true,
+          },
+          inheritedFrom: { 0: 0, 1: 1 },
+          inheritedMeaningsCount: 2,
+          overriddenMeaningsCount: 0,
+        },
+      ],
+    );
+
+    const [parentMeaning1, parentMeaning2] = await db
+      .select({ id: meanings.id })
+      .from(meanings)
+      .where(eq(meanings.wordId, result.word.id))
+      .orderBy(meanings.orderIndex);
+
+    const inlineMeanings = await db
+      .select()
+      .from(meanings)
+      .where(eq(meanings.wordId, result.inlineCreatedWords[0].id))
+      .orderBy(meanings.orderIndex);
+    expect(inlineMeanings).toHaveLength(2);
+    expect(inlineMeanings[0].inheritedFromMeaningId).toBe(parentMeaning1.id);
+    expect(inlineMeanings[1].inheritedFromMeaningId).toBe(parentMeaning2.id);
+    // makna inline membawa definisi salinan induk
+    expect(inlineMeanings[0].definition).toBe('makna satu');
+    expect(inlineMeanings[0].wordClassId).toBe(NOMINA);
+  });
+
+  it('04: rollback — kata inline kedua pakai word_class FK palsu', async () => {
+    await expect(
+      repo.saveWithInlineRelations(baseWord({ lemma: 'induk' }), ACTOR, [
+        inlineSynonym('ngamakn'),
+        inlineSynonym('badikn', {
+          meanings: [
+            {
+              wordClassId: ulid26('01TESTWCNGACAK'), // FK tidak ada → 23503
+              definition: 'x',
+              orderIndex: 1,
+              translations: [{ languageId: IDN, translationText: 'y', translationType: 'direct' }],
+            },
+          ],
+        }),
+      ]),
+    ).rejects.toBeTruthy();
+
+    // rollback total: TIDAK ada kata (induk pun), tidak ada meanings/relasi/contribs
+    expect(await db.select().from(words)).toHaveLength(0);
+    expect(await db.select().from(meanings)).toHaveLength(0);
+    expect(await db.select().from(lexicalRelations)).toHaveLength(0);
+    expect(await db.select().from(contributions)).toHaveLength(0);
+  });
+
+  it('04: findDetailById — makna inline memuat provenance; inline pending_review belumlah related_words induk', async () => {
+    const result = await repo.saveWithInlineRelations(baseWord({ lemma: 'induk4' }), ACTOR, [
+      inlineSynonym('inlinepublik', {}, { inheritedFrom: { 0: 0 }, inheritedMeaningsCount: 1, overriddenMeaningsCount: 0 }),
+      // contributor-style: pending_review — TIDAK tayang
+      inlineSynonym('inlinepending', { status: 'pending_review', isVerified: false }),
+    ]);
+
+    const detail = await repo.findDetailById(result.word.id);
+    expect(detail).not.toBeNull();
+    // hanya synonym publik yang tampil sebagai related_words (relasi filter published)
+    expect(detail!.relatedWords.map((r) => r.lemma)).toEqual(['inlinepublik']);
+
+    // detail kata inline (publik): makna memuat provenance ke makna induk
+    const inlineDetail = await repo.findDetailById(result.inlineCreatedWords[0].id);
+    expect(inlineDetail).not.toBeNull();
+    expect(inlineDetail!.meanings[0].inheritedFromMeaningId).toBeTypeOf('string');
+
+    // kata inline pending_review: tidak tampil lewat detail publik (404), tapi
+    // tampil lewat includeAllStatuses (layar review) dengan provenance null
+    const pendingDetail = await repo.findDetailById(result.inlineCreatedWords[1].id);
+    expect(pendingDetail).toBeNull();
+    const pendingReview = await repo.findDetailById(result.inlineCreatedWords[1].id, { includeAllStatuses: true });
+    expect(pendingReview).not.toBeNull();
+    expect(pendingReview!.meanings[0].inheritedFromMeaningId).toBeNull();
   });
 });

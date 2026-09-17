@@ -5,6 +5,161 @@ const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
 // Section 22 — approval gate: pending_review/rejected hanya di-set sistem
 export const wordStatusSchema = z.enum(['draft', 'pending_review', 'published', 'rejected']);
 
+const relationTypeSchema = z.enum(['synonym', 'antonym', 'has_component', 'derived_from']);
+const wordTypeSchema = z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']);
+
+// 04-api-sinonim-inline.md — override satu-per-satu atas makna hasil salinan.
+// indeks 0-based mengacu makna INDUK; field yang tidak disebut tetap asli.
+const meaningOverrideSchema = z.object({
+  meaning_index: z.coerce.number().int().min(0, 'meaning_index harus >= 0'),
+  definition: z.string().trim().min(1, 'Definisi tidak boleh kosong').optional(),
+  word_class_id: ulid.optional(),
+  translations: z
+    .array(
+      z.object({
+        language_id: ulid,
+        translation_text: z.string().trim().min(1, 'Terjemahan tidak boleh kosong'),
+        translation_type: z.enum(['direct', 'descriptive', 'idiomatic']).default('direct'),
+      }),
+    )
+    .optional(),
+  examples: z
+    .array(
+      z.object({
+        source_language_id: ulid,
+        source_sentence: z.string().trim().min(1, 'Contoh kalimat tidak boleh kosong'),
+        target_language_id: ulid.optional(),
+        target_sentence: z.string().optional(),
+        source_type: z
+          .enum(['native_speaker', 'book', 'corpus', 'interview', 'other'])
+          .optional(),
+      }),
+    )
+    .optional(),
+});
+
+// 04-api-sinonim-inline.md — kata baru yang dibuat INLINE (Form B). Per-item
+// conflict (inherit vs meanings/overrides) diverifikasi di sini supaya juga
+// berlaku lintas konsumen (create, anonim, correct).
+const inlineWordSchema = z
+  .object({
+    lemma: z.string().trim().min(1, 'Kata tidak boleh kosong').max(255),
+    notes: z.string().optional(),
+    word_type: wordTypeSchema.default('word'),
+    category_ids: z
+      .array(ulid)
+      .default([])
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: 'category_ids tidak boleh ada duplikat',
+      }),
+    // DEFAULT true — ikut definisi/makna induk; meanings dilarang saat ini
+    inherit_meanings: z.boolean().default(true),
+    meaning_overrides: z.array(meaningOverrideSchema).max(20).optional(),
+    // wajib DAN hanya saat inherit_meanings=false
+    meanings: z
+      .array(
+        z.object({
+          word_class_id: ulid,
+          definition: z.string().trim().min(1, 'Definisi tidak boleh kosong'),
+          order_index: z.coerce.number().int().min(1).default(1),
+          translations: z
+            .array(
+              z.object({
+                language_id: ulid,
+                translation_text: z.string().trim().min(1, 'Terjemahan tidak boleh kosong'),
+                translation_type: z.enum(['direct', 'descriptive', 'idiomatic']).default('direct'),
+              }),
+            )
+            .min(1, 'Minimal harus ada 1 terjemahan'),
+          examples: z
+            .array(
+              z.object({
+                source_language_id: ulid,
+                source_sentence: z.string().trim().min(1, 'Contoh kalimat tidak boleh kosong'),
+                target_language_id: ulid.optional(),
+                target_sentence: z.string().optional(),
+                source_type: z
+                  .enum(['native_speaker', 'book', 'corpus', 'interview', 'other'])
+                  .optional(),
+              }),
+            )
+            .optional(),
+        }),
+      )
+      .min(1, 'Minimal harus ada 1 makna')
+      .optional(),
+    variants: z
+      .array(
+        z
+          .object({
+            form: z.string().trim().min(1, 'Bentuk turunan tidak boleh kosong').max(255),
+            variant_type: z
+              .enum(['inflection', 'derivation', 'alternative', 'reduplication'])
+              .default('alternative'),
+            affix_type: z.enum(['prefix', 'suffix', 'circumfix', 'reduplication']).optional(),
+            affix_value: z.string().trim().max(50).optional(),
+            dialect_id: ulid.optional(),
+            notes: z.string().max(1000).optional(),
+          })
+          .refine((v) => !v.affix_type || !!v.affix_value, {
+            message: 'affix_value wajib diisi bila affix_type ada',
+            path: ['affix_value'],
+          }),
+      )
+      .max(20, 'Maksimal 20 bentuk turunan per kata')
+      .optional(),
+    pronunciation: z
+      .object({
+        notation: z.string().trim().min(1).default('ipa'),
+        value: z.string().trim().min(1, 'Pengucapan tidak boleh kosong'),
+      })
+      .optional(),
+    images: z
+      .array(
+        z.object({
+          url: z.url('URL gambar tidak valid'),
+          provider_file_id: z.string().trim().min(1, 'provider_file_id wajib diisi'),
+          alt_text: z.string().trim().max(500).optional(),
+          is_primary: z.boolean().default(false),
+        }),
+      )
+      .max(10, 'Maksimal 10 gambar per kata')
+      .optional(),
+    // default: ikut status yang dikirim di body induk
+    status: z.enum(['draft', 'published']).optional(),
+  })
+  .superRefine((w, ctx) => {
+    const inherit = w.inherit_meanings;
+    if (inherit && w.meanings) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['meanings'],
+        message: 'inherit_meanings=true → meanings dilarang (sinonim ikut makna induk)',
+      });
+    }
+    if (!inherit && w.meaning_overrides) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['meaning_overrides'],
+        message: 'meaning_overrides hanya sah saat inherit_meanings=true',
+      });
+    }
+    if (!inherit && !w.meanings) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['meanings'],
+        message: 'inherit_meanings=false → meanings wajib diisi penuh',
+      });
+    }
+    if ((w.images ?? []).filter((i) => i.is_primary).length > 1) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['images'],
+        message: 'Hanya satu gambar yang boleh is_primary',
+      });
+    }
+  });
+
 // Object schema murni (tanpa refinement) — dipakai juga modul contribution
 // untuk schema correct (`.omit()` tidak bisa dipakai pada schema ber-refine)
 export const createWordBodySchema = z.object({
@@ -52,14 +207,66 @@ export const createWordBodySchema = z.object({
     }),
   related_words: z
     .array(
-      z.object({
-        word_id: ulid,
-        relation_type: z.enum(['synonym', 'antonym', 'has_component', 'derived_from']),
-      }),
+      // 04-api-sinonim-inline.md — DUA bentuk per item (Form A link | Form B inline).
+      // Kedua field di-optional agar "tepat satu bentuk" bisa diverifikasi secara
+      // eksplisit di superRefine (union murni tidak lolos saat keduanya keliru diisi).
+      z
+        .object({
+          relation_type: relationTypeSchema,
+          word_id: ulid.optional(),
+          word: inlineWordSchema.optional(),
+        })
+        .superRefine((rel, ctx) => {
+          const hasLink = rel.word_id !== undefined;
+          const hasInline = rel.word !== undefined;
+          if (hasLink && hasInline) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['word'],
+              message: 'word_id (link) dan word (inline) tidak boleh diisi bersamaan — pilih salah satu',
+            });
+          }
+          if (!hasLink && !hasInline) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['word_id'],
+              message: 'Wajib mengisi word_id (link kata lama) ATAU word (kata baru inline)',
+            });
+          }
+        }),
     )
     .default([])
-    .refine((rels) => new Set(rels.map((r) => r.word_id)).size === rels.length, {
-      message: 'related_words tidak boleh ada word_id duplikat',
+    .superRefine((rels, ctx) => {
+      // pat: array sudah membawa path 'related_words' sendiri (zod prepend)
+      const arrayPath = [] as never[];
+      // duplikat antar Form A (link ke kata existing)
+      const linkIds = rels.map((r) => r.word_id).filter((id): id is string => !!id);
+      if (new Set(linkIds).size !== linkIds.length) {
+        ctx.addIssue({
+          code: 'custom',
+          path: arrayPath,
+          message: 'related_words tidak boleh ada word_id duplikat',
+        });
+      }
+      // duplikat lemma antar Form B (kata inline) + guard maksimal 5
+      const inlineLemmas = rels
+        .map((r) => r.word?.lemma?.trim().toLowerCase())
+        .filter((l): l is string => !!l);
+      if (new Set(inlineLemmas).size !== inlineLemmas.length) {
+        ctx.addIssue({
+          code: 'custom',
+          path: arrayPath,
+          message: 'Lemma kata inline tidak boleh ada yang duplikat antar Form B',
+        });
+      }
+      const inlineCount = rels.filter((r) => r.word !== undefined).length;
+      if (inlineCount > 5) {
+        ctx.addIssue({
+          code: 'custom',
+          path: arrayPath,
+          message: 'Maksimal 5 kata baru inline (Form B) per request',
+        });
+      }
     }),
   variants: z
     .array(
@@ -107,6 +314,7 @@ export const createWordSchema = createWordBodySchema
     { message: 'Hanya satu gambar yang boleh is_primary', path: ['images'] },
   )
   .superRefine((d, ctx) => {
+    const parentLemma = d.lemma.trim().toLowerCase();
     // has_component hanya untuk entri frasa (aturan silang word_type)
     if (
       d.word_type === 'word' &&
@@ -118,6 +326,45 @@ export const createWordSchema = createWordBodySchema
         message: 'has_component hanya untuk entri idiom/peribahasa/ungkapan',
       });
     }
+
+    // 04: aturan lintas induk↔inline (dibutuhkan konteks body induk)
+    d.related_words.forEach((rel, n) => {
+      if (rel.word === undefined) return;
+      const word = rel.word;
+
+      // lemma inline == lemma induk (case-insensitive) → kata tak bisa
+      // jadi sinonim dirinya sendiri
+      if (word.lemma.trim().toLowerCase() === parentLemma) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['related_words', n, 'word', 'lemma'],
+          message: 'Lemma kata inline tidak boleh sama dengan lemma induk',
+        });
+      }
+
+      // meaning_index WAJIB valid (0 <= index < jumlah makna induk) +
+      // indeks duplikat ditolak (deterministik)
+      if (word.meaning_overrides) {
+        const seen = new Set<number>();
+        word.meaning_overrides.forEach((ov, m) => {
+          if (ov.meaning_index >= d.meanings.length) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['related_words', n, 'word', 'meaning_overrides', m, 'meaning_index'],
+              message: `meaning_index melewati jumlah makna induk (${d.meanings.length})`,
+            });
+          }
+          if (seen.has(ov.meaning_index)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['related_words', n, 'word', 'meaning_overrides', m, 'meaning_index'],
+              message: 'meaning_index duplikat dalam satu kata inline — tentukan satu override per makna',
+            });
+          }
+          seen.add(ov.meaning_index);
+        });
+      }
+    });
   });
 
 export type CreateWordBody = z.infer<typeof createWordSchema>;
@@ -134,6 +381,24 @@ export const createWordResponseSchema = z.object({
     is_verified: z.boolean(),
     created_at: z.string(),
     warnings: z.array(warningSchema).optional(),
+    // 04-api-sinonim-inline.md — hasil tiap kata inline (Form B) yang dibuat,
+    // urut sesuai request; hanya muncul saat ada Form B
+    inline_created_words: z
+      .array(
+        z.object({
+          word_id: z.string(),
+          lemma: z.string(),
+          relation_type: relationTypeSchema,
+          word_type: wordTypeSchema,
+          status: wordStatusSchema,
+          is_verified: z.boolean(),
+          meanings_count: z.number().int(),
+          inherited_meanings_count: z.number().int(),
+          overridden_meanings_count: z.number().int(),
+          warnings: z.array(warningSchema).optional(),
+        }),
+      )
+      .optional(),
   }),
 });
 
@@ -159,6 +424,8 @@ export const wordDetailResponseSchema = z.object({
             parent_id: z.string().nullable(),
           })
           .nullable(),
+        // 04: provenance — terisi = masih "mengikuti" induk, null = mandiri/di-override
+        inherited_from_meaning_id: z.string().nullable(),
         definition: z.string(),
         order_index: z.number().int(),
         translations: z.array(

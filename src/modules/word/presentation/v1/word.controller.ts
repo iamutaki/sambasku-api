@@ -40,14 +40,20 @@ export class WordController {
     if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
 
-    const { word, warnings } = await this.deps.create.execute(
+    const { word, warnings, inlineCreatedWords, inlineWarnings } = await this.deps.create.execute(
       toCreateWordDto(body, this.deps.imageProviderName),
       { userId: actor.user_id, role: actor.role, requestId },
     );
 
     // Event bisnis + request_id menyambung log & jejak audit (Section 14)
     logger.info(
-      { request_id: requestId, word_id: word.id, lemma: word.lemma, status: word.status },
+      {
+        request_id: requestId,
+        word_id: word.id,
+        lemma: word.lemma,
+        status: word.status,
+        inline_created_count: inlineCreatedWords.length,
+      },
       'word created',
     );
 
@@ -62,6 +68,22 @@ export class WordController {
           is_verified: word.isVerified,
           created_at: word.createdAt.toISOString(),
           ...(warnings.length > 0 ? { warnings } : {}),
+          ...(inlineCreatedWords.length > 0
+            ? {
+                inline_created_words: inlineCreatedWords.map((inline, i) => ({
+                  word_id: inline.id,
+                  lemma: inline.lemma,
+                  relation_type: inline.relationType,
+                  word_type: inline.wordType,
+                  status: inline.status,
+                  is_verified: inline.isVerified,
+                  meanings_count: inline.meaningsCount,
+                  inherited_meanings_count: inline.inheritedMeaningsCount,
+                  overridden_meanings_count: inline.overriddenMeaningsCount,
+                  ...(inlineWarnings[i].length > 0 ? { warnings: inlineWarnings[i] } : {}),
+                })),
+              }
+            : {}),
         },
       },
       201,
@@ -87,6 +109,7 @@ export class WordController {
           word_class: m.wordClass
             ? { id: m.wordClass.id, code: m.wordClass.code, name: m.wordClass.name, parent_id: m.wordClass.parentId }
             : null,
+          inherited_from_meaning_id: m.inheritedFromMeaningId,
           definition: m.definition,
           order_index: m.orderIndex,
           translations: m.translations.map((t) => ({
@@ -191,7 +214,7 @@ export class WordController {
    */
   async createAnon(c: Context, body: Omit<CreateWordBody, 'status'>) {
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
-    const { word, warnings } = await this.deps.create.execute(
+    const { word, warnings, inlineCreatedWords, inlineWarnings } = await this.deps.create.execute(
       toCreateWordDto({ ...body, status: 'published' }, this.deps.imageProviderName),
       { userId: ANONIM_USER_ID, role: 'contributor', requestId },
     );
@@ -207,6 +230,22 @@ export class WordController {
           is_verified: word.isVerified,
           created_at: word.createdAt.toISOString(),
           ...(warnings.length > 0 ? { warnings } : {}),
+          ...(inlineCreatedWords.length > 0
+            ? {
+                inline_created_words: inlineCreatedWords.map((inline, i) => ({
+                  word_id: inline.id,
+                  lemma: inline.lemma,
+                  relation_type: inline.relationType,
+                  word_type: inline.wordType,
+                  status: inline.status,
+                  is_verified: inline.isVerified,
+                  meanings_count: inline.meaningsCount,
+                  inherited_meanings_count: inline.inheritedMeaningsCount,
+                  overridden_meanings_count: inline.overriddenMeaningsCount,
+                  ...(inlineWarnings[i].length > 0 ? { warnings: inlineWarnings[i] } : {}),
+                })),
+              }
+            : {}),
         },
       },
       201,

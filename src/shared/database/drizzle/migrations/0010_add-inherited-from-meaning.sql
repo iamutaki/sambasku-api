@@ -1,0 +1,3 @@
+ALTER TABLE "meanings" ADD COLUMN "inherited_from_meaning_id" varchar(26);--> statement-breakpoint
+ALTER TABLE "meanings" ADD CONSTRAINT "meanings_inherited_from_meaning_id_meanings_id_fk" FOREIGN KEY ("inherited_from_meaning_id") REFERENCES "public"."meanings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "meanings_inherited_from_idx" ON "meanings" USING btree ("inherited_from_meaning_id");

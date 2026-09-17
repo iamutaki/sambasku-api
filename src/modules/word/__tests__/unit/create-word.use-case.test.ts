@@ -15,6 +15,10 @@ const NO_MISSING: MissingReferences = {
   categories: [],
   words: [],
   dialects: [],
+  inlineWordClasses: [],
+  inlineLanguages: [],
+  inlineCategories: [],
+  inlineDialects: [],
 };
 
 function makeDto(overrides: Partial<CreateWordDto> = {}): CreateWordDto {
@@ -61,12 +65,34 @@ function makeWord(overrides: Partial<Word> = {}): Word {
   };
 }
 
-function makeDeps(missing: Partial<MissingReferences> = {}, duplicate = false) {
+function makeDeps(missing: Partial<MissingReferences> = {}, duplicate = false, inlineDuplicate = false) {
   const wordRepo = {
     saveWithRelations: vi.fn().mockImplementation((w: { status: string; isVerified: boolean }) =>
       Promise.resolve(makeWord({ status: w.status as Word['status'], isVerified: w.isVerified })),
     ),
-    findDuplicate: vi.fn().mockResolvedValue(duplicate),
+    saveWithInlineRelations: vi
+      .fn()
+      .mockImplementation((w: { status: string; isVerified: boolean }, _a: string, related: unknown[]) =>
+        Promise.resolve({
+          word: makeWord({ status: w.status as Word['status'], isVerified: w.isVerified }),
+          inlineCreatedWords: (related as { inlineWord: { lemma: string; status: string; isVerified: boolean; meanings: unknown[] } }[]).map(
+            (r, i) => ({
+              id: `01INLINEULID000000000000${String(i).padStart(2, '0')}`,
+              lemma: r.inlineWord.lemma,
+              relationType: 'synonym',
+              wordType: 'word',
+              status: r.inlineWord.status as Word['status'],
+              isVerified: r.inlineWord.isVerified,
+              meaningsCount: r.inlineWord.meanings.length,
+              inheritedMeaningsCount: 1,
+              overriddenMeaningsCount: 0,
+            }),
+          ),
+        }),
+      ),
+    findDuplicate: vi.fn().mockImplementation((_lang: string, lemma: string) =>
+      Promise.resolve(inlineDuplicate ? lemma === 'ngamakn' : duplicate),
+    ),
     findDetailById: vi.fn(),
     search: vi.fn(),
     findMissingReferences: vi.fn().mockResolvedValue({ ...NO_MISSING, ...missing }),
@@ -204,6 +230,249 @@ describe('CreateWordUseCase', () => {
       errorCode: 'VALIDATION_ERROR',
       statusCode: 400,
       details: [{ field: 'related_words', message: expect.stringContaining('has_component') }],
+    });
+  });
+
+  it('Form B inherit=true → makna sinonim = salinan induk, provenance mengarah benar', async () => {
+    const { useCase, wordRepo } = makeDeps();
+    const dto = makeDto({
+      meanings: [
+        {
+          wordClassId: '01WORDCLASSESNOMINA000000',
+          definition: 'Makna ke-1',
+          orderIndex: 1,
+          translations: [
+            { languageId: '01LANGUAGESINDONESIA00000', translationText: 'makan', translationType: 'direct' },
+          ],
+        },
+        {
+          wordClassId: '01WORDCLASSESNOMINA000000',
+          definition: 'Makna ke-2',
+          orderIndex: 2,
+          translations: [
+            { languageId: '01LANGUAGESINDONESIA00000', translationText: 'konsumsi', translationType: 'direct' },
+          ],
+        },
+      ],
+      relatedWords: [{ relationType: 'synonym', word: { lemma: 'ngamakn', inheritMeanings: true } }],
+    });
+
+    const result = await useCase.execute(dto, ADMIN);
+    expect(result.inlineCreatedWords).toHaveLength(1);
+    expect(result.inlineCreatedWords[0]).toMatchObject({ lemma: 'ngamakn', relationType: 'synonym' });
+
+    const saved = (wordRepo.saveWithInlineRelations as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [parentToSave, , resolved] = saved as [unknown, string, { inlineWord: Record<string, unknown>; inheritedFrom: Record<number, number>; inheritedMeaningsCount: number; overriddenMeaningsCount: number }[]];
+    expect((parentToSave as { lemma: string }).lemma).toBe('makatn');
+    expect(resolved).toHaveLength(1);
+    // salinan penuh + provenance: makna 0 & 1 hasil salin (belum di-override)
+    expect(resolved[0].inlineWord.meanings).toHaveLength(2);
+    expect(resolved[0].inlineWord.meanings).toEqual(dto.meanings);
+    expect(resolved[0].inheritedFrom).toEqual({ 0: 0, 1: 1 });
+    expect(resolved[0].inheritedMeaningsCount).toBe(2);
+    expect(resolved[0].overriddenMeaningsCount).toBe(0);
+  });
+
+  it('Form B override satu-per-satu: HANYA makna yang di-override berubah (translate-and-replace)', async () => {
+    const { useCase, wordRepo } = makeDeps();
+    const dto = makeDto({
+      meanings: [
+        {
+          wordClassId: '01WORDCLASSESNOMINA000000',
+          definition: 'Makna ke-1',
+          orderIndex: 1,
+          translations: [
+            { languageId: '01LANGUAGESINDONESIA00000', translationText: 'makan', translationType: 'direct' },
+          ],
+        },
+        {
+          wordClassId: '01WORDCLASSESNOMINA000000',
+          definition: 'Makna ke-2',
+          orderIndex: 2,
+          translations: [
+            { languageId: '01LANGUAGESINDONESIA00000', translationText: 'konsumsi', translationType: 'direct' },
+          ],
+        },
+      ],
+      relatedWords: [
+        {
+          relationType: 'synonym',
+          word: {
+            lemma: 'ngamakn',
+            inheritMeanings: true,
+            meaningOverrides: [
+              {
+                meaningIndex: 0,
+                definition: 'Mengunyah makanan',
+                translations: [
+                  { languageId: '01LANGUAGESINDONESIA00000', translationText: 'kunyah', translationType: 'direct' },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    await useCase.execute(dto, ADMIN);
+    const [, , resolved] = (wordRepo.saveWithInlineRelations as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      unknown,
+      string,
+      { inlineWord: { meanings: { definition: string; translations: { translationText: string }[] }[] }; inheritedFrom: Record<number, number>; inheritedMeaningsCount: number; overriddenMeaningsCount: number }[],
+    ];
+
+    // makna ke-0 di-override → provenance NULL; makna ke-1 tetap ikut induk
+    expect(resolved[0].inheritedFrom).toEqual({ 1: 1 });
+    expect(resolved[0].inheritedMeaningsCount).toBe(2);
+    expect(resolved[0].overriddenMeaningsCount).toBe(1);
+    expect(resolved[0].inlineWord.meanings).toHaveLength(2);
+    expect(resolved[0].inlineWord.meanings[0]).toEqual({
+      wordClassId: '01WORDCLASSESNOMINA000000',
+      definition: 'Mengunyah makanan',
+      orderIndex: 1,
+      translations: [{ languageId: '01LANGUAGESINDONESIA00000', translationText: 'kunyah', translationType: 'direct' }],
+    });
+  });
+
+  it('Form B inherit=false + meanings penuh → dipakai apa adanya, tanpa provenance', async () => {
+    const { useCase, wordRepo } = makeDeps();
+    const dto = makeDto({
+      relatedWords: [
+        {
+          relationType: 'synonym',
+          word: {
+            lemma: 'badikn',
+            inheritMeanings: false,
+            meanings: [
+              {
+                wordClassId: '01WORDCLASSESNOMINA000000',
+                definition: 'Menghabisi makanan sisa',
+                orderIndex: 1,
+                translations: [
+                  { languageId: '01LANGUAGESINDONESIA00000', translationText: 'menghabiskan', translationType: 'direct' },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    await useCase.execute(dto, ADMIN);
+    const [, , resolved] = (wordRepo.saveWithInlineRelations as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      unknown,
+      string,
+      { inlineWord: { meanings: unknown[] }; inheritedFrom: Record<number, number>; inheritedMeaningsCount: number; overriddenMeaningsCount: number }[],
+    ];
+    expect(resolved[0].inlineWord.meanings).toHaveLength(1);
+    expect(resolved[0].inheritedFrom).toEqual({});
+    expect(resolved[0].inheritedMeaningsCount).toBe(0);
+    expect(resolved[0].overriddenMeaningsCount).toBe(0);
+  });
+
+  it('duplikat lemma inline dengan kata existing → warning per-kata, tetap tersimpan', async () => {
+    const { useCase } = makeDeps({}, false, /* inlineDuplicate */ true);
+    const result = await useCase.execute(
+      makeDto({ relatedWords: [{ relationType: 'synonym', word: { lemma: 'ngamakn' } }] }),
+      ADMIN,
+    );
+    expect(result.inlineWarnings[0]).toEqual([
+      { field: 'related_words.0.word.lemma', message: 'Lemma serupa sudah ada di bahasa ini' },
+    ]);
+  });
+
+  it('audit trail: SATU entri per entitas yang dibuat (induk + tiap kata inline)', async () => {
+    const { useCase, auditRepo } = makeDeps();
+    await useCase.execute(
+      makeDto({
+        status: 'published',
+        relatedWords: [{ relationType: 'synonym', word: { lemma: 'ngamakn' } }],
+      }),
+      { ...CONTRIBUTOR, requestId: 'req-42' },
+    );
+
+    expect(auditRepo.record).toHaveBeenCalledTimes(2);
+    expect(auditRepo.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'create', entityType: 'word', requestId: 'req-42' }),
+    );
+    expect(auditRepo.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'create',
+        entityType: 'word',
+        entityId: '01INLINEULID00000000000000',
+        newData: expect.objectContaining({
+          lemma: 'ngamakn',
+          inherited_meanings_count: 1,
+          overridden_meanings_count: 0,
+        }),
+        requestId: 'req-42',
+      }),
+    );
+  });
+
+  it('Role matrix (Section 22): contributor + published → induk DAN semua inline masuk antrean review', async () => {
+    const { useCase, wordRepo } = makeDeps();
+    await useCase.execute(
+      makeDto({
+        status: 'published',
+        relatedWords: [
+          { relationType: 'synonym', word: { lemma: 'ngamakn', status: 'draft' } },
+          { relationType: 'synonym', word: { lemma: 'badikn' } },
+        ],
+      }),
+      CONTRIBUTOR,
+    );
+
+    expect(wordRepo.saveWithInlineRelations).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'pending_review', isVerified: false }),
+      CONTRIBUTOR.userId,
+      [
+        expect.objectContaining({
+          // status Form B default = status body induk, TAPI bisa di-override per Form B
+          inlineWord: expect.objectContaining({ lemma: 'ngamakn', status: 'draft', isVerified: false }),
+        }),
+        // default → ikut status induk yang diminta: contributor + published → pending_review
+        expect.objectContaining({
+          inlineWord: expect.objectContaining({ lemma: 'badikn', status: 'pending_review', isVerified: false }),
+        }),
+      ],
+    );
+  });
+
+  it('Form B referensi kata inline hilang → VALIDATION_ERROR dengan field path related_words.N.word.*', async () => {
+    const { useCase } = makeDeps({
+      inlineWordClasses: ['01WORDCLASSESNOMINA000000'],
+      inlineLanguages: ['01LANGUAGESINDONESIA00000'],
+    });
+    await expect(
+      useCase.execute(
+        makeDto({
+          relatedWords: [
+            {
+              relationType: 'synonym',
+              word: {
+                lemma: 'ngamakn',
+                meaningOverrides: [
+                  {
+                    meaningIndex: 0,
+                    wordClassId: '01WORDCLASSESNOMINA000000',
+                    translations: [
+                      { languageId: '01LANGUAGESINDONESIA00000', translationText: 'kunyah', translationType: 'direct' },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        ADMIN,
+      ),
+    ).rejects.toMatchObject({
+      errorCode: 'VALIDATION_ERROR',
+      details: [
+        { field: 'related_words.0.word.meaning_overrides.0.word_class_id', message: expect.stringContaining('Kelas kata') },
+        { field: 'related_words.0.word.meaning_overrides.0.translations.0.language_id', message: expect.stringContaining('Bahasa') },
+      ],
     });
   });
 });

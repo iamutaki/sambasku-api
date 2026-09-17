@@ -24,14 +24,18 @@ import type { ChildStatus, Word, WordDetail, WordStatus, WordSummary } from '../
 import type {
   CursorPage,
   ExampleMedia,
+  InlineCreatedWordSummary,
   MissingReferences,
   PronunciationMedia,
   ReferenceCheck,
+  ResolvedInlineRelation,
+  SaveWithInlineResult,
   SearchParams,
   WordImageMedia,
   WordRepository,
   WordToSave,
 } from '../domain/repositories/word.repository';
+import type { CreateWordRelatedDto } from '../application/dto/create-word.dto';
 
 const FOREIGN_KEY_VIOLATION = '23503';
 const UNIQUE_VIOLATION = '23505';
@@ -192,6 +196,123 @@ export class WordRepositoryImpl implements WordRepository {
     }
   }
 
+  /**
+   * 04-api-sinonim-inline.md — induk + N kata inline dalam SATU transaksi:
+   * 1) induk + anak2 + id makna induk utk provenance; 2) tiap kata inline
+   * + makna hasil resolusi (kelola inherited_from_meaning_id); 3) relasi
+   * lexical (source=induk, target=inline); 4) contributions satu per entitas.
+   */
+  async saveWithInlineRelations(
+    word: WordToSave,
+    actorId: string,
+    related: ResolvedInlineRelation[],
+  ): Promise<SaveWithInlineResult> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        // 1) INDUK + children; kumpulkan id makna induk (index = posisi array)
+        const [wordRow] = await tx
+          .insert(words)
+          .values({
+            languageId: word.languageId,
+            lemma: word.lemma.trim(),
+            notes: word.notes ?? null,
+            wordType: word.wordType,
+            status: word.status,
+            isVerified: word.isVerified,
+            isCorrected: word.isCorrected ?? false,
+            createdBy: actorId,
+          })
+          .returning();
+        const wordId = wordRow.id;
+
+        const parentMeaningIds: string[] = [];
+        await this.insertChildren(tx, wordId, word, actorId, { meaningIdsOut: parentMeaningIds });
+        await tx.insert(contributions).values({
+          userId: actorId,
+          entityType: 'word',
+          entityId: wordId,
+          action: 'create',
+          status: contributionStatusOf(word.status),
+        });
+
+        // 2) tiap kata inline
+        const inlineCreatedWords: InlineCreatedWordSummary[] = [];
+        for (const rel of related) {
+          const [inlineRow] = await tx
+            .insert(words)
+            .values({
+              languageId: word.languageId,
+              lemma: rel.inlineWord.lemma.trim(),
+              notes: rel.inlineWord.notes ?? null,
+              wordType: rel.inlineWord.wordType,
+              status: rel.inlineWord.status,
+              isVerified: rel.inlineWord.isVerified,
+              isCorrected: rel.inlineWord.isCorrected ?? false,
+              createdBy: actorId,
+            })
+            .returning();
+          const inlineId = inlineRow.id;
+
+          // provenan: index makna inline → id makna INDUK (self-FK meanings).
+          // Override TIDAK masuk map → kolom NULL (makna sudah mandiri).
+          const inheritedByIdx: Record<number, string> = {};
+          for (const [inlineIdx, parentIdx] of Object.entries(rel.inheritedFrom ?? {})) {
+            const parentId = parentMeaningIds[parentIdx];
+            if (parentId) inheritedByIdx[Number(inlineIdx)] = parentId;
+          }
+          await this.insertChildren(tx, inlineId, rel.inlineWord, actorId, {
+            inheritedFrom: inheritedByIdx,
+          });
+
+          // 3) relasi: source = induk → target = inline
+          await tx.insert(lexicalRelations).values({
+            sourceWordId: wordId,
+            targetWordId: inlineId,
+            relationType: rel.relationType,
+            createdBy: actorId,
+          });
+
+          // 4) contributions per entitas inline
+          await tx.insert(contributions).values({
+            userId: actorId,
+            entityType: 'word',
+            entityId: inlineId,
+            action: 'create',
+            status: contributionStatusOf(rel.inlineWord.status),
+          });
+
+          inlineCreatedWords.push({
+            id: inlineId,
+            lemma: inlineRow.lemma,
+            relationType: rel.relationType,
+            wordType: inlineRow.wordType as Word['wordType'],
+            status: inlineRow.status as WordStatus,
+            isVerified: inlineRow.isVerified,
+            meaningsCount: rel.inlineWord.meanings.length,
+            inheritedMeaningsCount: rel.inheritedMeaningsCount,
+            overriddenMeaningsCount: rel.overriddenMeaningsCount,
+          });
+        }
+
+        return { word: toWord(wordRow), inlineCreatedWords };
+      });
+    } catch (err) {
+      // Race FK / duplikat unik — petakan ke 400, jangan bocor jadi 500
+      const code = (err as { cause?: { code?: string } }).cause?.code;
+      if (code === FOREIGN_KEY_VIOLATION) {
+        throw new ValidationError([
+          { field: '', message: 'Referensi data tidak valid (data terkait mungkin sudah dihapus)' },
+        ]);
+      }
+      if (code === UNIQUE_VIOLATION) {
+        throw new ValidationError([
+          { field: '', message: 'Data duplikat — kategori/terjemahan/gambar yang sama sudah dipakai' },
+        ]);
+      }
+      throw err;
+    }
+  }
+
   async findDuplicate(languageId: string, lemma: string): Promise<boolean> {
     const [row] = await this.db
       .select({ id: words.id })
@@ -292,7 +413,8 @@ export class WordRepositoryImpl implements WordRepository {
         ),
       );
 
-    // Relasi maju (entri ini → entri lain) + lemma target
+    // Relasi maju (entri ini → entri lain) + lemma target. Hanya tampil saat
+    // TARGET juga published (Section 7.7: sinonim pending_review belum muncul).
     const relatedRows = await this.db
       .select({
         wordId: lexicalRelations.targetWordId,
@@ -301,9 +423,16 @@ export class WordRepositoryImpl implements WordRepository {
       })
       .from(lexicalRelations)
       .innerJoin(words, eq(words.id, lexicalRelations.targetWordId))
-      .where(and(eq(lexicalRelations.sourceWordId, id), isNull(lexicalRelations.deletedAt)));
+      .where(
+        and(
+          eq(lexicalRelations.sourceWordId, id),
+          isNull(lexicalRelations.deletedAt),
+          includeAll ? undefined : and(eq(words.status, 'published'), isNull(words.deletedAt)),
+        ),
+      );
 
-    // Relasi invers (entri lain → entri ini): "muncul dalam" — derived, tak disimpan
+    // Relasi invers (entri lain → entri ini): "muncul dalam" — derived, tak disimpan.
+    // Hanya tampil saat SUMBER relasi published.
     const appearsRows = await this.db
       .select({
         wordId: lexicalRelations.sourceWordId,
@@ -312,7 +441,13 @@ export class WordRepositoryImpl implements WordRepository {
       })
       .from(lexicalRelations)
       .innerJoin(words, eq(words.id, lexicalRelations.sourceWordId))
-      .where(and(eq(lexicalRelations.targetWordId, id), isNull(lexicalRelations.deletedAt)));
+      .where(
+        and(
+          eq(lexicalRelations.targetWordId, id),
+          isNull(lexicalRelations.deletedAt),
+          includeAll ? undefined : and(eq(words.status, 'published'), isNull(words.deletedAt)),
+        ),
+      );
 
     const variantRows = await this.db
       .select()
@@ -330,6 +465,8 @@ export class WordRepositoryImpl implements WordRepository {
               return { id: wc.id, code: wc.code, name: wc.name, parentId: wc.parentId };
             })()
           : null,
+        // 04: provenance — null = makna mandiri/sudah di-override
+        inheritedFromMeaningId: m.inheritedFromMeaningId,
         definition: m.definition,
         orderIndex: m.orderIndex,
         notes: m.notes,
@@ -505,8 +642,16 @@ export class WordRepositoryImpl implements WordRepository {
     const dialectExists = refs.dialectId ? await this.exists(dialects, refs.dialectId) : true;
 
     const uniqueIds = (ids: string[]) => [...new Set(ids)];
+    const inline = refs.inline;
 
-    // Entri terkait harus ada DAN belum soft-deleted
+    // Gabungan id induk + kata inline — SATU query per tabel (04: validasi
+    // referensi bersama lalu error dipetakan ke field path yang benar)
+    const allWordClassIds = uniqueIds([...refs.wordClassIds, ...inline.wordClassIds]);
+    const allLanguageIds = uniqueIds([...refs.languageIds, ...inline.languageIds]);
+    const allCategoryIds = uniqueIds([...refs.categoryIds, ...inline.categoryIds]);
+    const allVariantDialectIds = uniqueIds([...refs.variantDialectIds, ...inline.variantDialectIds]);
+
+    // Entri terkait (Form A) harus ada DAN belum soft-deleted
     const relatedIds = uniqueIds(refs.relatedWordIds);
     let missingRelated: string[] = [];
     if (relatedIds.length > 0) {
@@ -518,41 +663,48 @@ export class WordRepositoryImpl implements WordRepository {
       missingRelated = relatedIds.filter((id) => !found.has(id));
     }
 
-    // Dialek yang dipakai variants (dialect utama dicek via exists di bawah)
+    // Dialek yang dipakai variants (kata induk; dialect utama dicek di atas)
     let missingDialects: string[] = [];
-    if (refs.variantDialectIds.length > 0) {
+    let missingInlineDialects: string[] = [];
+    if (allVariantDialectIds.length > 0) {
       const rows = await this.db
         .select({ id: dialects.id })
         .from(dialects)
-        .where(inArray(dialects.id, uniqueIds(refs.variantDialectIds)));
+        .where(inArray(dialects.id, allVariantDialectIds));
       const found = new Set(rows.map((r) => r.id));
       missingDialects = uniqueIds(refs.variantDialectIds).filter((id) => !found.has(id));
+      missingInlineDialects = uniqueIds(inline.variantDialectIds).filter((id) => !found.has(id));
     }
 
     // Filter soft-deleted (Section 7: semua tabel wajib soft delete)
     const wcRows = await this.db
       .select({ id: wordClasses.id })
       .from(wordClasses)
-      .where(and(inArray(wordClasses.id, uniqueIds(refs.wordClassIds)), isNull(wordClasses.deletedAt)));
+      .where(and(inArray(wordClasses.id, allWordClassIds), isNull(wordClasses.deletedAt)));
     const catRows = await this.db
       .select({ id: categories.id })
       .from(categories)
-      .where(and(inArray(categories.id, uniqueIds(refs.categoryIds)), isNull(categories.deletedAt)));
+      .where(and(inArray(categories.id, allCategoryIds), isNull(categories.deletedAt)));
+    const langRows = await this.db
+      .select({ id: languages.id })
+      .from(languages)
+      .where(inArray(languages.id, allLanguageIds));
+    const wcFound = new Set(wcRows.map((r) => r.id));
+    const catFound = new Set(catRows.map((r) => r.id));
+    const langFound = new Set(langRows.map((r) => r.id));
 
     return {
       languageId: !languageExists,
       dialectId: !dialectExists,
-      languages: await this.missingIds(languages, uniqueIds(refs.languageIds)),
-      wordClasses: (() => {
-        const found = new Set(wcRows.map((r) => r.id));
-        return uniqueIds(refs.wordClassIds).filter((id) => !found.has(id));
-      })(),
-      categories: (() => {
-        const found = new Set(catRows.map((r) => r.id));
-        return uniqueIds(refs.categoryIds).filter((id) => !found.has(id));
-      })(),
+      languages: uniqueIds(refs.languageIds).filter((id) => !langFound.has(id)),
+      wordClasses: uniqueIds(refs.wordClassIds).filter((id) => !wcFound.has(id)),
+      categories: uniqueIds(refs.categoryIds).filter((id) => !catFound.has(id)),
       words: missingRelated,
       dialects: missingDialects,
+      inlineWordClasses: uniqueIds(inline.wordClassIds).filter((id) => !wcFound.has(id)),
+      inlineLanguages: uniqueIds(inline.languageIds).filter((id) => !langFound.has(id)),
+      inlineCategories: uniqueIds(inline.categoryIds).filter((id) => !catFound.has(id)),
+      inlineDialects: missingInlineDialects,
     };
   }
 
@@ -796,24 +948,30 @@ export class WordRepositoryImpl implements WordRepository {
   }
 
   // Helper: insert children untuk save & update (dipakai bersama)
+  // opts.inheritedFrom = index makna → id makna INDUK (kolom provenance,
+  // 04 — sinonim inline); opts.meaningIdsOut = kumpulan id makna sesuai
+  // urutan array (dipakai induk utk memetakan provenance).
   private async insertChildren(
     tx: Tx,
     wordId: string,
     word: WordToSave,
     actorId: string,
+    opts?: { inheritedFrom?: Record<number, string>; meaningIdsOut?: string[] },
   ): Promise<void> {
-    for (const meaning of word.meanings) {
+    for (const [index, meaning] of word.meanings.entries()) {
       const [meaningRow] = await tx
         .insert(meanings)
         .values({
           wordId,
           wordClassId: meaning.wordClassId,
+          inheritedFromMeaningId: opts?.inheritedFrom?.[index] ?? null,
           definition: meaning.definition,
           orderIndex: meaning.orderIndex,
           createdBy: actorId,
         })
         .returning();
       const meaningId = meaningRow.id;
+      opts?.meaningIdsOut?.push(meaningId);
 
       if (meaning.translations.length > 0) {
         await tx.insert(meaningTranslations).values(
@@ -846,9 +1004,14 @@ export class WordRepositoryImpl implements WordRepository {
     if (word.categoryIds.length > 0) {
       await tx.insert(wordCategories).values(word.categoryIds.map((categoryId) => ({ wordId, categoryId })));
     }
-    if (word.relatedWords.length > 0) {
+    // Hanya link ke kata existing (Form A). Kata inline (Form B) relasinya
+    // dibuat terpisah di saveWithInlineRelations (source=induk → target=inline).
+    const linkRels = word.relatedWords.filter(
+      (rel): rel is Extract<CreateWordRelatedDto, { wordId: string }> => 'wordId' in rel,
+    );
+    if (linkRels.length > 0) {
       await tx.insert(lexicalRelations).values(
-        word.relatedWords.map((rel) => ({
+        linkRels.map((rel) => ({
           sourceWordId: wordId,
           targetWordId: rel.wordId,
           relationType: rel.relationType,
@@ -910,15 +1073,5 @@ export class WordRepositoryImpl implements WordRepository {
   private async exists(table: typeof languages | typeof dialects, id: string): Promise<boolean> {
     const [row] = await this.db.select({ id: table.id }).from(table).where(eq(table.id, id)).limit(1);
     return !!row;
-  }
-
-  private async missingIds(
-    table: typeof languages | typeof wordClasses | typeof categories | typeof words,
-    ids: string[],
-  ): Promise<string[]> {
-    if (ids.length === 0) return [];
-    const rows = await this.db.select({ id: table.id }).from(table).where(inArray(table.id, ids));
-    const found = new Set(rows.map((r) => r.id));
-    return ids.filter((id) => !found.has(id));
   }
 }

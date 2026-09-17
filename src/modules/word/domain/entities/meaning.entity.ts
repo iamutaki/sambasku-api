@@ -5,6 +5,9 @@ export interface Meaning {
   wordId: string;
   /** kelas kata tersemat (Nomina/Verba/…) — null kalau makna tanpa kelas */
   wordClass: WordClassSummary | null;
+  /** 04: provenance makna hasil SALINAN sinonim inline — null = mandiri/
+   *  di-override; terisi = masih "mengikuti" makna induk */
+  inheritedFromMeaningId: string | null;
   definition: string;
   orderIndex: number;
   notes: string | null;

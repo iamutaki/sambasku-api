@@ -43,6 +43,7 @@ function makeDeps() {
     updateWithRelations: vi.fn().mockResolvedValue({ id: '01WORDULID000000000000000' }),
     findMissingReferences: vi.fn().mockResolvedValue({
       languageId: false, dialectId: false, languages: [], wordClasses: [], categories: [], words: [], dialects: [],
+      inlineWordClasses: [], inlineLanguages: [], inlineCategories: [], inlineDialects: [],
     }),
   } as unknown as WordRepository;
   const auditRepo = { record: vi.fn().mockResolvedValue(undefined), list: vi.fn() };

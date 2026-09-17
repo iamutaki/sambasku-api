@@ -13,6 +13,10 @@ const NO_MISSING: MissingReferences = {
   categories: [],
   words: [],
   dialects: [],
+  inlineWordClasses: [],
+  inlineLanguages: [],
+  inlineCategories: [],
+  inlineDialects: [],
 };
 
 const WORD = { id: '01WORDULID000000000000000', lemma: 'makatn' } as { id: string; lemma: string };

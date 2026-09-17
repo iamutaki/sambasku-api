@@ -353,6 +353,137 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect((await res.json()).error_code).toBe('WORD_NOT_FOUND');
   });
 
+  // ---- 04-api-sinonim-inline.md: related_words Form B (sinonim baru inline) ----
+
+  it('04: campuran Form A + Form B → 201, inline_created_words urut sesuai request', async () => {
+    // kata existing untuk Form A
+    const existing = await post('/api/v1/admin/words', validBody({ lemma: 'lapa' }), adminToken);
+    expect(existing.status).toBe(201);
+    const existingData = (await existing.json()).data;
+
+    const res = await post(
+      '/api/v1/admin/words',
+      validBody({
+        lemma: 'makn',
+        related_words: [
+          // Form A — link ke kata lama
+          { word_id: existingData.word_id, relation_type: 'synonym' },
+          // Form B — buat sinonim baru inline, default inherit makna induk
+          { relation_type: 'synonym', word: { lemma: 'ngamakn' } },
+          // Form B + override satu makna → makna itu "selesai mengikuti" induk
+          {
+            relation_type: 'synonym',
+            word: {
+              lemma: 'ngunyahn',
+              meaning_overrides: [{ meaning_index: 0, definition: 'Mengunyah makanan' }],
+            },
+          },
+        ],
+      }),
+      adminToken,
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+
+    // induk + inline_created_words urut sesuai request (2 Form B)
+    expect(body.data.word_id).toHaveLength(26);
+    expect(body.data.lemma).toBe('makn');
+    expect(body.data.inline_created_words).toHaveLength(2);
+    expect(body.data.inline_created_words[0]).toMatchObject({
+      word_id: expect.stringMatching(/^01/),
+      lemma: 'ngamakn',
+      relation_type: 'synonym',
+      status: 'published',
+      is_verified: true,
+      meanings_count: 1,
+      inherited_meanings_count: 1,
+      overridden_meanings_count: 0,
+    });
+    expect(body.data.inline_created_words[1]).toMatchObject({
+      lemma: 'ngunyahn',
+      status: 'published',
+      meanings_count: 1,
+      inherited_meanings_count: 1,
+      overridden_meanings_count: 1,
+    });
+
+    // kata inline published muncul di detail induk (Form A link + 2 Form B)
+    const detail = await request(`/api/v1/words/${body.data.word_id}`);
+    const detailBody = await detail.json();
+    const relatedLemmas = detailBody.data.related_words.map((r: { lemma: string }) => r.lemma);
+    expect(relatedLemmas.map((l: string) => l.toLowerCase())).toEqual(
+      expect.arrayContaining(['lapa', 'ngamakn', 'ngunyahn']),
+    );
+
+    // makna kata inline TANPA override → provenance string (masih ikut induk)
+    const inlineDetail = await request(`/api/v1/words/${body.data.inline_created_words[0].word_id}`);
+    const inlineBody = await inlineDetail.json();
+    expect(typeof inlineBody.data.meanings[0].inherited_from_meaning_id).toBe('string');
+    expect(inlineBody.data.meanings[0].definition).toBe('Aktivitas memasukkan makanan ke mulut');
+
+    // makna dengan override → provenance null + definisi kata-kata sendiri
+    const ovDetail = await request(`/api/v1/words/${body.data.inline_created_words[1].word_id}`);
+    const ovBody = await ovDetail.json();
+    expect(ovBody.data.meanings[0].inherited_from_meaning_id).toBeNull();
+    expect(ovBody.data.meanings[0].definition).toBe('Mengunyah makanan');
+  });
+
+  it('04: contributor + published → induk DAN semua inline pending_review (Section 22 per entitas)', async () => {
+    const res = await post(
+      '/api/v1/admin/words',
+      validBody({
+        lemma: 'minum inline',
+        related_words: [{ relation_type: 'synonym', word: { lemma: 'manginum' } }],
+      }),
+      contributorToken,
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.data.status).toBe('pending_review');
+    expect(body.data.is_verified).toBe(false);
+    expect(body.data.inline_created_words[0]).toMatchObject({
+      lemma: 'manginum',
+      status: 'pending_review',
+      is_verified: false,
+    });
+
+    // kata inline pending_review → belum tayang (404 publik)
+    const inlineDetail = await request(`/api/v1/words/${body.data.inline_created_words[0].word_id}`);
+    expect(inlineDetail.status).toBe(404);
+  });
+
+  it('04: gagal validasi → 400 dengan field path related_words.N.word.*', async () => {
+    // lemma inline == lemma induk
+    const same = await post(
+      '/api/v1/admin/words',
+      validBody({ related_words: [{ relation_type: 'synonym', word: { lemma: 'makatn' } }] }),
+      adminToken,
+    );
+    expect(same.status).toBe(400);
+    const sameBody = await same.json();
+    expect(sameBody.error_code).toBe('VALIDATION_ERROR');
+    expect(sameBody.details.map((d: { field: string }) => d.field)).toContain(
+      'related_words.0.word.lemma',
+    );
+
+    // word_id + word diisi bersamaan
+    const both = await post(
+      '/api/v1/admin/words',
+      validBody({
+        related_words: [
+          { relation_type: 'synonym', word_id: ulid26('01E2EWORDLAIN'), word: { lemma: 'ngamakn' } },
+        ],
+      }),
+      adminToken,
+    );
+    expect(both.status).toBe(400);
+    const bothBody = await both.json();
+    expect(bothBody.details.map((d: { field: string }) => d.field)).toContain(
+      'related_words.0.word',
+    );
+  });
+
   it('GET /api/v1/word-classes → 200 daftar kelas kata', async () => {
     const res = await request('/api/v1/word-classes');
     expect(res.status).toBe(200);
