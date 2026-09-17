@@ -64,6 +64,13 @@
       "when": 1789660308568,
       "tag": "0008_auth-identities-oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+"when": 1789666975522,
+            "tag": "0009_categories_unique_active_name",
+      "breakpoints": true
     }
   ]
 }

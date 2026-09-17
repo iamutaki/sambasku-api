@@ -1,4 +1,5 @@
 import 'dotenv/config'; // script CLI jalan di Node — env.ts tidak lagi memuat dotenv
+import { isNull } from 'drizzle-orm';
 import { db, pool } from '@/shared/database/drizzle/client';
 import {
   categories,
@@ -103,11 +104,17 @@ async function main() {
       .values({ ...wc })
       .onConflictDoUpdate({ target: wordClasses.code, set: { name: wc.name } });
   }
-  for (const cat of SEED_CATEGORIES) {
-    await db
-      .insert(categories)
-      .values({ ...cat })
-      .onConflictDoNothing(); // tidak ada key unik selain PK — skip kalau sudah ada
+  // Kategori TIDAK punya key unik selain PK — onConflictDoNothing() di sini
+  // adalah no-op (tidak pernah konflik di PK karena ULID baru tiap insert),
+  // itu sebabnya seed lama menumpuk duplikat. Solusi: cek-dulu lalu insert
+  // yang belum ada; DB juga dijaga partial unique index pada name aktif
+  // (migration 0009) untuk jalur tulis lain.
+  const existingCategoryNames = new Set(
+    (await db.select({ name: categories.name }).from(categories).where(isNull(categories.deletedAt))).map((r) => r.name),
+  );
+  const missingCategories = SEED_CATEGORIES.filter((cat) => !existingCategoryNames.has(cat.name));
+  if (missingCategories.length > 0) {
+    await db.insert(categories).values(missingCategories);
   }
   logger.info(`Seeded referensi: ${SEED_LANGUAGES.length} bahasa, ${SEED_DIALECTS.length} dialek, ${SEED_WORD_CLASSES.length} kelas kata, ${SEED_CATEGORIES.length} kategori`);
 }
