@@ -14,8 +14,8 @@ export const votes = pgTable(
     userId: varchar('user_id', { length: 26 })
       .notNull()
       .references(() => users.id),
-    // 'word' | 'meaning' | 'example' | 'pronunciation' | 'word_image'
-    // ('comment' menyusul bersama modul comment - 09-api-comment.md)
+    // 'word' | 'meaning' | 'example' | 'pronunciation' | 'word_image' |
+    // 'comment' (09-api-comment.md)
     entityType: varchar('entity_type', { length: 50 }).notNull(),
     entityId: varchar('entity_id', { length: 26 }).notNull(),
     // 1 = upvote, -1 = downvote. smallint bukan boolean: arah eksplisit,

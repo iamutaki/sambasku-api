@@ -85,6 +85,13 @@
       "when": 1789746554284,
       "tag": "0011_votes",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789748927228,
+      "tag": "0012_comments",
+      "breakpoints": true
     }
   ]
 }

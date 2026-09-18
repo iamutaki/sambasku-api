@@ -87,6 +87,15 @@ import { GetVoteCountsUseCase } from '@/modules/vote/application/use-cases/get-v
 import { GetMyVotesUseCase } from '@/modules/vote/application/use-cases/get-my-votes.use-case';
 import { VoteController } from '@/modules/vote/presentation/v1/vote.controller';
 import { createVoteRoutes } from '@/modules/vote/presentation/v1/vote.routes';
+import { CommentRepositoryImpl } from '@/modules/comment/infrastructure/comment.repository.impl';
+import { CreateCommentUseCase } from '@/modules/comment/application/use-cases/create-comment.use-case';
+import { ListWordCommentsUseCase } from '@/modules/comment/application/use-cases/list-word-comments.use-case';
+import { DeleteCommentUseCase } from '@/modules/comment/application/use-cases/delete-comment.use-case';
+import { ListAdminCommentsUseCase } from '@/modules/comment/application/use-cases/list-admin-comments.use-case';
+import { ReviewCommentUseCase } from '@/modules/comment/application/use-cases/review-comment.use-case';
+import { CommentController } from '@/modules/comment/presentation/v1/comment.controller';
+import { createCommentRoutes, createWordCommentRoutes } from '@/modules/comment/presentation/v1/comment.routes';
+import { createAdminCommentRoutes } from '@/modules/comment/presentation/v1/admin-comment.routes';
 
 // ---- Composition root: rakit semua dependency (manual DI, api-base-stack.md Section 2) ----
 const userRepo = new UserRepositoryImpl(db);
@@ -189,6 +198,20 @@ const voteController = new VoteController({
   myVotes: new GetMyVotesUseCase(voteRepo),
 });
 
+
+// ---- Modul comment (09-api-comment.md) - komentar lemma, pre-moderation
+// (approval gate Section 22). Bergantung ke WordRepository (cek kata ada)
+// + VoteRepository (counts per komentar) lewat interface - preseden
+// auditRepo lintas modul. ----
+const commentRepo = new CommentRepositoryImpl(db);
+const commentController = new CommentController({
+  create: new CreateCommentUseCase(commentRepo, wordRepo, auditRepo),
+  listByWord: new ListWordCommentsUseCase(commentRepo, voteRepo),
+  delete: new DeleteCommentUseCase(commentRepo, auditRepo),
+  listAdmin: new ListAdminCommentsUseCase(commentRepo),
+  review: new ReviewCommentUseCase(commentRepo, auditRepo),
+});
+
 // ---- HTTP app ----
 export const app = createOpenApiApp();
 app.onError(errorHandler);
@@ -288,6 +311,9 @@ app.route('/api/v1/admin/words', createAdminWordRoutes({ controller: wordControl
 // public punya rate limit IP 100/menit global (use '*'), limit per-user 30/menit
 // tetap jadi batas efektif; urutan mount menentukan middleware yang berlaku
 app.route('/api/v1/words', createWordMediaRoutes({ controller: wordController, authenticate }));
+// Komentar per kata (09) - SEBELUM public word routes (pola media routes),
+// supaya /:wordId/comments tidak tertelan routes.use('*') rate limit publik
+app.route('/api/v1/words', createWordCommentRoutes({ controller: commentController, authenticate }));
 app.route('/api/v1/words', createPublicWordRoutes({ controller: wordController, authenticate }));
 app.route('/api/v1/meanings', createMeaningExampleRoutes({ controller: wordController, authenticate }));
 app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordController }));
@@ -295,6 +321,11 @@ app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordContro
 // Vote polymorphic (08-api-upvote-downvote.md) - toggle (login) + counts
 // (publik) + my (login). Tanpa prefix bentrok, urutan mount bebas.
 app.route('/api/v1/votes', createVoteRoutes({ controller: voteController, authenticate }));
+
+// Komentar (09-api-comment.md): delete by id (publik-group) + antrean
+// moderasi admin (pre-moderation, approval gate Section 22)
+app.route('/api/v1/comments', createCommentRoutes({ controller: commentController, authenticate }));
+app.route('/api/v1/admin/comments', createAdminCommentRoutes({ controller: commentController, authenticate }));
 
 // Antrean review kontribusi - hanya verifikator (Section 22)
 app.route('/api/v1/admin/contributions', createContributionRoutes({ controller: contributionController, authenticate }));
@@ -325,6 +356,7 @@ const imageController = new ImageController({
   }),
 });
 app.route('/api/v1/admin/images/upload-token', createImageRoutes({ controller: imageController, authenticate }));
+
 
 // OpenAPI spec + Scalar docs (api-base-stack.md Section 9)
 app.doc('/openapi.json', {

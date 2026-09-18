@@ -3,6 +3,7 @@ import type * as schema from './schema';
 import {
   auditLogs,
   categories,
+  comments,
   contributionReviews,
   contributions,
   dialects,
@@ -32,6 +33,7 @@ export async function truncateAll(db: NodePgDatabase<typeof schema>): Promise<vo
     contributionReviews,
     contributions,
     votes,
+    comments,
     lexicalRelations,
     pronunciations,
     examples,

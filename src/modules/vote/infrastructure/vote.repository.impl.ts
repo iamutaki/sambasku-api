@@ -1,6 +1,7 @@
 import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
+  comments,
   examples,
   meanings,
   pronunciations,
@@ -63,6 +64,14 @@ export class VoteRepositoryImpl implements VoteRepository {
           .select({ id: wordImages.id })
           .from(wordImages)
           .where(and(eq(wordImages.id, target.entityId), isNull(wordImages.deletedAt)))
+          .limit(1);
+        return rows.length > 0;
+      }
+      case 'comment': {
+        const rows = await this.db
+          .select({ id: comments.id })
+          .from(comments)
+          .where(and(eq(comments.id, target.entityId), isNull(comments.deletedAt)))
           .limit(1);
         return rows.length > 0;
       }
