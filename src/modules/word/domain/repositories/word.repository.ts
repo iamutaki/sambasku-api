@@ -125,8 +125,10 @@ export interface WordRepository {
     actorId: string,
     related: ResolvedInlineRelation[],
   ): Promise<SaveWithInlineResult>;
-  /** true kalau lemma sama sudah ada di language itu (belum soft-deleted) */
-  findDuplicate(languageId: string, lemma: string): Promise<boolean>;
+  /** true kalau lemma sama sudah ada di language itu (belum soft-deleted).
+   *  excludeWordId (05-api-edit-kata.md): cek duplikat EDIT harus mengabaikan
+   *  kata itu sendiri - tanpa ini setiap edit selalu "duplikat" dirinya. */
+  findDuplicate(languageId: string, lemma: string, excludeWordId?: string): Promise<boolean>;
   /** hanya published + belum soft-deleted; includeAllStatuses = layar review */
   findDetailById(id: string, opts?: { includeAllStatuses?: boolean }): Promise<WordDetail | null>;
   /** kata by id (belum soft-deleted, semua status) - validasi parent kontribusi media */

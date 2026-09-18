@@ -195,6 +195,49 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     expect((await get(`/api/v1/words/${body.data.word_id}`)).status).toBe(404);
   });
 
+  // ---- 06-api-x-device-id.md: dual-bucket X-Device-Id + IP ----
+
+  it('06: 5 submit per X-Device-Id → ke-6 429 (Retry-After); device baru di IP sama → lolos', async () => {
+    // IP unik per test supaya bucket IP tidak bocor antar test
+    const ip = `10.6.${Date.now() % 250}.7`;
+    const dev = `01DEV${String(Date.now()).padEnd(21, '0')}`;
+    const submit = () =>
+      request('/api/v1/contributions/words', {
+        method: 'POST',
+        body: JSON.stringify(validWordBody(`dev limit ${Date.now()}`)),
+        headers: { 'x-forwarded-for': ip, 'x-device-id': dev },
+      });
+
+    for (let i = 0; i < 5; i++) {
+      expect((await submit()).status).toBe(201);
+    }
+    const sixth = await submit();
+    expect(sixth.status).toBe(429);
+    expect((await sixth.json()).error_code).toBe('RATE_LIMITED');
+    expect(sixth.headers.get('retry-after')).toEqual(expect.any(String));
+
+    // device BERBEDA dari IP yang sama → bucket sendiri, tetap bisa submit
+    const dev2 = `01DEV${String(Date.now() + 1).padEnd(21, '0')}`;
+    const res = await request('/api/v1/contributions/words', {
+      method: 'POST',
+      body: JSON.stringify(validWordBody(`dev baru ${Date.now()}`)),
+      headers: { 'x-forwarded-for': ip, 'x-device-id': dev2 },
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('06: tanpa X-Device-Id → TIDAK kena limit 5/jam (hanya langit-langit IP 20)', async () => {
+    const ip = `10.7.${Date.now() % 250}.9`;
+    for (let i = 0; i < 6; i++) {
+      const res = await request('/api/v1/contributions/words', {
+        method: 'POST',
+        body: JSON.stringify(validWordBody(`tanpa dev ${i} ${Date.now()}`)),
+        headers: { 'x-forwarded-for': ip }, // tanpa x-device-id
+      });
+      expect(res.status).toBe(201); // 6 > 5: bukti bucket device tidak aktif
+    }
+  });
+
   it('correct contoh kalimat → is_corrected true + tayang; entity_type salah → 400', async () => {
     // kata published dari admin + contoh pending dari contributor
     const create = await post('/api/v1/admin/words', validWordBody('kata contoh'), adminToken);

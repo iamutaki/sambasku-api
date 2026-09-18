@@ -15,6 +15,11 @@ import {
   wordDetailResponseSchema,
   wordListResponseSchema,
 } from './validators/create-word.validator';
+import {
+  adminWordDetailResponseSchema,
+  updateWordResponseSchema,
+  updateWordSchema,
+} from './validators/update-word.validator';
 
 const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
@@ -59,6 +64,61 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
   });
 
   routes.openapi(createWordRoute, (c) => deps.controller.create(c, c.req.valid('json')) as never);
+
+  // Edit kata (05-api-edit-kata.md) - verifier team saja: perubahan
+  // contributor atas entri existing adalah kontribusi → jalur antrean
+  // review (03 doc), bukan endpoint ini. Rate limit kategori tulis 30/menit
+  // per user_id (GET prefill ikut limit ini - sekali per sesi edit, cukup).
+  routes.use(
+    '/:id',
+    deps.authenticate,
+    authorizeRole('admin', 'editor', 'root', 'reviewer'),
+    rateLimit({
+      points: 30,
+      duration: 60,
+      keyFn: (c) => {
+        const user = (c.get('user') as AuthUser | undefined) ?? null;
+        return `word-update:${user?.user_id ?? c.req.header('x-forwarded-for') ?? 'unknown'}`;
+      },
+    }),
+  );
+
+  const adminWordDetailRoute = createRoute({
+    method: 'get',
+    path: '/:id',
+    tags: ['Words', 'Admin'],
+    summary: 'Detail kata SEMUA status - prefill form edit (draft/pending/rejected terbuka)',
+    request: { params: z.object({ id: z.string().length(26) }) },
+    responses: {
+      200: { description: 'Detail kata', content: json(adminWordDetailResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+      404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
+  const updateWordRoute = createRoute({
+    method: 'put',
+    path: '/:id',
+    tags: ['Words', 'Admin'],
+    summary: 'Edit kata (full replace - kirim ulang seluruh form)',
+    request: {
+      params: z.object({ id: z.string().length(26) }),
+      body: { content: json(updateWordSchema) },
+    },
+    responses: {
+      200: { description: 'Kata ter-update (status per role)', content: json(updateWordResponseSchema) },
+      400: { description: 'Body tidak valid / referensi id tidak ditemukan', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+      404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
+  routes.openapi(adminWordDetailRoute, (c) => deps.controller.adminDetail(c, c.req.param('id')) as never);
+  routes.openapi(updateWordRoute, (c) =>
+    deps.controller.update(c, c.req.param('id'), c.req.valid('json')) as never,
+  );
 
   // Verifikasi (Section 22) - HANYA verifikator: admin, root, reviewer.
   // Middleware per-path (beda role dari create yang menerima contributor)

@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
-const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
+export const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
 
 // Section 22 - approval gate: pending_review/rejected hanya di-set sistem
 export const wordStatusSchema = z.enum(['draft', 'pending_review', 'published', 'rejected']);
 
-const relationTypeSchema = z.enum(['synonym', 'antonym', 'has_component', 'derived_from']);
-const wordTypeSchema = z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']);
+export const relationTypeSchema = z.enum(['synonym', 'antonym', 'has_component', 'derived_from']);
+export const wordTypeSchema = z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']);
 
 // 04-api-sinonim-inline.md - override satu-per-satu atas makna hasil salinan.
 // indeks 0-based mengacu makna INDUK; field yang tidak disebut tetap asli.

@@ -203,6 +203,70 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(await repo.findDuplicate(SMB, 'lain')).toBe(false);
   });
 
+  // ---- 05-api-edit-kata.md: update + duplikat exclude diri ----
+
+  it('findDuplicate excludeWordId mengabaikan kata itu sendiri (edit ≠ duplikat diri)', async () => {
+    const word = await repo.saveWithRelations(baseWord({ lemma: 'makatn' }), ACTOR);
+    expect(await repo.findDuplicate(SMB, 'makatn', word.id)).toBe(false); // diri sendiri
+    expect(await repo.findDuplicate(SMB, 'makatn')).toBe(true); // tanpa exclude (perilaku create)
+  });
+
+  it('updateWithRelations: replace children lama → baru + baris contributions update', async () => {
+    const word = await repo.saveWithRelations(baseWord(), ACTOR);
+    const [oldMeaning] = await db.select().from(meanings).where(eq(meanings.wordId, word.id));
+
+    const updated = await repo.updateWithRelations(
+      word.id,
+      baseWord({
+        lemma: 'makatn',
+        notes: 'catatan baru',
+        meanings: [
+          {
+            wordClassId: NOMINA,
+            definition: 'definisi BARU hasil edit',
+            orderIndex: 1,
+            translations: [
+              { languageId: IDN, translationText: 'makan (edit)', translationType: 'direct' },
+            ],
+          },
+        ],
+        categoryIds: [],
+      }),
+      ACTOR,
+    );
+
+    expect(updated?.id).toBe(word.id);
+    // children lama hilang, children baru muncul (full replace)
+    const newMeanings = await db.select().from(meanings).where(eq(meanings.wordId, word.id));
+    expect(newMeanings).toHaveLength(1);
+    expect(newMeanings[0].id).not.toBe(oldMeaning.id);
+    expect(newMeanings[0].definition).toBe('definisi BARU hasil edit');
+    expect(await db.select().from(meaningTranslations).where(eq(meaningTranslations.meaningId, oldMeaning.id))).toHaveLength(0);
+    expect(await db.select().from(wordCategories).where(eq(wordCategories.wordId, word.id))).toHaveLength(0);
+    // jejak kontribusi update (action 'update')
+    const rows = await db.select().from(contributions).where(eq(contributions.entityId, word.id));
+    expect(rows.map((r) => r.action)).toContain('update');
+  });
+
+  it('BUKTI ROLLBACK update: FK invalid di tengah → ValidationError dan data LAMA utuh', async () => {
+    const word = await repo.saveWithRelations(baseWord(), ACTOR);
+    const badCategoryId = ulid26('01TESTCATNGACAK');
+
+    await expect(
+      repo.updateWithRelations(
+        word.id,
+        baseWord({ notes: 'harusnya batal', categoryIds: [badCategoryId] }),
+        ACTOR,
+      ),
+    ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR', statusCode: 400 });
+
+    // data lama TIDAK berubah: lemma/notes tetap, children lama tetap utuh
+    const [row] = await db.select().from(words).where(eq(words.id, word.id));
+    expect(row.notes).toBeNull();
+    expect(await db.select().from(meanings).where(eq(meanings.wordId, word.id))).toHaveLength(1);
+    expect(await db.select().from(wordCategories).where(eq(wordCategories.wordId, word.id))).toHaveLength(1);
+  });
+
   it('saveWithRelations + findDetailById: gambar contoh tersimpan (provider-agnostic)', async () => {
     const word = await repo.saveWithRelations(
       baseWord({

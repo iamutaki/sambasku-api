@@ -27,6 +27,7 @@ import { AuthController } from '@/modules/auth/presentation/v1/auth.controller';
 import { createAuthRoutes } from '@/modules/auth/presentation/v1/auth.routes';
 import { WordRepositoryImpl } from '@/modules/word/infrastructure/word.repository.impl';
 import { CreateWordUseCase } from '@/modules/word/application/use-cases/create-word.use-case';
+import { UpdateWordUseCase } from '@/modules/word/application/use-cases/update-word.use-case';
 import { GetWordByIdUseCase } from '@/modules/word/application/use-cases/get-word-by-id.use-case';
 import { SearchWordsUseCase } from '@/modules/word/application/use-cases/search-words.use-case';
 import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-word.use-case';
@@ -132,6 +133,7 @@ const imageStorage = createImageStorage();
 const searchMissRepo = new SearchMissRepositoryImpl(db);
 const wordController = new WordController({
   create: new CreateWordUseCase(wordRepo, auditRepo),
+  update: new UpdateWordUseCase(wordRepo, auditRepo),
   getById: new GetWordByIdUseCase(wordRepo),
   search: new SearchWordsUseCase(wordRepo, searchMissRepo),
   verify: new VerifyWordUseCase(wordRepo, auditRepo),

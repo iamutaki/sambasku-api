@@ -7,6 +7,9 @@ interface RateLimitOpts {
   points: number;
   duration: number; // detik
   keyFn?: (c: Context) => string;
+  /** 06-api-x-device-id.md: true → request TIDAK dihitung di bucket ini
+   *  (dipakai bucket per-device saat header X-Device-Id absen/invalid). */
+  skipIf?: (c: Context) => boolean;
 }
 
 // Key default per-IP: Cloudflare Workers menyediakan cf-connecting-ip
@@ -20,6 +23,10 @@ export function rateLimit(opts: RateLimitOpts) {
   const limiter = new RateLimiterMemory({ points: opts.points, duration: opts.duration });
 
   return createMiddleware(async (c, next) => {
+    if (opts.skipIf?.(c)) {
+      await next();
+      return;
+    }
     const key = opts.keyFn ? opts.keyFn(c) : clientIpKey(c);
     try {
       await limiter.consume(key);

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import type { ExtractTablesWithRelations } from 'drizzle-orm';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
 import type { NodePgDatabase, NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';
@@ -313,7 +313,11 @@ export class WordRepositoryImpl implements WordRepository {
     }
   }
 
-  async findDuplicate(languageId: string, lemma: string): Promise<boolean> {
+  async findDuplicate(
+    languageId: string,
+    lemma: string,
+    excludeWordId?: string,
+  ): Promise<boolean> {
     const [row] = await this.db
       .select({ id: words.id })
       .from(words)
@@ -322,6 +326,8 @@ export class WordRepositoryImpl implements WordRepository {
           eq(words.languageId, languageId),
           sql`lower(${words.lemma}) = lower(${lemma.trim()})`,
           isNull(words.deletedAt),
+          // 05-api-edit-kata.md: edit mengabaikan dirinya sendiri
+          ...(excludeWordId ? [ne(words.id, excludeWordId)] : []),
         ),
       )
       .limit(1);

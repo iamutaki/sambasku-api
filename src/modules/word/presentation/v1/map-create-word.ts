@@ -3,7 +3,9 @@ import type {
   InlineWordDto,
   MeaningOverrideDto,
 } from '../../application/dto/create-word.dto';
+import type { UpdateWordDto } from '../../application/dto/update-word.dto';
 import type { CreateWordBody } from './validators/create-word.validator';
+import type { UpdateWordBody } from './validators/update-word.validator';
 
 // Mapping snake_case (API) → camelCase (DTO) - dipakai create-word dan
 // correct-contribution (modul contribution) supaya mapping tidak dobel.
@@ -56,6 +58,20 @@ export function toCreateWordDto(body: CreateWordBody, imageProviderName: string)
       isPrimary: img.is_primary,
     })),
     status: body.status,
+  };
+}
+
+// 05-api-edit-kata.md - body PUT (Form A saja) → UpdateWordDto.
+// Mapping field non-relasi identik dengan create; related_words tidak
+// punya jalur inline di edit (validator menolak Form B lebih dulu).
+export function toUpdateWordDto(body: UpdateWordBody, imageProviderName: string): UpdateWordDto {
+  return {
+    ...toCreateWordDto({ ...body, related_words: [] }, imageProviderName),
+    relatedWords: body.related_words.map((rel) => ({
+      // superRefine validator menjamin kehadiran word_id saat Form B absen
+      wordId: rel.word_id!,
+      relationType: rel.relation_type,
+    })),
   };
 }
 

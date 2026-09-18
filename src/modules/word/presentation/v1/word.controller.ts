@@ -3,6 +3,7 @@ import { logger } from '@/shared/logging/logger';
 import { UnauthorizedError } from '@/shared/errors/app-error';
 import type { AppVariables } from '@/shared/types';
 import type { CreateWordUseCase } from '../../application/use-cases/create-word.use-case';
+import type { UpdateWordUseCase } from '../../application/use-cases/update-word.use-case';
 import type { GetWordByIdUseCase } from '../../application/use-cases/get-word-by-id.use-case';
 import type { SearchWordsUseCase } from '../../application/use-cases/search-words.use-case';
 import type { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-case';
@@ -10,19 +11,21 @@ import type { AddPronunciationUseCase } from '../../application/use-cases/add-pr
 import type { AddWordImageUseCase } from '../../application/use-cases/add-word-image.use-case';
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
 import type { CreateWordBody, SearchWordsQueryBody } from './validators/create-word.validator';
+import type { UpdateWordBody } from './validators/update-word.validator';
 import type {
   AddExampleBody,
   AddPronunciationBody,
   AddWordImageBody,
 } from './validators/word-media.validator';
-import { toCreateWordDto } from './map-create-word';
+import { toCreateWordDto, toUpdateWordDto } from './map-create-word';
 import { ANONIM_USER_ID } from '@/shared/constants/anonim';
-import type { WordClassSummary } from '../../domain/entities/word.entity';
+import type { WordClassSummary, WordDetail } from '../../domain/entities/word.entity';
 
 export class WordController {
   constructor(
     private readonly deps: {
       create: CreateWordUseCase;
+      update: UpdateWordUseCase;
       getById: GetWordByIdUseCase;
       search: SearchWordsUseCase;
       verify: VerifyWordUseCase;
@@ -92,74 +95,125 @@ export class WordController {
 
   async detail(c: Context, id: string) {
     const word = await this.deps.getById.execute(id);
+    return c.json({ success: true as const, data: this.toDetailData(word) });
+  }
+
+  /**
+   * Detail kata SEMUA status - prefill form edit admin (05-api-edit-kata.md).
+   * Endpoint publik detail tetap published-only; ini satu-satunya jalan
+   * membuka draft/pending_review/rejected untuk diedit.
+   */
+  async adminDetail(c: Context, id: string) {
+    const word = await this.deps.getById.execute(id, { includeAllStatuses: true });
     return c.json({
       success: true as const,
       data: {
-        id: word.id,
+        ...this.toDetailData(word),
+        created_at: word.createdAt.toISOString(),
+        updated_at: word.updatedAt ? word.updatedAt.toISOString() : null,
+      },
+    });
+  }
+
+  /** Edit kata - PUT full replace (05-api-edit-kata.md) */
+  async update(c: Context, id: string, body: UpdateWordBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+
+    const { word, warnings } = await this.deps.update.execute(
+      id,
+      toUpdateWordDto(body, this.deps.imageProviderName),
+      { userId: actor.user_id, role: actor.role, requestId },
+    );
+
+    logger.info(
+      { request_id: requestId, word_id: word.id, lemma: word.lemma, status: word.status },
+      'word updated',
+    );
+
+    return c.json({
+      success: true as const,
+      data: {
+        word_id: word.id,
         lemma: word.lemma,
-        language_id: word.languageId,
-        notes: word.notes,
         word_type: word.wordType,
         status: word.status,
         is_verified: word.isVerified,
         is_corrected: word.isCorrected,
-        verified_at: word.verifiedAt ? word.verifiedAt.toISOString() : null,
-        meanings: word.meanings.map((m) => ({
-          id: m.id,
-          word_class: m.wordClass
-            ? { id: m.wordClass.id, code: m.wordClass.code, name: m.wordClass.name, parent_id: m.wordClass.parentId }
-            : null,
-          inherited_from_meaning_id: m.inheritedFromMeaningId,
-          definition: m.definition,
-          order_index: m.orderIndex,
-          translations: m.translations.map((t) => ({
-            language_id: t.languageId,
-            translation_text: t.translationText,
-            translation_type: t.translationType,
-          })),
-          examples: m.examples.map((e) => ({
-            id: e.id,
-            source_language_id: e.sourceLanguageId,
-            source_sentence: e.sourceSentence,
-            target_language_id: e.targetLanguageId,
-            target_sentence: e.targetSentence,
-            source_type: e.sourceType,
-          })),
-        })),
-        categories: word.categories,
-        pronunciations: word.pronunciations.map((p) => ({
-          id: p.id,
-          notation: p.notation,
-          value: p.value,
-          dialect_id: p.dialectId,
-        })),
-        images: word.images.map((img) => ({
-          id: img.id,
-          url: img.url,
-          alt_text: img.altText,
-          is_primary: img.isPrimary,
-        })),
-        related_words: word.relatedWords.map((rel) => ({
-          word_id: rel.wordId,
-          lemma: rel.lemma,
-          relation_type: rel.relationType,
-        })),
-        appears_in: word.appearsIn.map((rel) => ({
-          word_id: rel.wordId,
-          lemma: rel.lemma,
-          relation_type: rel.relationType,
-        })),
-        variants: word.variants.map((v) => ({
-          id: v.id,
-          form: v.form,
-          variant_type: v.variantType,
-          affix_type: v.affixType,
-          affix_value: v.affixValue,
-          dialect_id: v.dialectId,
-          notes: v.notes,
-        })),
+        updated_at: word.updatedAt ? word.updatedAt.toISOString() : null,
+        ...(warnings.length > 0 ? { warnings } : {}),
       },
     });
+  }
+
+  // Mapping WordDetail → response - dipakai bersama detail publik & admin
+  private toDetailData(word: WordDetail) {
+    return {
+      id: word.id,
+      lemma: word.lemma,
+      language_id: word.languageId,
+      notes: word.notes,
+      word_type: word.wordType,
+      status: word.status,
+      is_verified: word.isVerified,
+      is_corrected: word.isCorrected,
+      verified_at: word.verifiedAt ? word.verifiedAt.toISOString() : null,
+      meanings: word.meanings.map((m) => ({
+        id: m.id,
+        word_class: m.wordClass
+          ? { id: m.wordClass.id, code: m.wordClass.code, name: m.wordClass.name, parent_id: m.wordClass.parentId }
+          : null,
+        inherited_from_meaning_id: m.inheritedFromMeaningId,
+        definition: m.definition,
+        order_index: m.orderIndex,
+        translations: m.translations.map((t) => ({
+          language_id: t.languageId,
+          translation_text: t.translationText,
+          translation_type: t.translationType,
+        })),
+        examples: m.examples.map((e) => ({
+          id: e.id,
+          source_language_id: e.sourceLanguageId,
+          source_sentence: e.sourceSentence,
+          target_language_id: e.targetLanguageId,
+          target_sentence: e.targetSentence,
+          source_type: e.sourceType,
+        })),
+      })),
+      categories: word.categories,
+      pronunciations: word.pronunciations.map((p) => ({
+        id: p.id,
+        notation: p.notation,
+        value: p.value,
+        dialect_id: p.dialectId,
+      })),
+      images: word.images.map((img) => ({
+        id: img.id,
+        url: img.url,
+        alt_text: img.altText,
+        is_primary: img.isPrimary,
+      })),
+      related_words: word.relatedWords.map((rel) => ({
+        word_id: rel.wordId,
+        lemma: rel.lemma,
+        relation_type: rel.relationType,
+      })),
+      appears_in: word.appearsIn.map((rel) => ({
+        word_id: rel.wordId,
+        lemma: rel.lemma,
+        relation_type: rel.relationType,
+      })),
+      variants: word.variants.map((v) => ({
+        id: v.id,
+        form: v.form,
+        variant_type: v.variantType,
+        affix_type: v.affixType,
+        affix_value: v.affixValue,
+        dialect_id: v.dialectId,
+        notes: v.notes,
+      })),
+    };
   }
 
   async search(c: Context, query: SearchWordsQueryBody) {
