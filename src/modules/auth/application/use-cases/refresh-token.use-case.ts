@@ -42,6 +42,7 @@ export class RefreshTokenUseCase {
     const accessToken = await this.tokenService.generateAccessToken({
       user_id: user.id,
       role: user.role,
+      username: user.username,
     });
 
     return { accessToken, expiresIn: this.accessTokenTtlSeconds, refreshToken: token };

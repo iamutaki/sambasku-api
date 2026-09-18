@@ -27,7 +27,10 @@ export class JwtTokenService implements TokenServicePort {
   }
 
   async generateAccessToken(payload: AccessTokenPayload): Promise<string> {
-    return new SignJWT({ role: payload.role })
+    return new SignJWT({
+      role: payload.role,
+      ...(payload.username ? { username: payload.username } : {}),
+    })
       .setProtectedHeader({ alg: 'RS256' })
       .setSubject(payload.user_id)
       .setIssuedAt()
