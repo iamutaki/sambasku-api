@@ -81,6 +81,12 @@ import { createImageStorage } from '@/modules/image/infrastructure/image-storage
 import { CreateUploadCredentialsUseCase } from '@/modules/image/application/use-cases/create-upload-credentials.use-case';
 import { ImageController } from '@/modules/image/presentation/v1/image.controller';
 import { createImageRoutes } from '@/modules/image/presentation/v1/image.routes';
+import { VoteRepositoryImpl } from '@/modules/vote/infrastructure/vote.repository.impl';
+import { ToggleVoteUseCase } from '@/modules/vote/application/use-cases/toggle-vote.use-case';
+import { GetVoteCountsUseCase } from '@/modules/vote/application/use-cases/get-vote-counts.use-case';
+import { GetMyVotesUseCase } from '@/modules/vote/application/use-cases/get-my-votes.use-case';
+import { VoteController } from '@/modules/vote/presentation/v1/vote.controller';
+import { createVoteRoutes } from '@/modules/vote/presentation/v1/vote.routes';
 
 // ---- Composition root: rakit semua dependency (manual DI, api-base-stack.md Section 2) ----
 const userRepo = new UserRepositoryImpl(db);
@@ -171,6 +177,16 @@ const languageController = new LanguageController({
 
 const categoryController = new CategoryController({
   listCategories: new ListCategoriesUseCase(new CategoryRepositoryImpl(db)),
+});
+
+// ---- Modul vote (08-api-upvote-downvote.md) - upvote/downvote polymorphic
+// pada word & children-nya. TANPA audit per vote (volume tinggi, bukan
+// aksi admin - lihat KEPUTUSAN PRODUK di doc). ----
+const voteRepo = new VoteRepositoryImpl(db);
+const voteController = new VoteController({
+  toggle: new ToggleVoteUseCase(voteRepo),
+  counts: new GetVoteCountsUseCase(voteRepo),
+  myVotes: new GetMyVotesUseCase(voteRepo),
 });
 
 // ---- HTTP app ----
@@ -275,6 +291,10 @@ app.route('/api/v1/words', createWordMediaRoutes({ controller: wordController, a
 app.route('/api/v1/words', createPublicWordRoutes({ controller: wordController, authenticate }));
 app.route('/api/v1/meanings', createMeaningExampleRoutes({ controller: wordController, authenticate }));
 app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordController }));
+
+// Vote polymorphic (08-api-upvote-downvote.md) - toggle (login) + counts
+// (publik) + my (login). Tanpa prefix bentrok, urutan mount bebas.
+app.route('/api/v1/votes', createVoteRoutes({ controller: voteController, authenticate }));
 
 // Antrean review kontribusi - hanya verifikator (Section 22)
 app.route('/api/v1/admin/contributions', createContributionRoutes({ controller: contributionController, authenticate }));

@@ -21,3 +21,4 @@ export * from './contributions.schema';
 export * from './contribution-reviews.schema';
 export * from './search-misses.schema';
 export * from './audit-logs.schema';
+export * from './votes.schema';
