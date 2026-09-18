@@ -523,6 +523,9 @@ export class WordRepositoryImpl implements WordRepository {
       images: imageRows.map((i) => ({
         id: i.id,
         url: i.url,
+        // Untuk round-trip PUT edit: provider_file_id WAJIB dikirim ulang
+        // di images[] (full-replace) - tanpa ini gambar terhapus senyap
+        providerFileId: i.providerFileId,
         altText: i.altText,
         isPrimary: i.isPrimary,
         ...(includeAll

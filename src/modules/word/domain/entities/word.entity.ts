@@ -68,6 +68,8 @@ export interface WordDetail extends Word {
   images: {
     id: string;
     url: string;
+    /** wajib dibawa form edit untuk round-trip PUT (full-replace images[]) */
+    providerFileId: string;
     altText: string | null;
     isPrimary: boolean;
     status?: ChildStatus;

@@ -462,6 +462,7 @@ export const wordDetailResponseSchema = z.object({
       z.object({
         id: z.string(),
         url: z.string(),
+        provider_file_id: z.string(),
         alt_text: z.string().nullable(),
         is_primary: z.boolean(),
       }),

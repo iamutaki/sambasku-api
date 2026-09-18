@@ -200,6 +200,9 @@ export class WordController {
       images: word.images.map((img) => ({
         id: img.id,
         url: img.url,
+        // WAJIB untuk round-trip PUT edit (full-replace): tanpa ini form
+        // edit tidak bisa mengirim ulang images[] → gambar terhapus senyap
+        provider_file_id: img.providerFileId,
         alt_text: img.altText,
         is_primary: img.isPrimary,
       })),

@@ -288,6 +288,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
       {
         id: expect.any(String),
         url: 'https://ik.imagekit.io/dev/words/makan.jpg',
+        providerFileId: 'file_abc123', // wajib ikut: round-trip PUT edit
         altText: 'Orang sedang makan',
         isPrimary: true,
       },
