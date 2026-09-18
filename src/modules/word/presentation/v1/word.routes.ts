@@ -115,10 +115,27 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
     },
   });
 
+  const deleteWordRoute = createRoute({
+    method: 'delete',
+    path: '/:id',
+    tags: ['Words', 'Admin'],
+    summary: 'Soft-delete kata (07-api-delete-kata.md) - hilang dari publik & admin, baris dipertahankan untuk audit/recovery',
+    request: {
+      params: z.object({ id: z.string().length(26) }),
+    },
+    responses: {
+      200: { description: 'Kata di-soft-delete', content: json(okNullResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+      404: { description: 'Kata tidak ditemukan / sudah dihapus', content: json(errorResponseSchema) },
+    },
+  });
+
   routes.openapi(adminWordDetailRoute, (c) => deps.controller.adminDetail(c, c.req.param('id')) as never);
   routes.openapi(updateWordRoute, (c) =>
     deps.controller.update(c, c.req.param('id'), c.req.valid('json')) as never,
   );
+  routes.openapi(deleteWordRoute, (c) => deps.controller.deleteWord(c, c.req.param('id')) as never);
 
   // Verifikasi (Section 22) - HANYA verifikator: admin, root, reviewer.
   // Middleware per-path (beda role dari create yang menerima contributor)

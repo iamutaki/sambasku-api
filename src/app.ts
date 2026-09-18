@@ -31,6 +31,7 @@ import { UpdateWordUseCase } from '@/modules/word/application/use-cases/update-w
 import { GetWordByIdUseCase } from '@/modules/word/application/use-cases/get-word-by-id.use-case';
 import { SearchWordsUseCase } from '@/modules/word/application/use-cases/search-words.use-case';
 import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-word.use-case';
+import { SoftDeleteWordUseCase } from '@/modules/word/application/use-cases/soft-delete-word.use-case';
 import { AddPronunciationUseCase } from '@/modules/word/application/use-cases/add-pronunciation.use-case';
 import { AddWordImageUseCase } from '@/modules/word/application/use-cases/add-word-image.use-case';
 import { AddExampleUseCase } from '@/modules/word/application/use-cases/add-example.use-case';
@@ -137,6 +138,7 @@ const wordController = new WordController({
   getById: new GetWordByIdUseCase(wordRepo),
   search: new SearchWordsUseCase(wordRepo, searchMissRepo),
   verify: new VerifyWordUseCase(wordRepo, auditRepo),
+  deleteWord: new SoftDeleteWordUseCase(wordRepo, auditRepo),
   addPronunciation: new AddPronunciationUseCase(wordRepo, auditRepo),
   addWordImage: new AddWordImageUseCase(wordRepo, auditRepo),
   addExample: new AddExampleUseCase(wordRepo, auditRepo),
@@ -277,7 +279,7 @@ app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordContro
 // Antrean review kontribusi - hanya verifikator (Section 22)
 app.route('/api/v1/admin/contributions', createContributionRoutes({ controller: contributionController, authenticate }));
 
-// Submit kata TANPA login (publik, 5/jam per IP) - atribusi ke user sistem
+// Submit kata TANPA login (publik, tanpa limit) - atribusi ke user sistem
 // Anonim, otomatis pending_review (03-api-kontribusi-verifikasi.md)
 app.route('/api/v1/contributions', createAnonContributionRoutes({ controller: wordController }));
 

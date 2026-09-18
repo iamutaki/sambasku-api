@@ -149,6 +149,15 @@ export interface WordRepository {
     data: { isVerified: boolean; verifiedBy: string; verifiedAt: Date },
   ): Promise<boolean>;
 
+  /**
+   * Soft-delete kata (07-api-delete-kata.md): set deleted_at + deleted_by,
+   * baris & children tetap utuh untuk audit/recovery. Semua query publik &
+   * admin sudah memfilter isNull(deletedAt) → efeknya sama dengan hapus.
+   * Return false kalau id tidak ditemukan / sudah soft-deleted - use case
+   * yang menerjemahkan ke 404 (idempotent: delete ulang = 404).
+   */
+  softDelete(id: string, actorId: string): Promise<boolean>;
+
   // ---- Kontribusi media (03-api-kontribusi-verifikasi.md) ----
 
   /** makna by id (belum soft-deleted) - untuk validasi parent contoh kalimat */

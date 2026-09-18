@@ -7,6 +7,7 @@ import type { UpdateWordUseCase } from '../../application/use-cases/update-word.
 import type { GetWordByIdUseCase } from '../../application/use-cases/get-word-by-id.use-case';
 import type { SearchWordsUseCase } from '../../application/use-cases/search-words.use-case';
 import type { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-case';
+import type { SoftDeleteWordUseCase } from '../../application/use-cases/soft-delete-word.use-case';
 import type { AddPronunciationUseCase } from '../../application/use-cases/add-pronunciation.use-case';
 import type { AddWordImageUseCase } from '../../application/use-cases/add-word-image.use-case';
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
@@ -29,6 +30,7 @@ export class WordController {
       getById: GetWordByIdUseCase;
       search: SearchWordsUseCase;
       verify: VerifyWordUseCase;
+      deleteWord: SoftDeleteWordUseCase;
       addPronunciation: AddPronunciationUseCase;
       addWordImage: AddWordImageUseCase;
       addExample: AddExampleUseCase;
@@ -408,6 +410,17 @@ export class WordController {
       },
       201,
     );
+  }
+
+  /** Soft-delete kata - DELETE /api/v1/admin/words/:id (07-api-delete-kata.md) */
+  async deleteWord(c: Context, id: string) {
+    return this.withActor(c, async (actor) => {
+      await this.deps.deleteWord.execute({ wordId: id, actorId: actor.userId, requestId: actor.requestId });
+
+      logger.info({ request_id: actor.requestId, word_id: id }, 'word soft-deleted');
+
+      return c.json({ success: true as const, data: null });
+    });
   }
 
   /** Ambil user + requestId dari context, lempar 401 kalau tidak ada token */
