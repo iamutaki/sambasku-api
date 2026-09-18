@@ -36,11 +36,21 @@ const SEED_DIALECTS = [
   { languageCode: 'SBS', code: 'pesisir', name: 'Sambas Pesisir' },
 ] as const;
 
+// Kelas kata lengkap (KBBI-aligned) + alias nama umum + keterangan.
+// 'umum' = pilihan generik saat user belum tahu kelas katanya (fallback).
 const SEED_WORD_CLASSES = [
-  { code: 'n', name: 'Nomina' },
-  { code: 'v', name: 'Verba' },
-  { code: 'adj', name: 'Adjektiva' },
-  { code: 'adv', name: 'Adverbia' },
+  { code: 'n', name: 'Nomina', alias: 'Kata Benda', description: 'noun - kata yang menyebut orang, benda, tempat, atau konsep' },
+  { code: 'v', name: 'Verba', alias: 'Kata Kerja', description: 'verb - kata yang menyatakan perbuatan atau tindakan' },
+  { code: 'adj', name: 'Adjektiva', alias: 'Kata Sifat', description: 'adjective - kata yang menjelaskan sifat, keadaan, atau jumlah' },
+  { code: 'adv', name: 'Adverbia', alias: 'Kata Keterangan', description: 'adverb - kata yang menjelaskan verba/adjektiva (waktu, tempat, cara, derajat)' },
+  { code: 'pron', name: 'Pronomina', alias: 'Kata Ganti', description: 'pronoun - kata pengganti nomina (saya, kamu, dia, ini)' },
+  { code: 'num', name: 'Numeralia', alias: 'Kata Bilangan', description: 'numeral - kata yang menyatakan jumlah atau urutan (satu, kedua)' },
+  { code: 'prep', name: 'Preposisi', alias: 'Kata Depan', description: 'preposition - kata sebelum nomina (di, ke, dari, pada)' },
+  { code: 'konj', name: 'Konjungsi', alias: 'Kata Sambung', description: 'conjunction - kata penghubung kata/klausa/kalimat (dan, tetapi, karena)' },
+  { code: 'interj', name: 'Interjeksi', alias: 'Kata Seru', description: 'interjection - kata seru perasaan spontan (aduh, wah, hore)' },
+  { code: 'art', name: 'Artikula', alias: 'Kata Sandang', description: 'article - kata pembatas nomina (si, sang)' },
+  { code: 'part', name: 'Partikel', alias: 'Kata Tugas', description: 'particle - kata penegas, penanya, atau pembantu (kah, lah, pun)' },
+  { code: 'umum', name: 'Umum', alias: 'Belum Diketahui', description: 'generic - dipilih saat kelas kata belum diketahui atau tidak yakin' },
 ] as const;
 
 const SEED_CATEGORIES = [
@@ -125,7 +135,10 @@ async function main() {
     await db
       .insert(wordClasses)
       .values({ ...wc })
-      .onConflictDoUpdate({ target: wordClasses.code, set: { name: wc.name } });
+      .onConflictDoUpdate({
+        target: wordClasses.code,
+        set: { name: wc.name, alias: wc.alias, description: wc.description },
+      });
   }
   // Kategori TIDAK punya key unik selain PK - onConflictDoNothing() di sini
   // adalah no-op (tidak pernah konflik di PK karena ULID baru tiap insert),

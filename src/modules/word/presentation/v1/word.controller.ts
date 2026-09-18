@@ -164,7 +164,14 @@ export class WordController {
       meanings: word.meanings.map((m) => ({
         id: m.id,
         word_class: m.wordClass
-          ? { id: m.wordClass.id, code: m.wordClass.code, name: m.wordClass.name, parent_id: m.wordClass.parentId }
+          ? {
+              id: m.wordClass.id,
+              code: m.wordClass.code,
+              name: m.wordClass.name,
+              alias: m.wordClass.alias,
+              description: m.wordClass.description,
+              parent_id: m.wordClass.parentId,
+            }
           : null,
         inherited_from_meaning_id: m.inheritedFromMeaningId,
         definition: m.definition,
@@ -442,6 +449,8 @@ export class WordController {
         id: wc.id,
         code: wc.code,
         name: wc.name,
+        alias: wc.alias,
+        description: wc.description,
         parent_id: wc.parentId,
       })),
     });

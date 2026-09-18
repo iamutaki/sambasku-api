@@ -92,6 +92,13 @@
       "when": 1789748927228,
       "tag": "0012_comments",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789749801696,
+      "tag": "0013_word-class-alias",
+      "breakpoints": true
     }
   ]
 }

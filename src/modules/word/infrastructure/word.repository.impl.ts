@@ -435,7 +435,10 @@ export class WordRepositoryImpl implements WordRepository {
           isNull(lexicalRelations.deletedAt),
           includeAll ? undefined : and(eq(words.status, 'published'), isNull(words.deletedAt)),
         ),
-      );
+      )
+      // Alfabetis lemma, BUKAN id relasi: ULID se-milidetik berurutan acak
+      // (komponen randomness) - order by id bikin urutan flip-flop antar run
+      .orderBy(asc(words.lemma));
 
     // Relasi invers (entri lain → entri ini): "muncul dalam" - derived, tak disimpan.
     // Hanya tampil saat SUMBER relasi published.
@@ -453,7 +456,9 @@ export class WordRepositoryImpl implements WordRepository {
           isNull(lexicalRelations.deletedAt),
           includeAll ? undefined : and(eq(words.status, 'published'), isNull(words.deletedAt)),
         ),
-      );
+      )
+      // Alfabetis lemma (konsisten dengan relatedWords di atas)
+      .orderBy(asc(words.lemma));
 
     const variantRows = await this.db
       .select()
@@ -468,7 +473,14 @@ export class WordRepositoryImpl implements WordRepository {
         wordClass: m.wordClassId
           ? (() => {
               const wc = wcById.get(m.wordClassId)!;
-              return { id: wc.id, code: wc.code, name: wc.name, parentId: wc.parentId };
+              return {
+                id: wc.id,
+                code: wc.code,
+                name: wc.name,
+                alias: wc.alias,
+                description: wc.description,
+                parentId: wc.parentId,
+              };
             })()
           : null,
         // 04: provenance - null = makna mandiri/sudah di-override
@@ -1073,7 +1085,14 @@ export class WordRepositoryImpl implements WordRepository {
       .from(wordClasses)
       .where(isNull(wordClasses.deletedAt))
       .orderBy(wordClasses.code);
-    return rows.map((r) => ({ id: r.id, code: r.code, name: r.name, parentId: r.parentId }));
+    return rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      alias: r.alias,
+      description: r.description,
+      parentId: r.parentId,
+    }));
   }
 
   private async exists(table: typeof languages | typeof dialects, id: string): Promise<boolean> {

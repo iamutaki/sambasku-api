@@ -85,5 +85,8 @@ export interface WordClassSummary {
   id: string;
   code: string;
   name: string;
+  // Nama lain yang lebih dikenal user (Verba → "Kata Kerja")
+  alias: string | null;
+  description: string | null;
   parentId: string | null;
 }

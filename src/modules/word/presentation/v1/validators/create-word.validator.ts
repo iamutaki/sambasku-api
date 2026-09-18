@@ -421,6 +421,8 @@ export const wordDetailResponseSchema = z.object({
             id: z.string(),
             code: z.string(),
             name: z.string(),
+            alias: z.string().nullable(),
+            description: z.string().nullable(),
             parent_id: z.string().nullable(),
           })
           .nullable(),
@@ -519,6 +521,8 @@ export const wordClassListResponseSchema = z.object({
       id: z.string(),
       code: z.string(),
       name: z.string(),
+      alias: z.string().nullable(),
+      description: z.string().nullable(),
       parent_id: z.string().nullable(),
     }),
   ),
