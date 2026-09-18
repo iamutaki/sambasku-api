@@ -88,6 +88,43 @@ describe.skipIf(!hasTestDb)('Audit Logs E2E', () => {
     }
   });
 
+  it('filter action=create → hanya aksi create', async () => {
+    const res = await request('/api/v1/admin/audit-logs?action=create&limit=50', {
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.length).toBeGreaterThanOrEqual(2);
+    for (const log of body.data) {
+      expect(log.action).toBe('create');
+    }
+  });
+
+  it('filter user_name (partial, case-insensitive) → hanya pelaku yang cocok', async () => {
+    const res = await request('/api/v1/admin/audit-logs?user_name=AUDKON&limit=50', {
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.length).toBeGreaterThanOrEqual(1);
+    for (const log of body.data) {
+      expect(log.user_name).toMatch(/^audkon/);
+    }
+  });
+
+  it('filter from/to → hanya entri dalam rentang tanggal', async () => {
+    const res = await request(
+      `/api/v1/admin/audit-logs?from=${new Date(Date.now() - 60_000).toISOString()}&to=${new Date(Date.now() + 60_000).toISOString()}&limit=50`,
+      { headers: { authorization: `Bearer ${adminToken}` } },
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.length).toBeGreaterThanOrEqual(2);
+    const [d1, d2] = [Date.parse(body.data[0].created_at), Date.parse(body.data[body.data.length - 1].created_at)];
+    expect(d1).toBeGreaterThanOrEqual(Date.now() - 60_000);
+    expect(d2).toBeLessThanOrEqual(Date.now() + 60_000);
+  });
+
   it('contributor → 403 FORBIDDEN (hanya admin & root)', async () => {
     const res = await request('/api/v1/admin/audit-logs', {
       headers: { authorization: `Bearer ${contributorToken}` },

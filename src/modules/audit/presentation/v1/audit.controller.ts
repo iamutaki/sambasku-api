@@ -8,6 +8,8 @@ export class AuditController {
   async list(c: Context, query: ListAuditLogsQuery) {
     const { items, meta } = await this.deps.listAuditLogs.execute({
       userId: query.user_id,
+      userName: query.user_name,
+      action: query.action,
       entityType: query.entity_type,
       entityId: query.entity_id,
       from: query.from ? new Date(query.from) : undefined,

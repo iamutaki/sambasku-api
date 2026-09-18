@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lt, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lt, lte } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { auditLogs, users } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
@@ -37,8 +37,12 @@ export class AuditLogRepositoryImpl implements AuditLogRepository {
   // Cursor-based (Section 13): id ULID ≈ created_at (time-sortable),
   // jadi ORDER BY id DESC = terbaru dulu; fetch limit+1 untuk has_more
   async list(filter: AuditLogFilter): Promise<AuditLogPage> {
+    // Escape wildcard LIKE supaya input user tidak jadi pola pencarian
+    const term = filter.userName?.replace(/[\\%_]/g, '\\$&');
     const where = and(
       filter.userId ? eq(auditLogs.userId, filter.userId) : undefined,
+      term ? ilike(users.username, `%${term}%`) : undefined,
+      filter.action ? eq(auditLogs.action, filter.action) : undefined,
       filter.entityType ? eq(auditLogs.entityType, filter.entityType) : undefined,
       filter.entityId ? eq(auditLogs.entityId, filter.entityId) : undefined,
       filter.from ? gte(auditLogs.createdAt, filter.from) : undefined,

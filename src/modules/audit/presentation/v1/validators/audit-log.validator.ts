@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 export const listAuditLogsQuerySchema = z.object({
   user_id: z.string().length(26).optional(),
+  /** partial match username pelaku (case-insensitive) */
+  user_name: z.string().max(100).optional(),
+  action: z.string().max(50).optional(),
   entity_type: z.string().max(100).optional(),
   entity_id: z.string().length(26).optional(),
   from: z.iso.datetime().optional(),

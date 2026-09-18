@@ -26,6 +26,9 @@ export interface NewAuditLog {
 
 export interface AuditLogFilter {
   userId?: string;
+  /** partial match username pelaku (JOIN users, case-insensitive) */
+  userName?: string;
+  action?: string;
   entityType?: string;
   entityId?: string;
   from?: Date;

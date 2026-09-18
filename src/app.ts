@@ -81,6 +81,10 @@ import { createImageStorage } from '@/modules/image/infrastructure/image-storage
 import { CreateUploadCredentialsUseCase } from '@/modules/image/application/use-cases/create-upload-credentials.use-case';
 import { ImageController } from '@/modules/image/presentation/v1/image.controller';
 import { createImageRoutes } from '@/modules/image/presentation/v1/image.routes';
+import { DashboardController } from '@/modules/dashboard/presentation/v1/dashboard.controller';
+import { createDashboardRoutes } from '@/modules/dashboard/presentation/v1/dashboard.routes';
+import { GetDashboardStatsUseCase } from '@/modules/dashboard/application/use-cases/get-dashboard-stats.use-case';
+import { DashboardRepositoryImpl } from '@/modules/dashboard/infrastructure/dashboard.repository.impl';
 import { VoteRepositoryImpl } from '@/modules/vote/infrastructure/vote.repository.impl';
 import { ToggleVoteUseCase } from '@/modules/vote/application/use-cases/toggle-vote.use-case';
 import { GetVoteCountsUseCase } from '@/modules/vote/application/use-cases/get-vote-counts.use-case';
@@ -198,6 +202,12 @@ const voteController = new VoteController({
   myVotes: new GetMyVotesUseCase(voteRepo),
 });
 
+// ---- Modul dashboard - statistik agregat halaman admin (kata, kontribusi,
+// user, aktivitas). Repository membaca beberapa tabel sekaligus - dipisah
+// dari modul lain supaya agregasi ringan tidak membebani repositori domain. ----
+const dashboardController = new DashboardController({
+  getStats: new GetDashboardStatsUseCase(new DashboardRepositoryImpl(db)),
+});
 
 // ---- Modul comment (09-api-comment.md) - komentar lemma, pre-moderation
 // (approval gate Section 22). Bergantung ke WordRepository (cek kata ada)
@@ -357,6 +367,8 @@ const imageController = new ImageController({
 });
 app.route('/api/v1/admin/images/upload-token', createImageRoutes({ controller: imageController, authenticate }));
 
+// Statistik dashboard - semua role yang login (dashboard = halaman pertama konsol)
+app.route('/api/v1/admin/dashboard', createDashboardRoutes({ controller: dashboardController, authenticate }));
 
 // OpenAPI spec + Scalar docs (api-base-stack.md Section 9)
 app.doc('/openapi.json', {
