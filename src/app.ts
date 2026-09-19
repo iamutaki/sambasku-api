@@ -115,6 +115,11 @@ import { ReviewCommentUseCase } from '@/modules/comment/application/use-cases/re
 import { CommentController } from '@/modules/comment/presentation/v1/comment.controller';
 import { createCommentRoutes, createWordCommentRoutes } from '@/modules/comment/presentation/v1/comment.routes';
 import { createAdminCommentRoutes } from '@/modules/comment/presentation/v1/admin-comment.routes';
+import { BookmarkRepositoryImpl } from '@/modules/bookmark/infrastructure/bookmark.repository.impl';
+import { ToggleBookmarkUseCase } from '@/modules/bookmark/application/use-cases/toggle-bookmark.use-case';
+import { GetMyBookmarksUseCase } from '@/modules/bookmark/application/use-cases/get-my-bookmarks.use-case';
+import { BookmarkController } from '@/modules/bookmark/presentation/v1/bookmark.controller';
+import { createBookmarkRoutes } from '@/modules/bookmark/presentation/v1/bookmark.routes';
 import { createLemmaDefinitionProviderRegistry } from '@/modules/lemma-definition/infrastructure/lemma-definition-provider.factory';
 import { LookupLemmaDefinitionUseCase } from '@/modules/lemma-definition/application/use-cases/lookup-lemma-definition.use-case';
 import { LemmaDefinitionController } from '@/modules/lemma-definition/presentation/v1/lemma-definition.controller';
@@ -261,6 +266,14 @@ const commentController = new CommentController({
   review: new ReviewCommentUseCase(commentRepo, auditRepo),
 });
 
+// ---- Modul bookmark (16-api-bookmark.md) - kata tersimpan per user,
+// toggle idempotent. TANPA audit (preseden vote: baris user-state). ----
+const bookmarkRepo = new BookmarkRepositoryImpl(db);
+const bookmarkController = new BookmarkController({
+  toggle: new ToggleBookmarkUseCase(bookmarkRepo),
+  my: new GetMyBookmarksUseCase(bookmarkRepo),
+});
+
 // ---- HTTP app ----
 export const app = createOpenApiApp();
 app.onError(errorHandler);
@@ -374,6 +387,10 @@ app.route('/api/v1/votes', createVoteRoutes({ controller: voteController, authen
 // Komentar (09-api-comment.md): delete by id (publik-group) + antrean
 // moderasi admin (pre-moderation, approval gate Section 22)
 app.route('/api/v1/comments', createCommentRoutes({ controller: commentController, authenticate }));
+
+// Bookmark kata per user (16-api-bookmark.md) - toggle + my (login, semua
+// role). Tanpa prefix bentrok, urutan mount bebas.
+app.route('/api/v1/bookmarks', createBookmarkRoutes({ controller: bookmarkController, authenticate }));
 app.route('/api/v1/admin/comments', createAdminCommentRoutes({ controller: commentController, authenticate }));
 
 // Moderasi vote (hapus vote spam individual + reset massal per target),
