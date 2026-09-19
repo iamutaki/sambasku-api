@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   comments,
@@ -27,6 +27,14 @@ import type {
 import { encodeAdminCursor } from '../domain/repositories/vote.repository';
 
 export const voteTargetKey = (t: VoteTarget): string => `${t.entityType}:${t.entityId}`;
+
+const PREVIEW_MAX = 120;
+
+function clipPreview(s: string): string {
+  const t = s.trim().replace(/\s+/g, ' ');
+  if (t.length <= PREVIEW_MAX) return t;
+  return `${t.slice(0, PREVIEW_MAX - 1)}…`;
+}
 
 export class VoteRepositoryImpl implements VoteRepository {
   constructor(private readonly db: NodePgDatabase<typeof schema>) {}
@@ -235,7 +243,15 @@ export class VoteRepositoryImpl implements VoteRepository {
       value: row.value === 1 ? 1 : -1,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      targetPreview: null,
     }));
+
+    const previewMap = await this.resolveTargetPreviews(
+      items.map((i) => ({ entityType: i.entityType, entityId: i.entityId })),
+    );
+    for (const item of items) {
+      item.targetPreview = previewMap.get(voteTargetKey(item)) ?? null;
+    }
 
     return {
       items,
@@ -259,19 +275,28 @@ export class VoteRepositoryImpl implements VoteRepository {
   }
 
   async getTopTargets(entityType: VoteTargetType, limit: number): Promise<AdminTopVoteTarget[]> {
+    // ponytail: order by expression, not alias — drizzle select keys aren't SQL AS aliases
+    const netExpr = sql<number>`coalesce(sum(${votes.value}), 0)`.mapWith(Number);
     const rows = await this.db
       .select({
         entityType: votes.entityType,
         entityId: votes.entityId,
         upvotes: sql<number>`count(*) filter (where ${votes.value} = 1)`.mapWith(Number),
         downvotes: sql<number>`count(*) filter (where ${votes.value} = -1)`.mapWith(Number),
-        net: sql<number>`coalesce(sum(${votes.value}), 0)`.mapWith(Number),
+        net: netExpr,
       })
       .from(votes)
       .where(eq(votes.entityType, entityType))
       .groupBy(votes.entityType, votes.entityId)
-      .orderBy(desc(sql`net`))
+      .orderBy(desc(netExpr))
       .limit(limit);
+
+    const previewMap = await this.resolveTargetPreviews(
+      rows.map((r) => ({
+        entityType: r.entityType as VoteTargetType,
+        entityId: r.entityId,
+      })),
+    );
 
     return rows.map((r) => ({
       entityType: r.entityType as VoteTargetType,
@@ -279,6 +304,120 @@ export class VoteRepositoryImpl implements VoteRepository {
       upvotes: r.upvotes,
       downvotes: r.downvotes,
       net: r.net,
+      targetPreview:
+        previewMap.get(voteTargetKey({ entityType: r.entityType as VoteTargetType, entityId: r.entityId })) ??
+        null,
     }));
+  }
+
+  /**
+   * Batch label target untuk panel admin (hindari N+1). Komentar → body;
+   * word → lemma; meaning → definition; example → source_sentence;
+   * pronunciation → value IPA; word_image → alt_text / url singkat.
+   */
+  private async resolveTargetPreviews(
+    targets: { entityType: VoteTargetType; entityId: string }[],
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (targets.length === 0) return out;
+
+    const idsByType = new Map<VoteTargetType, string[]>();
+    for (const t of targets) {
+      const list = idsByType.get(t.entityType) ?? [];
+      list.push(t.entityId);
+      idsByType.set(t.entityType, list);
+    }
+
+    const jobs: Promise<void>[] = [];
+
+    const commentIds = [...new Set(idsByType.get('comment') ?? [])];
+    if (commentIds.length > 0) {
+      jobs.push(
+        this.db
+          .select({ id: comments.id, body: comments.body })
+          .from(comments)
+          .where(inArray(comments.id, commentIds))
+          .then((rows) => {
+            for (const r of rows) out.set(voteTargetKey({ entityType: 'comment', entityId: r.id }), clipPreview(r.body));
+          }),
+      );
+    }
+
+    const wordIds = [...new Set(idsByType.get('word') ?? [])];
+    if (wordIds.length > 0) {
+      jobs.push(
+        this.db
+          .select({ id: words.id, lemma: words.lemma })
+          .from(words)
+          .where(inArray(words.id, wordIds))
+          .then((rows) => {
+            for (const r of rows) out.set(voteTargetKey({ entityType: 'word', entityId: r.id }), clipPreview(r.lemma));
+          }),
+      );
+    }
+
+    const meaningIds = [...new Set(idsByType.get('meaning') ?? [])];
+    if (meaningIds.length > 0) {
+      jobs.push(
+        this.db
+          .select({ id: meanings.id, definition: meanings.definition })
+          .from(meanings)
+          .where(inArray(meanings.id, meaningIds))
+          .then((rows) => {
+            for (const r of rows)
+              out.set(voteTargetKey({ entityType: 'meaning', entityId: r.id }), clipPreview(r.definition));
+          }),
+      );
+    }
+
+    const exampleIds = [...new Set(idsByType.get('example') ?? [])];
+    if (exampleIds.length > 0) {
+      jobs.push(
+        this.db
+          .select({ id: examples.id, sourceSentence: examples.sourceSentence })
+          .from(examples)
+          .where(inArray(examples.id, exampleIds))
+          .then((rows) => {
+            for (const r of rows)
+              out.set(
+                voteTargetKey({ entityType: 'example', entityId: r.id }),
+                clipPreview(r.sourceSentence),
+              );
+          }),
+      );
+    }
+
+    const pronunciationIds = [...new Set(idsByType.get('pronunciation') ?? [])];
+    if (pronunciationIds.length > 0) {
+      jobs.push(
+        this.db
+          .select({ id: pronunciations.id, value: pronunciations.value })
+          .from(pronunciations)
+          .where(inArray(pronunciations.id, pronunciationIds))
+          .then((rows) => {
+            for (const r of rows)
+              out.set(voteTargetKey({ entityType: 'pronunciation', entityId: r.id }), clipPreview(r.value));
+          }),
+      );
+    }
+
+    const imageIds = [...new Set(idsByType.get('word_image') ?? [])];
+    if (imageIds.length > 0) {
+      jobs.push(
+        this.db
+          .select({ id: wordImages.id, altText: wordImages.altText, url: wordImages.url })
+          .from(wordImages)
+          .where(inArray(wordImages.id, imageIds))
+          .then((rows) => {
+            for (const r of rows) {
+              const label = r.altText?.trim() || r.url;
+              out.set(voteTargetKey({ entityType: 'word_image', entityId: r.id }), clipPreview(label));
+            }
+          }),
+      );
+    }
+
+    await Promise.all(jobs);
+    return out;
   }
 }

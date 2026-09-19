@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { createWordBodySchema } from '@/modules/word/presentation/v1/validators/create-word.validator';
+import {
+  createWordBodySchema,
+  variantRootRefine,
+} from '@/modules/word/presentation/v1/validators/create-word.validator';
 import { addPronunciationSchema, addWordImageSchema } from '@/modules/word/presentation/v1/validators/word-media.validator';
 
 export const contributionStatusSchema = z.enum(['pending', 'approved', 'rejected', 'corrected']);
@@ -39,7 +42,8 @@ const correctWordSchema = createWordBodySchema
   .refine((d) => (d.images ?? []).filter((i) => i.is_primary).length <= 1, {
     message: 'Hanya satu gambar yang boleh is_primary',
     path: ['images'],
-  });
+  })
+  .superRefine(variantRootRefine); // 11: variasi ≠ lemma induk
 
 export const correctContributionSchema = z.discriminatedUnion('entity_type', [
   correctWordSchema,
@@ -113,5 +117,7 @@ export const reviewDecisionResponseSchema = z.object({
     entity_id: z.string(),
     status: z.enum(['pending', 'approved', 'rejected', 'corrected']),
     is_corrected: z.boolean().optional(),
+    /** Set saat makna digabung ke lemma published yang sudah ada (12-api §8) */
+    merged_into_word_id: z.string().optional(),
   }),
 });

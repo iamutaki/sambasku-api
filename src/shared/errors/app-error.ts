@@ -47,10 +47,17 @@ export class ForbiddenError extends AppError {
 export class BadRequestError extends AppError {
   statusCode = 400;
   errorCode: string;
-  // errorCode bisa dioverride untuk kode spesifik: INVALID_ROLE, dll
-  constructor(errorCode = 'BAD_REQUEST', message = 'Permintaan tidak valid') {
+  details: { field: string; message: string }[] | null;
+  // errorCode bisa dioverride untuk kode spesifik: INVALID_ROLE,
+  // SEARCH_MISS_TERM_MISMATCH, dll
+  constructor(
+    errorCode = 'BAD_REQUEST',
+    message = 'Permintaan tidak valid',
+    details: { field: string; message: string }[] | null = null,
+  ) {
     super(message);
     this.errorCode = errorCode;
+    this.details = details;
   }
 }
 
@@ -68,6 +75,16 @@ export class ServiceUnavailableError extends AppError {
   statusCode = 503;
   errorCode: string;
   constructor(errorCode = 'SERVICE_UNAVAILABLE', message = 'Layanan tidak tersedia') {
+    super(message);
+    this.errorCode = errorCode;
+  }
+}
+
+/** Upstream third-party gagal / timeout / payload tak terparse (502). */
+export class BadGatewayError extends AppError {
+  statusCode = 502;
+  errorCode: string;
+  constructor(errorCode = 'BAD_GATEWAY', message = 'Layanan hulu gagal') {
     super(message);
     this.errorCode = errorCode;
   }

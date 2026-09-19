@@ -1,6 +1,7 @@
 import { index, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
+import { searchMisses } from './search-misses.schema';
 
 export const contributions = pgTable(
   'contributions',
@@ -20,6 +21,8 @@ export const contributions = pgTable(
     // 'approved'); baris lama di-backfill 'approved' lewat migration
     status: varchar('status', { length: 30 }).notNull().default('pending'),
     description: text('description'),
+    // Provenance jalur search-miss (12-api) - nullable: kontribusi biasa OK
+    searchMissId: varchar('search_miss_id', { length: 26 }).references(() => searchMisses.id),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     deletedAt: timestamp('deleted_at'),
     deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
@@ -28,5 +31,6 @@ export const contributions = pgTable(
     index('contributions_user_created_idx').on(t.userId, t.createdAt),
     index('contributions_entity_idx').on(t.entityType, t.entityId),
     index('contributions_status_idx').on(t.status),
+    index('contributions_search_miss_idx').on(t.searchMissId),
   ],
 );

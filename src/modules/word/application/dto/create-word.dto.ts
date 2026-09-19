@@ -97,4 +97,6 @@ export interface CreateWordDto {
   /** gambar contoh hasil direct-upload (referensi URL + file id provider) */
   images?: CreateWordImageDto[];
   status: 'draft' | 'published';
+  /** Provenance jalur search-miss (12-api) - opsional */
+  searchMissId?: string;
 }

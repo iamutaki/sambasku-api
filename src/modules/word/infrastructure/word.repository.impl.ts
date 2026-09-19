@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import type { ExtractTablesWithRelations } from 'drizzle-orm';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
 import type { NodePgDatabase, NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';
@@ -19,7 +19,8 @@ import {
   words,
 } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
-import { ValidationError } from '@/shared/errors/app-error';
+import { ConflictError, ValidationError } from '@/shared/errors/app-error';
+import { publishOrMergeMeaningsInTx } from './publish-or-merge-meanings';
 import type { ChildStatus, Word, WordDetail, WordStatus, WordSummary } from '../domain/entities/word.entity';
 import type {
   CursorPage,
@@ -172,6 +173,7 @@ export class WordRepositoryImpl implements WordRepository {
           entityId: wordId,
           action: 'create',
           status: contributionStatusOf(word.status),
+          ...(word.searchMissId ? { searchMissId: word.searchMissId } : {}),
         });
 
         return toWord(wordRow);
@@ -233,6 +235,7 @@ export class WordRepositoryImpl implements WordRepository {
           entityId: wordId,
           action: 'create',
           status: contributionStatusOf(word.status),
+          ...(word.searchMissId ? { searchMissId: word.searchMissId } : {}),
         });
 
         // 2) tiap kata inline
@@ -558,8 +561,21 @@ export class WordRepositoryImpl implements WordRepository {
 
     const where = and(
       isNull(words.deletedAt),
-      eq(words.status, 'published'), // draft tidak tayang di endpoint publik
-      params.q ? ilike(words.lemma, `%${escapeLike(params.q.trim())}%`) : undefined,
+      // Publik: published only. Admin: published? true|false|all (omit)
+      params.published === true
+        ? eq(words.status, 'published')
+        : params.published === false
+          ? ne(words.status, 'published')
+          : undefined,
+      // 11-api-variasi-penulisan.md: q cocok lemma ATAU bentuk variasi
+      // (mis. cari "ketex" menemukan entri "ketek"). EXISTS - bukan JOIN -
+      // supaya hasil tetap satu baris per kata (cursor words.id aman).
+      params.q
+        ? or(
+            ilike(words.lemma, `%${escapeLike(params.q.trim())}%`),
+            sql`EXISTS (SELECT 1 FROM ${wordVariants} v WHERE v.word_id = ${words.id} AND v.deleted_at IS NULL AND v.form ILIKE ${`%${escapeLike(params.q.trim())}%`})`,
+          )
+        : undefined,
       params.wordType ? eq(words.wordType, params.wordType) : undefined,
       params.isVerified === undefined ? undefined : eq(words.isVerified, params.isVerified),
       params.cursor ? lt(words.id, params.cursor) : undefined,
@@ -582,7 +598,7 @@ export class WordRepositoryImpl implements WordRepository {
       .limit(params.limit + 1);
 
     const hasMore = rows.length > params.limit;
-    const page = (hasMore ? rows.slice(0, params.limit) : rows).map((r) => ({
+    const page: WordSummary[] = (hasMore ? rows.slice(0, params.limit) : rows).map((r) => ({
       id: r.id,
       lemma: r.lemma,
       languageId: r.languageId,
@@ -591,6 +607,37 @@ export class WordRepositoryImpl implements WordRepository {
       isVerified: r.isVerified,
       status: r.status as WordStatus,
     }));
+
+    // 11: isi matched_variant HANYA untuk item yang match lewat variasi
+    // (bukan lemma) - satu query tambahan untuk ≤ limit baris, bukan N+1.
+    if (params.q && page.length > 0) {
+      const pattern = `%${escapeLike(params.q.trim())}%`;
+      const qLower = params.q.trim().toLowerCase();
+      const variantRows = await this.db
+        .select({ wordId: wordVariants.wordId, form: wordVariants.form })
+        .from(wordVariants)
+        .where(
+          and(
+            inArray(
+              wordVariants.wordId,
+              page.map((p) => p.id),
+            ),
+            isNull(wordVariants.deletedAt),
+            ilike(wordVariants.form, pattern),
+          ),
+        );
+      const variantByWord = new Map<string, string>();
+      for (const v of variantRows) {
+        if (!variantByWord.has(v.wordId)) variantByWord.set(v.wordId, v.form);
+      }
+      for (const p of page) {
+        // match lemma (penentu JS setara ilike untuk alfabet Latin) → tanpa
+        // matched_variant (kontrak: field hanya saat cocok via variasi)
+        if (p.lemma.toLowerCase().includes(qLower)) continue;
+        const matched = variantByWord.get(p.id);
+        if (matched) p.matchedVariant = matched;
+      }
+    }
 
     return {
       items: page,
@@ -602,7 +649,11 @@ export class WordRepositoryImpl implements WordRepository {
   private async searchByTranslation(params: SearchParams): Promise<CursorPage<WordSummary>> {
     const where = and(
       isNull(words.deletedAt),
-      eq(words.status, 'published'), // draft tidak tayang di endpoint publik
+      params.published === true
+        ? eq(words.status, 'published')
+        : params.published === false
+          ? ne(words.status, 'published')
+          : undefined,
       isNull(meanings.deletedAt),
       isNull(meaningTranslations.deletedAt),
       params.q
@@ -739,6 +790,44 @@ export class WordRepositoryImpl implements WordRepository {
       .where(and(eq(words.id, id), isNull(words.deletedAt)))
       .returning({ id: words.id });
     return updated.length > 0;
+  }
+
+  async setPublished(
+    id: string,
+    data: { published: boolean; actorId: string },
+  ): Promise<boolean> {
+    const now = new Date();
+    const updated = await this.db
+      .update(words)
+      .set(
+        data.published
+          ? {
+              status: 'published',
+              isVerified: true,
+              verifiedBy: data.actorId,
+              verifiedAt: now,
+              updatedBy: data.actorId,
+              updatedAt: now,
+            }
+          : {
+              status: 'draft',
+              isVerified: false,
+              verifiedBy: null,
+              verifiedAt: null,
+              updatedBy: data.actorId,
+              updatedAt: now,
+            },
+      )
+      .where(and(eq(words.id, id), isNull(words.deletedAt)))
+      .returning({ id: words.id });
+    return updated.length > 0;
+  }
+
+  async publishOrMergeMeanings(
+    id: string,
+    actorId: string,
+  ): Promise<{ wordId: string; mergedIntoWordId: string | null } | null> {
+    return this.db.transaction((tx) => publishOrMergeMeaningsInTx(tx, id, actorId));
   }
 
   async findMeaningById(meaningId: string): Promise<{ id: string; wordId: string } | null> {
@@ -880,6 +969,200 @@ export class WordRepositoryImpl implements WordRepository {
       });
     } catch (err) {
       mapMediaViolation(err, '');
+      throw err;
+    }
+  }
+
+  async addVariant(
+    wordId: string,
+    data: { form: string; variantType?: string; notes?: string | null },
+    actorId: string,
+  ): Promise<{ id: string; form: string; variantType: string }> {
+    try {
+      const [row] = await this.db
+        .insert(wordVariants)
+        .values({
+          wordId,
+          form: data.form.trim(),
+          variantType: data.variantType ?? 'alternative',
+          notes: data.notes ?? null,
+          createdBy: actorId,
+        })
+        .returning();
+      return { id: row.id, form: row.form, variantType: row.variantType };
+    } catch (err) {
+      const code = (err as { cause?: { code?: string } }).cause?.code;
+      if (code === UNIQUE_VIOLATION) {
+        throw new ConflictError(
+          'WORD_VARIANT_CONFLICT',
+          'Variasi penulisan ini sudah ada pada kata tersebut',
+        );
+      }
+      mapMediaViolation(err, 'form');
+      throw err;
+    }
+  }
+
+  async createSynonymWord(
+    targetWordId: string,
+    lemma: string,
+    actorId: string,
+    opts?: { searchMissId?: string | null },
+  ): Promise<{ id: string; lemma: string }> {
+    const detail = await this.findDetailById(targetWordId, { includeAllStatuses: true });
+    if (!detail || detail.status !== 'published') {
+      throw new ValidationError([
+        { field: 'word_id', message: 'Kata target harus published dan masih ada' },
+      ]);
+    }
+    if (detail.meanings.length === 0) {
+      throw new ValidationError([
+        { field: 'word_id', message: 'Kata target belum punya makna untuk diwariskan' },
+      ]);
+    }
+
+    const trimmed = lemma.trim();
+    if (await this.findDuplicate(detail.languageId, trimmed)) {
+      throw new ConflictError(
+        'WORD_LEMMA_CONFLICT',
+        'Lemma ini sudah dipakai kata lain di bahasa yang sama',
+      );
+    }
+
+    try {
+      return await this.db.transaction(async (tx) => {
+        const [wordRow] = await tx
+          .insert(words)
+          .values({
+            languageId: detail.languageId,
+            lemma: trimmed,
+            notes: `Sinonim dari ${detail.lemma}`,
+            wordType: detail.wordType,
+            status: 'published',
+            isVerified: true,
+            verifiedBy: actorId,
+            verifiedAt: new Date(),
+            createdBy: actorId,
+          })
+          .returning();
+        const newId = wordRow.id;
+
+        for (const [idx, m] of detail.meanings.entries()) {
+          const [meaningRow] = await tx
+            .insert(meanings)
+            .values({
+              wordId: newId,
+              wordClassId: m.wordClass?.id ?? null,
+              inheritedFromMeaningId: m.id,
+              definition: m.definition,
+              orderIndex: idx,
+              notes: m.notes,
+              createdBy: actorId,
+            })
+            .returning();
+          if (m.translations.length > 0) {
+            await tx.insert(meaningTranslations).values(
+              m.translations.map((t) => ({
+                meaningId: meaningRow.id,
+                languageId: t.languageId,
+                translationText: t.translationText,
+                translationType: t.translationType,
+              })),
+            );
+          }
+        }
+
+        // sinonim dua arah supaya detail kedua kata saling menampilkan
+        await tx.insert(lexicalRelations).values([
+          {
+            sourceWordId: newId,
+            targetWordId: targetWordId,
+            relationType: 'synonym',
+            createdBy: actorId,
+          },
+          {
+            sourceWordId: targetWordId,
+            targetWordId: newId,
+            relationType: 'synonym',
+            createdBy: actorId,
+          },
+        ]);
+
+        await tx.insert(contributions).values({
+          userId: actorId,
+          entityType: 'word',
+          entityId: newId,
+          action: 'create',
+          status: 'approved',
+          ...(opts?.searchMissId ? { searchMissId: opts.searchMissId } : {}),
+        });
+
+        return { id: newId, lemma: wordRow.lemma };
+      });
+    } catch (err) {
+      if (err instanceof ConflictError || err instanceof ValidationError) throw err;
+      const code = (err as { cause?: { code?: string } }).cause?.code;
+      if (code === UNIQUE_VIOLATION) {
+        throw new ConflictError(
+          'WORD_LEMMA_CONFLICT',
+          'Lemma ini sudah dipakai kata lain di bahasa yang sama',
+        );
+      }
+      mapMediaViolation(err, 'lemma');
+      throw err;
+    }
+  }
+
+  async addTranslation(
+    wordId: string,
+    data: { languageId: string; translationText: string; meaningId?: string },
+    actorId: string,
+  ): Promise<{ meaningId: string; languageId: string; translationText: string }> {
+    let meaningId = data.meaningId;
+    if (!meaningId) {
+      const [first] = await this.db
+        .select({ id: meanings.id })
+        .from(meanings)
+        .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)))
+        .orderBy(asc(meanings.orderIndex))
+        .limit(1);
+      if (!first) {
+        throw new ValidationError([
+          { field: 'word_id', message: 'Kata belum punya makna untuk menampung terjemahan' },
+        ]);
+      }
+      meaningId = first.id;
+    } else {
+      const m = await this.findMeaningById(meaningId);
+      if (!m || m.wordId !== wordId) {
+        throw new ValidationError([
+          { field: 'meaning_id', message: 'Makna tidak ditemukan pada kata tersebut' },
+        ]);
+      }
+    }
+
+    try {
+      await this.db.insert(meaningTranslations).values({
+        meaningId,
+        languageId: data.languageId,
+        translationText: data.translationText.trim(),
+        translationType: 'direct',
+        createdBy: actorId,
+      });
+      return {
+        meaningId,
+        languageId: data.languageId,
+        translationText: data.translationText.trim(),
+      };
+    } catch (err) {
+      const code = (err as { cause?: { code?: string } }).cause?.code;
+      if (code === UNIQUE_VIOLATION) {
+        throw new ConflictError(
+          'TRANSLATION_CONFLICT',
+          'Terjemahan ini sudah ada pada makna tersebut',
+        );
+      }
+      mapMediaViolation(err, 'translation_text');
       throw err;
     }
   }

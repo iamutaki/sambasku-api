@@ -28,6 +28,12 @@ describe.skipIf(!hasTestDb)('Search Miss E2E - pencarian kosong jadi peluang kon
       body: JSON.stringify(body),
       headers: token ? { authorization: `Bearer ${token}` } : {},
     });
+  const patch = (path: string, body: unknown, token?: string) =>
+    request(path, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
   const get = (path: string, token?: string) =>
     request(path, { headers: token ? { authorization: `Bearer ${token}` } : {} });
 
@@ -48,7 +54,7 @@ describe.skipIf(!hasTestDb)('Search Miss E2E - pencarian kosong jadi peluang kon
 
     const stamp = Date.now();
     await post('/api/v1/auth/register', {
-      username: `adm${stamp}`,
+      name: `adm${stamp}`,
       email: `adm${stamp}@test.com`,
       password: 'Password123',
       confirm_password: 'Password123',
@@ -59,27 +65,46 @@ describe.skipIf(!hasTestDb)('Search Miss E2E - pencarian kosong jadi peluang kon
     ).access_token;
   });
 
-  it('pencarian kosong tercatat → muncul di beranda; terjawab → hilang dari beranda, ber-flag di panel admin', async () => {
+  it('pencarian kosong tercatat → belum di beranda sampai tayang; terjawab → hilang', async () => {
     // 1. User A cari "Kalintiak" (belum ada) → 0 hasil
     const miss = await get('/api/v1/words/search?q=Kalintiak');
     expect(miss.status).toBe(200);
     expect((await miss.json()).data).toHaveLength(0);
 
-    // 2. Cari sekali lagi (hit_count naik) → muncul di beranda peluang kontribusi
+    // 2. Cari sekali lagi (hit_count naik) - default is_visible=false → TIDAK di beranda
     await get('/api/v1/words/search?q=kalintiak');
-    const beranda = await get('/api/v1/search-misses?limit=10');
-    const berandaBody = await beranda.json();
-    expect(beranda.status).toBe(200);
-    const item = berandaBody.data.find((m: { term: string }) => m.term === 'kalintiak');
-    expect(item).toMatchObject({ direction: 'lemma', is_fulfilled: false, hit_count: 2 });
-    expect(berandaBody.meta).toMatchObject({ limit: 10 });
+    const berandaHidden = await get('/api/v1/search-misses?limit=10');
+    expect(berandaHidden.status).toBe(200);
+    expect(
+      (await berandaHidden.json()).data.some((m: { term: string }) => m.term === 'kalintiak'),
+    ).toBe(false);
 
-    // 3. Panel admin melihat miss yang sama
+    // 3. Panel admin melihat miss (is_visible false)
     const panel = await get('/api/v1/admin/search-misses', adminToken);
     const panelBody = await panel.json();
-    expect(panelBody.data.some((m: { term: string }) => m.term === 'kalintiak')).toBe(true);
+    const adminItem = panelBody.data.find((m: { term: string }) => m.term === 'kalintiak');
+    expect(adminItem).toMatchObject({
+      direction: 'lemma',
+      is_fulfilled: false,
+      is_visible: false,
+      hit_count: 2,
+    });
 
-    // 4. Kontributor (admin) mengisi kata itu → publish
+    // 4. Admin tayangkan → muncul di beranda
+    const publish = await patch(
+      `/api/v1/admin/search-misses/${adminItem.id}`,
+      { is_visible: true },
+      adminToken,
+    );
+    expect(publish.status).toBe(200);
+    expect((await publish.json()).data.is_visible).toBe(true);
+
+    const beranda = await get('/api/v1/search-misses?limit=10');
+    const berandaBody = await beranda.json();
+    const item = berandaBody.data.find((m: { term: string }) => m.term === 'kalintiak');
+    expect(item).toMatchObject({ direction: 'lemma', is_fulfilled: false, hit_count: 2 });
+
+    // 5. Kontributor (admin) mengisi kata itu → publish
     const create = await post(
       '/api/v1/admin/words',
       {
@@ -102,7 +127,7 @@ describe.skipIf(!hasTestDb)('Search Miss E2E - pencarian kosong jadi peluang kon
     );
     expect(create.status).toBe(201);
 
-    // 5. Miss terjawab (derived): hilang dari beranda, ber-flag di panel admin
+    // 6. Miss terjawab (derived): hilang dari beranda, ber-flag di panel admin
     const berandaAfter = await get('/api/v1/search-misses');
     expect(
       (await berandaAfter.json()).data.some((m: { term: string }) => m.term === 'kalintiak'),
@@ -113,16 +138,52 @@ describe.skipIf(!hasTestDb)('Search Miss E2E - pencarian kosong jadi peluang kon
     expect(itemAfter.is_fulfilled).toBe(true);
   });
 
-  it('dismiss miss dari panel admin → hilang dari kedua daftar; id ngawur → 404', async () => {
+  it('koreksi term + conflict unique', async () => {
     await get('/api/v1/words/search?q=roboi');
+    await get('/api/v1/words/search?q=roboy');
     const panel = await get('/api/v1/admin/search-misses', adminToken);
-    const item = (await panel.json()).data.find((m: { term: string }) => m.term === 'roboi');
+    const body = await panel.json();
+    const roboi = body.data.find((m: { term: string }) => m.term === 'roboi');
+    const roboy = body.data.find((m: { term: string }) => m.term === 'roboy');
+    expect(roboi).toBeTruthy();
+    expect(roboy).toBeTruthy();
+
+    const corrected = await patch(
+      `/api/v1/admin/search-misses/${roboi.id}`,
+      { term: 'Roboi Betul', is_visible: true },
+      adminToken,
+    );
+    expect(corrected.status).toBe(200);
+    const correctedBody = await corrected.json();
+    expect(correctedBody.data.term).toBe('roboi betul');
+    expect(correctedBody.data.is_visible).toBe(true);
+
+    const beranda = await get('/api/v1/search-misses');
+    expect(
+      (await beranda.json()).data.some((m: { term: string }) => m.term === 'roboi betul'),
+    ).toBe(true);
+
+    const conflict = await patch(
+      `/api/v1/admin/search-misses/${roboy.id}`,
+      { term: 'roboi betul' },
+      adminToken,
+    );
+    expect(conflict.status).toBe(409);
+    expect((await conflict.json()).error_code).toBe('SEARCH_MISS_TERM_CONFLICT');
+  });
+
+  it('dismiss miss dari panel admin → hilang dari kedua daftar; id ngawur → 404', async () => {
+    await get('/api/v1/words/search?q=miyang');
+    const panel = await get('/api/v1/admin/search-misses', adminToken);
+    const item = (await panel.json()).data.find((m: { term: string }) => m.term === 'miyang');
+
+    await patch(`/api/v1/admin/search-misses/${item.id}`, { is_visible: true }, adminToken);
 
     const dismiss = await post(`/api/v1/admin/search-misses/${item.id}/dismiss`, {}, adminToken);
     expect(dismiss.status).toBe(200);
 
     const beranda = await get('/api/v1/search-misses');
-    expect((await beranda.json()).data.some((m: { term: string }) => m.term === 'roboi')).toBe(false);
+    expect((await beranda.json()).data.some((m: { term: string }) => m.term === 'miyang')).toBe(false);
 
     const bogus = await post(`/api/v1/admin/search-misses/${ulid26('01E2ENGACAK')}/dismiss`, {}, adminToken);
     expect(bogus.status).toBe(404);
@@ -135,5 +196,62 @@ describe.skipIf(!hasTestDb)('Search Miss E2E - pencarian kosong jadi peluang kon
     expect((await beranda.json()).data.some((m: { term: string }) => m.term === 'a')).toBe(false);
 
     expect((await get('/api/v1/admin/search-misses')).status).toBe(401);
+  });
+
+  it('resolve as variant → miss fulfilled tanpa buat lemma baru', async () => {
+    const create = await post(
+      '/api/v1/admin/words',
+      {
+        language_id: SMB,
+        lemma: 'ketek',
+        word_type: 'word',
+        category_ids: [],
+        related_words: [],
+        meanings: [
+          {
+            word_class_id: NOMINA,
+            definition: 'kera',
+            order_index: 1,
+            translations: [{ language_id: IDN, translation_text: 'monyet', translation_type: 'direct' }],
+          },
+        ],
+        status: 'published',
+      },
+      adminToken,
+    );
+    expect(create.status).toBe(201);
+    const wordId = (await create.json()).data.word_id;
+
+    await get("/api/v1/words/search?q=kete'");
+    const panel = await get('/api/v1/admin/search-misses', adminToken);
+    const miss = (await panel.json()).data.find((m: { term: string }) => m.term === "kete'");
+    expect(miss).toBeTruthy();
+    expect(miss.is_fulfilled).toBe(false);
+
+    const resolve = await post(
+      `/api/v1/admin/search-misses/${miss.id}/resolve`,
+      { action: 'variant', word_id: wordId },
+      adminToken,
+    );
+    expect(resolve.status).toBe(200);
+    const body = await resolve.json();
+    expect(body.data).toMatchObject({
+      resolved_as: 'variant',
+      target_word_id: wordId,
+      is_fulfilled: true,
+    });
+    expect(body.data.variant_id).toBeTruthy();
+
+    const panelAfter = await get('/api/v1/admin/search-misses', adminToken);
+    const after = (await panelAfter.json()).data.find((m: { term: string }) => m.term === "kete'");
+    expect(after.is_fulfilled).toBe(true);
+
+    // pencarian lewat varian harus menemukan kata
+    const search = await get("/api/v1/words/search?q=kete'");
+    expect(search.status).toBe(200);
+    const found = (await search.json()).data.some(
+      (w: { id: string; lemma: string }) => w.id === wordId || w.lemma === 'ketek',
+    );
+    expect(found).toBe(true);
   });
 });

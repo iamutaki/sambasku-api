@@ -357,8 +357,8 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
       { wordId: pb.id, lemma: 'miyang rabong', relationType: 'has_component' },
     ]);
 
-    // Search filter word_type hanya menampilkan frasa
-    const hanyaPb = await repo.search({ q: '', wordType: 'peribahasa', limit: 10 });
+    // Search filter word_type hanya menampilkan frasa (publik = published)
+    const hanyaPb = await repo.search({ q: '', wordType: 'peribahasa', limit: 10, published: true });
     expect(hanyaPb.items.map((w) => w.lemma)).toEqual(['miyang rabong']);
   });
 
@@ -399,12 +399,18 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     );
 
     // cari "makan" dari sisi Indonesia → dapat kata Sambas 'makatn'
-    const hasil = await repo.search({ q: 'makan', searchIn: 'translation', limit: 10 });
+    const hasil = await repo.search({ q: 'makan', searchIn: 'translation', limit: 10, published: true });
     expect(hasil.items.map((w) => w.lemma)).toEqual(['makatn']);
     expect(hasil.items[0].matchedTranslation).toBe('makan');
 
     // filter bahasa terjemahan bekerja
-    const terfilter = await repo.search({ q: 'makan', searchIn: 'translation', translationLanguageId: IDN, limit: 10 });
+    const terfilter = await repo.search({
+      q: 'makan',
+      searchIn: 'translation',
+      translationLanguageId: IDN,
+      limit: 10,
+      published: true,
+    });
     expect(terfilter.items).toHaveLength(1);
   });
 
@@ -413,12 +419,20 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     await repo.saveWithRelations(baseWord({ lemma: 'draft1', status: 'draft' }), ACTOR);
 
     // lemma search: hanya publik1
-    const hasil = await repo.search({ q: '', limit: 10 });
+    const hasil = await repo.search({ q: '', limit: 10, published: true });
     expect(hasil.items.map((w) => w.lemma)).toEqual(['publik1']);
 
     // reverse search: draft1 punya terjemahan 'makan' tapi tidak boleh muncul
-    const reverse = await repo.search({ q: 'makan', searchIn: 'translation', limit: 10 });
+    const reverse = await repo.search({ q: 'makan', searchIn: 'translation', limit: 10, published: true });
     expect(reverse.items.map((w) => w.lemma)).toEqual(['publik1']);
+
+    // admin filter: tidak tayang → hanya draft
+    const unpub = await repo.search({ q: '', limit: 10, published: false });
+    expect(unpub.items.map((w) => w.lemma)).toEqual(['draft1']);
+
+    // admin semua status
+    const all = await repo.search({ q: '', limit: 10 });
+    expect(all.items.map((w) => w.lemma).sort()).toEqual(['draft1', 'publik1']);
   });
 
   it('search: ilike + cursor-based pagination (Section 13)', async () => {
@@ -427,20 +441,20 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
       repo.saveWithRelations(baseWord({ lemma: 'makanan' }), ACTOR),
     ]);
 
-    const hal1 = await repo.search({ q: 'maka', limit: 1 });
+    const hal1 = await repo.search({ q: 'maka', limit: 1, published: true });
     expect(hal1.items).toHaveLength(1);
     expect(hal1.items[0].languageCode).toBe('smb');
     expect(hal1.hasMore).toBe(true);
     expect(hal1.nextCursor).toBe(hal1.items[0].id);
 
-    const hal2 = await repo.search({ q: 'maka', limit: 1, cursor: hal1.nextCursor! });
+    const hal2 = await repo.search({ q: 'maka', limit: 1, cursor: hal1.nextCursor!, published: true });
     expect(hal2.items).toHaveLength(1);
     expect(hal2.items[0].id).not.toBe(hal1.items[0].id);
     expect(new Set([hal1.items[0].id, hal2.items[0].id])).toEqual(new Set([w1.id, w2.id]));
     expect(hal2.hasMore).toBe(false);
     expect(hal2.nextCursor).toBeNull();
 
-    const hal3 = await repo.search({ q: 'maka', limit: 10 });
+    const hal3 = await repo.search({ q: 'maka', limit: 10, published: true });
     expect(hal3.items).toHaveLength(2);
     expect(hal3.hasMore).toBe(false);
     expect(hal3.nextCursor).toBeNull();

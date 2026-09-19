@@ -45,6 +45,7 @@ export class AdminVotesController {
         voter_email: v.voterEmail,
         target_type: v.entityType,
         target_id: v.entityId,
+        target_preview: v.targetPreview,
         value: v.value,
         created_at: v.createdAt.toISOString(),
         updated_at: v.updatedAt ? v.updatedAt.toISOString() : null,
@@ -101,6 +102,7 @@ export class AdminVotesController {
       data: rows.map((r) => ({
         target_type: r.entityType,
         target_id: r.entityId,
+        target_preview: r.targetPreview,
         upvotes: r.upvotes,
         downvotes: r.downvotes,
         net: r.net,

@@ -18,20 +18,20 @@ describe.skipIf(!hasTestDb)('UserRepositoryImpl', () => {
   });
 
   it('menyimpan dan mengambil user by email', async () => {
-    await repo.save({ username: 'budi', email: 'budi@test.com', passwordHash: 'hash' });
+    await repo.save({ username: 'budi', email: 'budi@test.com', phone: null, passwordHash: 'hash' });
     const found = await repo.findByEmail('budi@test.com');
     expect(found?.username).toBe('budi');
     expect(found?.role).toBe('contributor'); // default dari skema DB
   });
 
   it('findByUsername dan findById mengembalikan user yang sama', async () => {
-    const saved = await repo.save({ username: 'siti', email: 'siti@test.com', passwordHash: 'hash' });
+    const saved = await repo.save({ username: 'siti', email: 'siti@test.com', phone: null, passwordHash: 'hash' });
     expect((await repo.findByUsername('siti'))?.id).toBe(saved.id);
     expect((await repo.findById(saved.id))?.email).toBe('siti@test.com');
   });
 
   it('updatePassword mengubah password_hash', async () => {
-    const saved = await repo.save({ username: 'rudi', email: 'rudi@test.com', passwordHash: 'lama' });
+    const saved = await repo.save({ username: 'rudi', email: 'rudi@test.com', phone: null, passwordHash: 'lama' });
     await repo.updatePassword(saved.id, 'baru');
     expect((await repo.findById(saved.id))?.passwordHash).toBe('baru');
   });

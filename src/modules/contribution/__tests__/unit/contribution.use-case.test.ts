@@ -21,6 +21,9 @@ function makeContribution(overrides: Partial<Contribution> = {}): Contribution {
     status: 'pending',
     description: null,
     createdAt: new Date(),
+    searchMissId: null,
+    searchMissTerm: null,
+    searchMissDirection: null,
     ...overrides,
   };
 }

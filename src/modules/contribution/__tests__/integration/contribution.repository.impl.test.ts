@@ -182,4 +182,69 @@ describe.skipIf(!hasTestDb)('ContributionRepositoryImpl', () => {
     });
     expect(child?.data).toMatchObject({ url: 'https://x.test/k.jpg' });
   });
+
+  it('approve word saat lemma published sudah ada → merge meanings + soft-delete sumber', async () => {
+    const publishedId = ulid26('01TESTWORDPUB');
+    await db.insert(words).values({
+      id: publishedId,
+      languageId: SMB,
+      lemma: 'kalintiak',
+      status: 'published',
+      isVerified: true,
+      createdBy: REVIEWER,
+    });
+    await db.insert(meanings).values({
+      wordId: publishedId,
+      wordClassId: NOMINA,
+      definition: 'makna A (sudah tayang)',
+      orderIndex: 0,
+      createdBy: REVIEWER,
+    });
+
+    const [pendingMeaning] = await db
+      .insert(meanings)
+      .values({
+        wordId,
+        wordClassId: NOMINA,
+        definition: 'makna B (kontribusi kedua)',
+        orderIndex: 0,
+        createdBy: KONTRIBUTOR,
+      })
+      .returning();
+
+    const cid = await contributionIdOf(wordId);
+    const outcome = await repo.review({
+      contributionId: cid,
+      decision: 'approve',
+      reviewerId: REVIEWER,
+      comment: null,
+    });
+
+    expect(outcome).toMatchObject({
+      status: 'approved',
+      entityId: publishedId,
+      mergedIntoWordId: publishedId,
+    });
+
+    const publishedMeanings = await db
+      .select()
+      .from(meanings)
+      .where(eq(meanings.wordId, publishedId));
+    expect(publishedMeanings.map((m) => m.definition).sort()).toEqual([
+      'makna A (sudah tayang)',
+      'makna B (kontribusi kedua)',
+    ]);
+    expect(publishedMeanings.find((m) => m.id === pendingMeaning.id)?.orderIndex).toBe(1);
+
+    const [source] = await db.select().from(words).where(eq(words.id, wordId));
+    expect(source.deletedAt).not.toBeNull();
+    expect(source.status).toBe('rejected');
+
+    const stillPublished = await db
+      .select()
+      .from(words)
+      .where(eq(words.status, 'published'));
+    expect(stillPublished).toHaveLength(1);
+    expect(stillPublished[0].id).toBe(publishedId);
+  });
 });

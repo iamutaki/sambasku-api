@@ -52,7 +52,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     responses: {
       201: { description: 'Registrasi berhasil', content: json(registerResponseSchema) },
       400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
-      409: { description: 'Username/email sudah dipakai', content: json(errorResponseSchema) },
+      409: { description: 'Nama/email/HP sudah dipakai', content: json(errorResponseSchema) },
     },
   });
 

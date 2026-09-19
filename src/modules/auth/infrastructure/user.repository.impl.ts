@@ -13,6 +13,7 @@ function toEntity(row: UserRow): User {
     id: row.id,
     username: row.username,
     email: row.email,
+    phone: row.phone,
     passwordHash: row.passwordHash,
     role: row.role as User['role'],
     isActive: row.isActive,
@@ -41,6 +42,11 @@ export class UserRepositoryImpl implements UserRepository {
     return row ? toEntity(row) : null;
   }
 
+  async findByPhone(phone: string): Promise<User | null> {
+    const [row] = await this.db.select().from(users).where(eq(users.phone, phone)).limit(1);
+    return row ? toEntity(row) : null;
+  }
+
   async save(user: NewUser): Promise<User> {
     const [row] = await this.db.insert(users).values(user).returning();
     return toEntity(row);
@@ -60,6 +66,7 @@ export class UserRepositoryImpl implements UserRepository {
         id: users.id,
         username: users.username,
         email: users.email,
+        phone: users.phone,
         role: users.role,
         isActive: users.isActive,
         createdAt: users.createdAt,

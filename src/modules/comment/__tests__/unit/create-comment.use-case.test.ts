@@ -12,6 +12,7 @@ function makeComment(overrides: Partial<Comment> = {}): Comment {
   return {
     id: '01JDCOMMENTMAKATN00000000A',
     wordId: WORD_ID,
+    wordLemma: 'makatn',
     userId: USER,
     username: 'kontributor',
     body: 'Kata ini sering saya dengar',

@@ -51,7 +51,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     client.api.v1.auth.register.$post(
       {
         json: {
-          username: `u${Date.now()}${Math.floor(Math.random() * 1000)}`,
+          name: `u${Date.now()}${Math.floor(Math.random() * 1000)}`,
           email,
           password: 'Password123',
           confirm_password: 'Password123',
@@ -71,7 +71,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
 
   it('POST /api/v1/auth/register body tidak valid → 400 VALIDATION_ERROR + details', async () => {
     const res = await client.api.v1.auth.register.$post({
-      json: { username: 'x', email: 'bukan-email', password: 'pendek', confirm_password: 'beda' },
+      json: { name: 'x', email: 'bukan-email', password: 'pendek', confirm_password: 'beda' },
     });
     expect(res.status).toBe(400);
     const body = await res.json();

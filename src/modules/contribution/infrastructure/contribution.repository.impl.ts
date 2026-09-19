@@ -8,12 +8,14 @@ import {
   examples,
   meanings,
   pronunciations,
+  searchMisses,
   users,
   wordImages,
   words,
 } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
 import { ConflictError, NotFoundError } from '@/shared/errors/app-error';
+import { publishOrMergeMeaningsInTx } from '@/modules/word/infrastructure/publish-or-merge-meanings';
 import type { CursorPage } from '@/modules/word/domain/repositories/word.repository';
 import type {
   Contribution,
@@ -49,6 +51,9 @@ function toContribution(row: {
   status: string;
   description: string | null;
   createdAt: Date;
+  searchMissId: string | null;
+  searchMissTerm: string | null;
+  searchMissDirection: string | null;
 }): Contribution {
   return {
     id: row.id,
@@ -60,6 +65,12 @@ function toContribution(row: {
     status: row.status as ContributionStatus,
     description: row.description,
     createdAt: row.createdAt,
+    searchMissId: row.searchMissId,
+    searchMissTerm: row.searchMissTerm,
+    searchMissDirection:
+      row.searchMissDirection === 'lemma' || row.searchMissDirection === 'translation'
+        ? row.searchMissDirection
+        : null,
   };
 }
 
@@ -73,6 +84,9 @@ const contributionColumns = {
   status: contributions.status,
   description: contributions.description,
   createdAt: contributions.createdAt,
+  searchMissId: contributions.searchMissId,
+  searchMissTerm: searchMisses.term,
+  searchMissDirection: searchMisses.direction,
 };
 
 export class ContributionRepositoryImpl implements ContributionRepository {
@@ -83,6 +97,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
       .select(contributionColumns)
       .from(contributions)
       .leftJoin(users, eq(users.id, contributions.userId))
+      .leftJoin(searchMisses, eq(searchMisses.id, contributions.searchMissId))
       .where(
         and(
           isNull(contributions.deletedAt),
@@ -109,6 +124,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
       .select(contributionColumns)
       .from(contributions)
       .leftJoin(users, eq(users.id, contributions.userId))
+      .leftJoin(searchMisses, eq(searchMisses.id, contributions.searchMissId))
       .where(and(eq(contributions.id, id), isNull(contributions.deletedAt)))
       .limit(1);
     return row ? toContribution(row) : null;
@@ -276,11 +292,16 @@ export class ContributionRepositoryImpl implements ContributionRepository {
 
       const now = new Date();
       const entityType = contrib.entityType as ContributionEntityType;
+      let entityId = contrib.entityId;
+      let mergedIntoWordId: string | null = null;
 
       switch (entityType) {
-        case 'word':
-          await this.reviewWord(tx, contrib.entityId, cmd, now);
+        case 'word': {
+          const wordOutcome = await this.reviewWord(tx, contrib.entityId, cmd, now);
+          entityId = wordOutcome.entityId;
+          mergedIntoWordId = wordOutcome.mergedIntoWordId;
           break;
+        }
         case 'pronunciation':
           await this.reviewPronunciation(tx, contrib.entityId, cmd, now);
           break;
@@ -301,7 +322,13 @@ export class ContributionRepositoryImpl implements ContributionRepository {
         comment: cmd.comment,
       });
 
-      return { contributionId: contrib.id, entityType, entityId: contrib.entityId, status };
+      return {
+        contributionId: contrib.id,
+        entityType,
+        entityId,
+        status,
+        ...(mergedIntoWordId ? { mergedIntoWordId } : {}),
+      };
     });
   }
 
@@ -375,28 +402,40 @@ export class ContributionRepositoryImpl implements ContributionRepository {
 
   // Kata: keputusan pada kata ikut memutuskan anak-anaknya (anak yang ikut
   // submit kata mengikuti gerbang kata - lihat childStatusOf word repository)
-  private async reviewWord(tx: Tx, wordId: string, cmd: ReviewCommand, now: Date): Promise<void> {
+  private async reviewWord(
+    tx: Tx,
+    wordId: string,
+    cmd: ReviewCommand,
+    now: Date,
+  ): Promise<{ entityId: string; mergedIntoWordId: string | null }> {
     if (cmd.decision === 'correct') {
-      // Isi + status/isVerified/isCorrected sudah diterapkan use case lewat
-      // WordRepository.updateWithRelations - di sini tinggal jejak verifikator
+      // Isi sudah di-update use case; publishOrMerge agar tidak ada 2 published
+      // lemma sama (12-api §8). Kalau sudah soft-deleted oleh merge, skip jejak.
+      const merge = await publishOrMergeMeaningsInTx(tx, wordId, cmd.reviewerId);
+      if (merge?.mergedIntoWordId) {
+        return { entityId: merge.wordId, mergedIntoWordId: merge.mergedIntoWordId };
+      }
       await tx
         .update(words)
         .set({ verifiedBy: cmd.reviewerId, verifiedAt: now, updatedBy: cmd.reviewerId, updatedAt: now })
         .where(and(eq(words.id, wordId), isNull(words.deletedAt)));
-      return;
+      return { entityId: wordId, mergedIntoWordId: null };
     }
 
-    const approved = cmd.decision === 'approve';
+    if (cmd.decision === 'approve') {
+      const merge = await publishOrMergeMeaningsInTx(tx, wordId, cmd.reviewerId);
+      if (!merge) {
+        throw new NotFoundError('WORD_NOT_FOUND', 'Kata kontribusi tidak ditemukan');
+      }
+      return { entityId: merge.wordId, mergedIntoWordId: merge.mergedIntoWordId };
+    }
+
     await tx
       .update(words)
-      .set(
-        approved
-          ? { status: 'published', isVerified: true, verifiedBy: cmd.reviewerId, verifiedAt: now, updatedBy: cmd.reviewerId, updatedAt: now }
-          : { status: 'rejected', updatedBy: cmd.reviewerId, updatedAt: now },
-      )
+      .set({ status: 'rejected', updatedBy: cmd.reviewerId, updatedAt: now })
       .where(and(eq(words.id, wordId), isNull(words.deletedAt)));
-
-    await this.setWordChildrenStatus(tx, wordId, approved ? 'published' : 'rejected', approved, cmd.reviewerId, now);
+    await this.setWordChildrenStatus(tx, wordId, 'rejected', false, cmd.reviewerId, now);
+    return { entityId: wordId, mergedIntoWordId: null };
   }
 
   private async setWordChildrenStatus(

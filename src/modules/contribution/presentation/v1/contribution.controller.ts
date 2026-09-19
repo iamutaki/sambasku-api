@@ -42,6 +42,9 @@ export class ContributionController {
         action: item.action,
         status: item.status,
         created_at: item.createdAt.toISOString(),
+        search_miss_id: item.searchMissId,
+        search_miss_term: item.searchMissTerm,
+        search_miss_direction: item.searchMissDirection,
       })),
       meta: { limit: query.limit, next_cursor: nextCursor, has_more: hasMore },
     });
@@ -61,6 +64,9 @@ export class ContributionController {
           action: contribution.action,
           status: contribution.status,
           created_at: contribution.createdAt.toISOString(),
+          search_miss_id: contribution.searchMissId,
+          search_miss_term: contribution.searchMissTerm,
+          search_miss_direction: contribution.searchMissDirection,
         },
         review: review
           ? {
@@ -187,7 +193,13 @@ export class ContributionController {
 
 function decisionResponse(
   c: Context,
-  outcome: { contributionId: string; entityType: string; entityId: string; status: string },
+  outcome: {
+    contributionId: string;
+    entityType: string;
+    entityId: string;
+    status: string;
+    mergedIntoWordId?: string | null;
+  },
   isCorrected = false,
 ) {
   return c.json({
@@ -198,6 +210,9 @@ function decisionResponse(
       entity_id: outcome.entityId,
       status: outcome.status,
       ...(isCorrected ? { is_corrected: true } : {}),
+      ...(outcome.mergedIntoWordId
+        ? { merged_into_word_id: outcome.mergedIntoWordId }
+        : {}),
     },
   });
 }

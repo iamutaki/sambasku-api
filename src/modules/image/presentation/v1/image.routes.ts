@@ -27,7 +27,9 @@ export function createImageRoutes(deps: {
   routes.use(
     '/',
     deps.authenticate,
-    authorizeRole('admin', 'editor', 'contributor'),
+    // Mirror role media-kontribusi (03): contributor ke atas boleh
+    // ambil token; root/reviewer ikut supaya konsol & mobile tidak 403.
+    authorizeRole('admin', 'editor', 'contributor', 'root', 'reviewer'),
     rateLimit({ points: 30, duration: 60 }),
   );
 

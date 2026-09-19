@@ -3,6 +3,7 @@ import {
   createWordBodySchema,
   relationTypeSchema,
   ulid,
+  variantRootRefine,
   wordDetailResponseSchema,
   wordStatusSchema,
   wordTypeSchema,
@@ -12,7 +13,7 @@ import {
 // saja. Di-derive dari createWordBodySchema (bukan disalin) supaya field
 // lain tetap satu sumber kebenaran dengan create.
 export const updateWordSchema = createWordBodySchema
-  .omit({ related_words: true })
+  .omit({ related_words: true, search_miss_id: true })
   .extend({
     related_words: z
       .array(
@@ -57,7 +58,8 @@ export const updateWordSchema = createWordBodySchema
   .refine(
     (d) => !(d.word_type === 'word' && d.related_words.some((r) => r.relation_type === 'has_component')),
     { message: 'has_component hanya untuk entri idiom/peribahasa/ungkapan', path: ['related_words'] },
-  );
+  )
+  .superRefine(variantRootRefine); // 11: variasi ≠ lemma induk
 
 export type UpdateWordBody = z.infer<typeof updateWordSchema>;
 

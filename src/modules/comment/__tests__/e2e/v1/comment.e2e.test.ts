@@ -63,7 +63,7 @@ describe.skipIf(!hasTestDb)('Comment E2E v1 - komentar + moderasi (09 doc)', () 
     const stamp = Date.now();
     for (const name of ['adm', 'kon', 'lain']) {
       await post('/api/v1/auth/register', {
-        username: `${name}${stamp}`,
+        name: `${name}${stamp}`,
         email: `${name}${stamp}@test.com`,
         password: 'Password123',
         confirm_password: 'Password123',
@@ -128,7 +128,7 @@ describe.skipIf(!hasTestDb)('Comment E2E v1 - komentar + moderasi (09 doc)', () 
     const list = await get(`/api/v1/words/${wordId}/comments`);
     const listBody = await list.json();
     expect(listBody.data).toHaveLength(1);
-    expect(listBody.data[0]).toMatchObject({ id: commentId, username: expect.any(String), upvotes: 0 });
+    expect(listBody.data[0]).toMatchObject({ id: commentId, name: expect.any(String), upvotes: 0 });
 
     // vote komentar → counts di list naik
     await post('/api/v1/votes', { target_type: 'comment', target_id: commentId, value: 1 }, otherToken);

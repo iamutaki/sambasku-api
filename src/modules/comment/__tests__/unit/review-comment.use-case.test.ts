@@ -10,6 +10,7 @@ function pendingComment(): Comment {
   return {
     id: '01JDCOMMENTMAKATN00000000A',
     wordId: '01JDWORDMAKATN0000000000A',
+    wordLemma: 'makatn',
     userId: '01JDUSERKONTRIB0000000000A',
     username: 'kontributor',
     body: 'komentar',

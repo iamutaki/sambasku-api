@@ -45,6 +45,7 @@ describe.skipIf(!hasTestDb)('CommentRepositoryImpl (integration, 09 doc)', () =>
     const page = await repo.listByWord(WORD, { limit: 20 });
     expect(page.items.map((cm) => cm.body)).toEqual(['pertama']); // pending & terhapus tak tampil
     expect(page.items[0].username).toBe('cmauthor');
+    expect(page.items[0].wordLemma).toBe('makatn');
     expect(page.hasMore).toBe(false);
   });
 
@@ -55,6 +56,7 @@ describe.skipIf(!hasTestDb)('CommentRepositoryImpl (integration, 09 doc)', () =>
 
     const pending = await repo.listAdmin({ status: 'pending_review', limit: 20 });
     expect(pending.items.map((cm) => cm.body)).toEqual(['b']);
+    expect(pending.items[0].wordLemma).toBe('makatn');
 
     const rejected = await repo.listAdmin({ status: 'rejected', limit: 20 });
     expect(rejected.items.map((cm) => cm.body)).toEqual(['a']);

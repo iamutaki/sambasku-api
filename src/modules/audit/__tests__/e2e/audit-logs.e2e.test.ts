@@ -30,14 +30,14 @@ describe.skipIf(!hasTestDb)('Audit Logs E2E', () => {
     app = appModule.app;
 
     const stamp = Date.now();
-    for (const [username, email] of [
+    for (const [name, email] of [
       ['audadm', `audadm${stamp}@test.com`],
       ['audkon', `audkon${stamp}@test.com`],
     ] as const) {
       await request('/api/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify({
-          username,
+          name,
           email,
           password: 'Password123',
           confirm_password: 'Password123',

@@ -99,7 +99,22 @@ function makeDeps(missing: Partial<MissingReferences> = {}, duplicate = false, i
     listWordClasses: vi.fn(),
   } as unknown as WordRepository;
   const auditRepo = { record: vi.fn().mockResolvedValue(undefined), list: vi.fn() };
-  return { wordRepo, auditRepo, useCase: new CreateWordUseCase(wordRepo, auditRepo as unknown as AuditLogRepository) };
+  const searchMissRepo = {
+    findById: vi.fn().mockResolvedValue(null),
+    record: vi.fn(),
+    list: vi.fn(),
+    dismiss: vi.fn(),
+  };
+  return {
+    wordRepo,
+    auditRepo,
+    searchMissRepo,
+    useCase: new CreateWordUseCase(
+      wordRepo,
+      auditRepo as unknown as AuditLogRepository,
+      searchMissRepo as never,
+    ),
+  };
 }
 
 const ADMIN = { userId: '01TESTULIDUSERID00000000', role: 'admin' };
@@ -474,5 +489,88 @@ describe('CreateWordUseCase', () => {
         { field: 'related_words.0.word.meaning_overrides.0.translations.0.language_id', message: expect.stringContaining('Bahasa') },
       ],
     });
+  });
+});
+
+describe('CreateWordUseCase - search_miss provenance (12-api)', () => {
+  const MISS_ID = '01JDSEARCHMISS0000000000000';
+
+  it('search_miss_id valid (lemma) → lolos + searchMissId di result', async () => {
+    const { useCase, searchMissRepo, wordRepo } = makeDeps();
+    searchMissRepo.findById = vi.fn().mockResolvedValue({
+      id: MISS_ID,
+      term: 'makatn',
+      direction: 'lemma',
+      hitCount: 1,
+      lastSearchedAt: new Date(),
+      isFulfilled: false,
+      isVisible: false,
+      createdAt: new Date(),
+    });
+    const result = await useCase.execute(makeDto({ searchMissId: MISS_ID, lemma: 'Makatn' }), ADMIN);
+    expect(result.searchMissId).toBe(MISS_ID);
+    expect(wordRepo.saveWithRelations).toHaveBeenCalledWith(
+      expect.objectContaining({ searchMissId: MISS_ID }),
+      ADMIN.userId,
+    );
+  });
+
+  it('search_miss_id tidak ada → 404 SEARCH_MISS_NOT_FOUND', async () => {
+    const { useCase } = makeDeps();
+    await expect(useCase.execute(makeDto({ searchMissId: MISS_ID }), ADMIN)).rejects.toMatchObject({
+      errorCode: 'SEARCH_MISS_NOT_FOUND',
+    });
+  });
+
+  it('lemma tidak cocok miss term → 400 SEARCH_MISS_TERM_MISMATCH', async () => {
+    const { useCase, searchMissRepo } = makeDeps();
+    searchMissRepo.findById = vi.fn().mockResolvedValue({
+      id: MISS_ID,
+      term: 'kalintiak',
+      direction: 'lemma',
+      hitCount: 1,
+      lastSearchedAt: new Date(),
+      isFulfilled: false,
+      isVisible: false,
+      createdAt: new Date(),
+    });
+    await expect(useCase.execute(makeDto({ searchMissId: MISS_ID, lemma: 'makatn' }), ADMIN)).rejects.toMatchObject({
+      errorCode: 'SEARCH_MISS_TERM_MISMATCH',
+    });
+  });
+
+  it('direction=translation: soft-check teks terjemahan pertama', async () => {
+    const { useCase, searchMissRepo } = makeDeps();
+    searchMissRepo.findById = vi.fn().mockResolvedValue({
+      id: MISS_ID,
+      term: 'makan',
+      direction: 'translation',
+      hitCount: 1,
+      lastSearchedAt: new Date(),
+      isFulfilled: false,
+      isVisible: false,
+      createdAt: new Date(),
+    });
+    const result = await useCase.execute(makeDto({ searchMissId: MISS_ID, lemma: 'makatn' }), ADMIN);
+    expect(result.searchMissId).toBe(MISS_ID);
+
+    await expect(
+      useCase.execute(
+        makeDto({
+          searchMissId: MISS_ID,
+          meanings: [
+            {
+              wordClassId: '01WORDCLASSESNOMINA000000',
+              definition: 'x',
+              orderIndex: 1,
+              translations: [
+                { languageId: '01LANGUAGESINDONESIA00000', translationText: 'minum', translationType: 'direct' },
+              ],
+            },
+          ],
+        }),
+        ADMIN,
+      ),
+    ).rejects.toMatchObject({ errorCode: 'SEARCH_MISS_TERM_MISMATCH' });
   });
 });

@@ -37,6 +37,10 @@ MAIL_FROM = "Kamus Sambas <no-reply@kamus-sambas.app>"
 # Provider gambar: default "imagekit" (tanpa var ini) - kredensial via
 # secret: IMAGEKIT_PRIVATE_KEY / IMAGEKIT_PUBLIC_KEY / IMAGEKIT_URL_ENDPOINT.
 # Provider lain kelak: IMAGE_PROVIDER="..." + impl baru (image-storage.factory)
+# KBBI lookup - pola sama: KBBI_PROVIDER + URL per vendor (RAF555_*)
+KBBI_PROVIDER = "raf555"
+RAF555_BASE_URL = "https://kbbi.raf555.dev"
+LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
 
 # Observability: Workers Logs (console.* dari logger JSON langsung terekap)
 [observability]
@@ -69,6 +73,9 @@ JWT_REFRESH_TOKEN_TTL = "2592000"
 MAIL_FROM = "Kamus Sambas Staging <no-reply@iamutaki.com>"
 # Provider gambar: default "imagekit" - kredensial via
 # `wrangler secret put --env staging IMAGEKIT_PRIVATE_KEY` dst.
+KBBI_PROVIDER = "raf555"
+RAF555_BASE_URL = "https://kbbi.raf555.dev"
+LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
 
 # DB: driver Neon serverless (WebSocket) dari secret DATABASE_URL -
 # Hyperdrive TIDAK dipakai (lihat catatan Section 8 docs: pg/node:net

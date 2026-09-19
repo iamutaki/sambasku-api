@@ -48,6 +48,7 @@ export class CommentController {
       data: page.items.map((cm) => ({
         id: cm.id,
         word_id: cm.wordId,
+        word_lemma: cm.wordLemma,
         user_id: cm.userId,
         username: cm.username,
         body: cm.body,
@@ -86,6 +87,7 @@ export class CommentController {
       data: page.items.map((cm) => ({
         id: cm.id,
         word_id: cm.wordId,
+        word_lemma: cm.wordLemma,
         user_id: cm.userId,
         username: cm.username,
         body: cm.body,
@@ -125,6 +127,7 @@ export class CommentController {
     return {
       id: cm.id,
       word_id: cm.wordId,
+      word_lemma: cm.wordLemma,
       user_id: cm.userId,
       username: cm.username,
       body: cm.body,

@@ -58,6 +58,7 @@ export function toCreateWordDto(body: CreateWordBody, imageProviderName: string)
       isPrimary: img.is_primary,
     })),
     status: body.status,
+    ...(body.search_miss_id ? { searchMissId: body.search_miss_id } : {}),
   };
 }
 

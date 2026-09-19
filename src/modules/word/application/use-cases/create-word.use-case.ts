@@ -1,5 +1,7 @@
-import { ValidationError } from '@/shared/errors/app-error';
+import { BadRequestError, NotFoundError, ValidationError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
+import type { SearchMissRepository } from '@/modules/search-miss/domain/repositories/search-miss.repository';
+import { normalizeSearchMissTerm } from '@/modules/search-miss/domain/normalize-term';
 import type { Word } from '../../domain/entities/word.entity';
 import type {
   MissingReferences,
@@ -25,6 +27,8 @@ export interface InlineCreatedResult {
 export interface CreateWordResult extends InlineCreatedResult {
   word: Word;
   warnings: { field: string; message: string }[];
+  /** Provenance miss yang tersimpan (null kalau submit biasa) */
+  searchMissId: string | null;
 }
 
 export interface Actor {
@@ -38,10 +42,14 @@ export class CreateWordUseCase {
   constructor(
     private readonly wordRepo: WordRepository,
     private readonly auditRepo: AuditLogRepository,
+    private readonly searchMissRepo?: SearchMissRepository,
   ) {}
 
   async execute(dto: CreateWordDto, actor: Actor): Promise<CreateWordResult> {
-    // 0. Aturan silang: has_component hanya untuk entri frasa (idiom/peribahasa/ungkapan)
+    // 0a. Provenance search-miss (12-api) - sebelum insert
+    await this.assertSearchMissProvenance(dto);
+
+    // 0b. Aturan silang: has_component hanya untuk entri frasa (idiom/peribahasa/ungkapan)
     if (
       dto.wordType === 'word' &&
       dto.relatedWords.some((r) => r.relationType === 'has_component')
@@ -124,6 +132,7 @@ export class CreateWordUseCase {
         status: word.status,
         is_verified: word.isVerified,
         meanings_count: dto.meanings.length,
+        ...(dto.searchMissId ? { search_miss_id: dto.searchMissId } : {}),
       },
       requestId: actor.requestId ?? null,
     });
@@ -146,7 +155,49 @@ export class CreateWordUseCase {
       });
     }
 
-    return { word, warnings, inlineCreatedWords, inlineWarnings };
+    return {
+      word,
+      warnings,
+      inlineCreatedWords,
+      inlineWarnings,
+      searchMissId: dto.searchMissId ?? null,
+    };
+  }
+
+  /** Validasi miss aktif + soft-check term (12-api). No-op kalau field absen. */
+  private async assertSearchMissProvenance(dto: CreateWordDto): Promise<void> {
+    if (!dto.searchMissId) return;
+    if (!this.searchMissRepo) {
+      throw new NotFoundError('SEARCH_MISS_NOT_FOUND', 'Search miss tidak ditemukan');
+    }
+    const miss = await this.searchMissRepo.findById(dto.searchMissId);
+    if (!miss) {
+      throw new NotFoundError('SEARCH_MISS_NOT_FOUND', 'Search miss tidak ditemukan');
+    }
+    if (miss.direction === 'lemma') {
+      if (normalizeSearchMissTerm(dto.lemma) !== miss.term) {
+        throw new BadRequestError(
+          'SEARCH_MISS_TERM_MISMATCH',
+          'Lemma tidak cocok dengan istilah search miss',
+          [{ field: 'lemma', message: `Harus cocok dengan miss term "${miss.term}"` }],
+        );
+      }
+      return;
+    }
+    // direction=translation → soft-check teks terjemahan pertama
+    const firstText = dto.meanings[0]?.translations[0]?.translationText ?? '';
+    if (normalizeSearchMissTerm(firstText) !== miss.term) {
+      throw new BadRequestError(
+        'SEARCH_MISS_TERM_MISMATCH',
+        'Terjemahan tidak cocok dengan istilah search miss',
+        [
+          {
+            field: 'meanings.0.translations.0.translation_text',
+            message: `Harus cocok dengan miss term "${miss.term}"`,
+          },
+        ],
+      );
+    }
   }
 }
 

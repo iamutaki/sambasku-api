@@ -35,7 +35,9 @@ import { CreateWordUseCase } from '@/modules/word/application/use-cases/create-w
 import { UpdateWordUseCase } from '@/modules/word/application/use-cases/update-word.use-case';
 import { GetWordByIdUseCase } from '@/modules/word/application/use-cases/get-word-by-id.use-case';
 import { SearchWordsUseCase } from '@/modules/word/application/use-cases/search-words.use-case';
+import { ListAdminWordsUseCase } from '@/modules/word/application/use-cases/list-admin-words.use-case';
 import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-word.use-case';
+import { PublishWordUseCase } from '@/modules/word/application/use-cases/publish-word.use-case';
 import { SoftDeleteWordUseCase } from '@/modules/word/application/use-cases/soft-delete-word.use-case';
 import { AddPronunciationUseCase } from '@/modules/word/application/use-cases/add-pronunciation.use-case';
 import { AddWordImageUseCase } from '@/modules/word/application/use-cases/add-word-image.use-case';
@@ -61,6 +63,8 @@ import { createContributionRoutes } from '@/modules/contribution/presentation/v1
 import { SearchMissRepositoryImpl } from '@/modules/search-miss/infrastructure/search-miss.repository.impl';
 import { ListSearchMissesUseCase } from '@/modules/search-miss/application/use-cases/list-search-misses.use-case';
 import { DismissSearchMissUseCase } from '@/modules/search-miss/application/use-cases/dismiss-search-miss.use-case';
+import { UpdateSearchMissUseCase } from '@/modules/search-miss/application/use-cases/update-search-miss.use-case';
+import { ResolveSearchMissUseCase } from '@/modules/search-miss/application/use-cases/resolve-search-miss.use-case';
 import { SearchMissController } from '@/modules/search-miss/presentation/v1/search-miss.controller';
 import {
   createAdminSearchMissRoutes,
@@ -111,6 +115,10 @@ import { ReviewCommentUseCase } from '@/modules/comment/application/use-cases/re
 import { CommentController } from '@/modules/comment/presentation/v1/comment.controller';
 import { createCommentRoutes, createWordCommentRoutes } from '@/modules/comment/presentation/v1/comment.routes';
 import { createAdminCommentRoutes } from '@/modules/comment/presentation/v1/admin-comment.routes';
+import { createLemmaDefinitionProviderRegistry } from '@/modules/lemma-definition/infrastructure/lemma-definition-provider.factory';
+import { LookupLemmaDefinitionUseCase } from '@/modules/lemma-definition/application/use-cases/lookup-lemma-definition.use-case';
+import { LemmaDefinitionController } from '@/modules/lemma-definition/presentation/v1/lemma-definition.controller';
+import { createLemmaDefinitionRoutes } from '@/modules/lemma-definition/presentation/v1/lemma-definition.routes';
 
 // ---- Composition root: rakit semua dependency (manual DI, api-base-stack.md Section 2) ----
 const userRepo = new UserRepositoryImpl(db);
@@ -164,11 +172,13 @@ const imageStorage = createImageStorage();
 // dari SearchWordsUseCase lewat interface modul search-miss (Section 4)
 const searchMissRepo = new SearchMissRepositoryImpl(db);
 const wordController = new WordController({
-  create: new CreateWordUseCase(wordRepo, auditRepo),
+  create: new CreateWordUseCase(wordRepo, auditRepo, searchMissRepo),
   update: new UpdateWordUseCase(wordRepo, auditRepo),
   getById: new GetWordByIdUseCase(wordRepo),
   search: new SearchWordsUseCase(wordRepo, searchMissRepo),
+  listAdmin: new ListAdminWordsUseCase(wordRepo),
   verify: new VerifyWordUseCase(wordRepo, auditRepo),
+  publish: new PublishWordUseCase(wordRepo, auditRepo),
   deleteWord: new SoftDeleteWordUseCase(wordRepo, auditRepo),
   addPronunciation: new AddPronunciationUseCase(wordRepo, auditRepo),
   addWordImage: new AddWordImageUseCase(wordRepo, auditRepo),
@@ -189,12 +199,20 @@ const contributionController = new ContributionController({
   imageProviderName: imageStorage.providerName,
 });
 
+const languageRepo = new LanguageRepositoryImpl(db);
+
 const searchMissController = new SearchMissController({
   list: new ListSearchMissesUseCase(searchMissRepo),
   dismiss: new DismissSearchMissUseCase(searchMissRepo, auditRepo),
+  update: new UpdateSearchMissUseCase(searchMissRepo, auditRepo),
+  resolve: new ResolveSearchMissUseCase(
+    searchMissRepo,
+    wordRepo,
+    languageRepo,
+    auditRepo,
+  ),
 });
 
-const languageRepo = new LanguageRepositoryImpl(db);
 const languageController = new LanguageController({
   listLanguages: new ListLanguagesUseCase(languageRepo),
   listDialects: new ListDialectsUseCase(languageRepo),
@@ -401,6 +419,20 @@ const adminUsersController = new AdminUsersController({
   updateRole: new UpdateUserRoleUseCase(userRepo, refreshTokenRepo, auditRepo),
 });
 app.route('/api/v1/admin/users', createAdminUserRoutes({ controller: adminUsersController, authenticate }));
+
+// Lookup definisi lemma (KBBI via port) - prefill field definition di form
+// mobile/admin. Tidak menulis DB. docs/api/13-api-kbbi-lemma-definition.md
+const lemmaDefinitionRegistry = createLemmaDefinitionProviderRegistry();
+const lemmaDefinitionController = new LemmaDefinitionController({
+  lookup: new LookupLemmaDefinitionUseCase(
+    lemmaDefinitionRegistry,
+    env.LEMMA_DEFINITION_CACHE_TTL_SECONDS,
+  ),
+});
+app.route(
+  '/api/v1/lemma-definitions',
+  createLemmaDefinitionRoutes({ controller: lemmaDefinitionController, authenticate }),
+);
 
 // OpenAPI spec + Scalar docs (api-base-stack.md Section 9)
 app.doc('/openapi.json', {

@@ -30,7 +30,11 @@ export class SearchWordsUseCase {
   ) {}
 
   async execute(query: SearchWordsQuery): Promise<SearchWordsResult> {
-    const { items, nextCursor, hasMore } = await this.wordRepo.search(query);
+    // Publik / dropdown: selalu published saja
+    const { items, nextCursor, hasMore } = await this.wordRepo.search({
+      ...query,
+      published: true,
+    });
 
     if (items.length === 0 && query.q.trim().length >= 2) {
       // Best-effort: kegagalan pencatatan tidak boleh membatalkan response

@@ -36,6 +36,7 @@ function makeDeps(findByIdResult: Word | null = makeWord(), softDeleteResult = t
     findMissingReferences: vi.fn(),
     listWordClasses: vi.fn(),
     setVerified: vi.fn(),
+    setPublished: vi.fn(),
     softDelete: vi.fn().mockResolvedValue(softDeleteResult),
   } as unknown as WordRepository;
   const auditRepo = { record: vi.fn().mockResolvedValue(undefined), list: vi.fn() };

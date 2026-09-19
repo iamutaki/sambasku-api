@@ -36,11 +36,24 @@ export class AuthController {
 
   async register(c: Context, body: RegisterBody) {
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
-    const user = await this.deps.register.execute(body, requestId);
+    const user = await this.deps.register.execute(
+      {
+        name: body.name,
+        email: body.email,
+        phone: body.phone,
+        password: body.password,
+      },
+      requestId,
+    );
     return c.json(
       {
         success: true as const,
-        data: { user_id: user.id, username: user.username, email: user.email },
+        data: {
+          user_id: user.id,
+          username: user.username,
+          email: user.email,
+          phone: user.phone,
+        },
       },
       201,
     );

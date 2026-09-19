@@ -51,6 +51,7 @@ const adminVoteWireSchema = z.object({
   voter_email: z.string().email(),
   target_type: VoteTargetTypeZodEnum,
   target_id: z.string().length(26),
+  target_preview: z.string().nullable(),
   value: z.union([z.literal(1), z.literal(-1)]),
   created_at: z.string(), // ISO date string
   updated_at: z.string().nullable(),
@@ -83,6 +84,7 @@ export const resetTargetVotesResponseSchema = z.object({
 const adminTopTargetWireSchema = z.object({
   target_type: VoteTargetTypeZodEnum,
   target_id: z.string().length(26),
+  target_preview: z.string().nullable(),
   upvotes: z.number().int().nonnegative(),
   downvotes: z.number().int().nonnegative(),
   net: z.number().int(),

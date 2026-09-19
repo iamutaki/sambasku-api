@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull, lt } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { comments, users } from '@/shared/database/drizzle/schema';
+import { comments, users, words } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
 import type { Comment, CommentStatus, CursorPage } from '../domain/entities/comment.entity';
 import type {
@@ -19,9 +19,14 @@ export class CommentRepositoryImpl implements CommentRepository {
   // ulang antar-query (state .where() bisa terbawa).
   private selectBase() {
     return this.db
-      .select({ comment: comments, username: users.username })
+      .select({
+        comment: comments,
+        username: users.username,
+        wordLemma: words.lemma,
+      })
       .from(comments)
-      .leftJoin(users, eq(users.id, comments.userId));
+      .leftJoin(users, eq(users.id, comments.userId))
+      .leftJoin(words, eq(words.id, comments.wordId));
   }
 
   async create(data: { wordId: string; userId: string; body: string }): Promise<Comment> {
@@ -29,7 +34,7 @@ export class CommentRepositoryImpl implements CommentRepository {
       .insert(comments)
       .values({ wordId: data.wordId, userId: data.userId, body: data.body })
       .returning();
-    return this.toComment(row, null);
+    return this.toComment(row, null, null);
   }
 
   async listByWord(wordId: string, params: ListCommentsParams): Promise<CursorPage<Comment>> {
@@ -46,7 +51,7 @@ export class CommentRepositoryImpl implements CommentRepository {
     const [row] = await this.selectBase()
       .where(and(eq(comments.id, id), isNull(comments.deletedAt)))
       .limit(1);
-    return row ? this.toComment(row.comment, row.username) : null;
+    return row ? this.toComment(row.comment, row.username, row.wordLemma) : null;
   }
 
   async softDelete(id: string, actorId: string): Promise<boolean> {
@@ -93,14 +98,21 @@ export class CommentRepositoryImpl implements CommentRepository {
       .limit(limit + 1);
 
     const hasMore = rows.length > limit;
-    const items = (hasMore ? rows.slice(0, limit) : rows).map((r) => this.toComment(r.comment, r.username));
+    const items = (hasMore ? rows.slice(0, limit) : rows).map((r) =>
+      this.toComment(r.comment, r.username, r.wordLemma),
+    );
     return { items, nextCursor: hasMore ? items[items.length - 1].id : null, hasMore };
   }
 
-  private toComment(row: typeof comments.$inferSelect, username: string | null): Comment {
+  private toComment(
+    row: typeof comments.$inferSelect,
+    username: string | null,
+    wordLemma: string | null,
+  ): Comment {
     return {
       id: row.id,
       wordId: row.wordId,
+      wordLemma,
       userId: row.userId,
       username,
       body: row.body,

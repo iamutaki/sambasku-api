@@ -82,13 +82,13 @@ describe.skipIf(!hasTestDb)('Word E2E v1 - Soft-delete kata (07 doc)', () => {
 
     const stamp = Date.now();
     await post('/api/v1/auth/register', {
-      username: `adm${stamp}`,
+      name: `adm${stamp}`,
       email: `adm${stamp}@test.com`,
       password: 'Password123',
       confirm_password: 'Password123',
     });
     await post('/api/v1/auth/register', {
-      username: `kon${stamp}`,
+      name: `kon${stamp}`,
       email: `kon${stamp}@test.com`,
       password: 'Password123',
       confirm_password: 'Password123',

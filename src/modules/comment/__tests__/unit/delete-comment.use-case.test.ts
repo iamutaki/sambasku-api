@@ -12,6 +12,7 @@ function makeComment(userId: string): Comment {
   return {
     id: '01JDCOMMENTMAKATN00000000A',
     wordId: '01JDWORDMAKATN0000000000A',
+    wordLemma: 'makatn',
     userId,
     username: 'penulis',
     body: 'komentar',

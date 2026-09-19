@@ -38,6 +38,14 @@ const envSchema = z.object({
   IMAGEKIT_PUBLIC_KEY: z.string().optional(),
   IMAGEKIT_URL_ENDPOINT: z.string().optional(), // mis. https://ik.imagekit.io/akun
 
+  // KBBI lemma lookup (docs/api/13-api-kbbi-lemma-definition.md).
+  // Pola sama IMAGE_PROVIDER + IMAGEKIT_*: pilih provider, kredensial/URL
+  // spesifik per vendor. Default provider = raf555.
+  // KBBI_PROVIDER=none (atau kosong) → 503 LEMMA_DEFINITION_PROVIDER_UNAVAILABLE.
+  KBBI_PROVIDER: z.string().optional(),
+  RAF555_BASE_URL: z.string().optional(), // default https://kbbi.raf555.dev di factory
+  LEMMA_DEFINITION_CACHE_TTL_SECONDS: z.coerce.number().default(3600),
+
   APP_URL: z.url().default('http://localhost:5173'), // basis link reset password
 });
 

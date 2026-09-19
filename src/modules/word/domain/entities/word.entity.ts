@@ -34,6 +34,8 @@ export interface WordSummary {
   isVerified: boolean;
   /** terisi saat pencarian terjemahan (Indonesia→Sambas): teks yang cocok */
   matchedTranslation?: string;
+  /** 11: terisi saat pencarian lemma cocok lewat variasi penulisan (formnya) */
+  matchedVariant?: string;
 }
 
 export interface RelatedWordRef {

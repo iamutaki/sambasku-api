@@ -4,21 +4,27 @@ import type { UserRepository } from '../../domain/repositories/user.repository';
 import type { PasswordHasherPort } from '../../application/ports/password-hasher.port';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 
-function makeDeps(overrides: { findByUsername?: unknown; findByEmail?: unknown } = {}) {
+function makeDeps(overrides: {
+  findByUsername?: unknown;
+  findByEmail?: unknown;
+  findByPhone?: unknown;
+} = {}) {
   const userRepo = {
     findById: vi.fn(),
     findByEmail: vi.fn().mockResolvedValue(overrides.findByEmail ?? null),
     findByUsername: vi.fn().mockResolvedValue(overrides.findByUsername ?? null),
-    save: vi.fn().mockImplementation((user: { username: string; email: string; passwordHash: string }) =>
-      Promise.resolve({
-        id: '01TESTULIDUSERID00000000',
-        ...user,
-        role: 'contributor',
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: null,
-        deletedAt: null,
-      }),
+    findByPhone: vi.fn().mockResolvedValue(overrides.findByPhone ?? null),
+    save: vi.fn().mockImplementation(
+      (user: { username: string; email: string; phone: string | null; passwordHash: string }) =>
+        Promise.resolve({
+          id: '01TESTULIDUSERID00000000',
+          ...user,
+          role: 'contributor',
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: null,
+          deletedAt: null,
+        }),
     ),
     updatePassword: vi.fn(),
   } as unknown as UserRepository;
@@ -27,51 +33,101 @@ function makeDeps(overrides: { findByUsername?: unknown; findByEmail?: unknown }
     compare: vi.fn(),
   } as unknown as PasswordHasherPort;
   const auditRepo = { record: vi.fn().mockResolvedValue(undefined), list: vi.fn() };
-  return { userRepo, hasher, auditRepo, useCase: new RegisterUserUseCase(userRepo, hasher, auditRepo as unknown as AuditLogRepository) };
+  return {
+    userRepo,
+    hasher,
+    auditRepo,
+    useCase: new RegisterUserUseCase(userRepo, hasher, auditRepo as unknown as AuditLogRepository),
+  };
 }
 
 describe('RegisterUserUseCase', () => {
-  it('menyimpan user baru dengan password ter-hash dan role default contributor', async () => {
+  it('menyimpan user baru (name→username) + phone opsional, auto-active tanpa OTP', async () => {
     const { useCase, userRepo, hasher } = makeDeps();
 
     const user = await useCase.execute({
-      username: 'budi',
+      name: 'Budi Santoso',
       email: 'Budi@Test.com',
+      phone: '6281234567890',
       password: 'Password123',
     });
 
     expect(hasher.hash).toHaveBeenCalledWith('Password123');
     expect(userRepo.save).toHaveBeenCalledWith({
-      username: 'budi',
+      username: 'Budi Santoso',
       email: 'budi@test.com', // dinormalisasi lowercase oleh Email VO
+      phone: '6281234567890',
       passwordHash: 'argon2id$hash',
     });
     expect(user.role).toBe('contributor');
-    // JANGAN pernah kembalikan password_hash di response
+    expect(user.isActive).toBe(true);
     expect(user.passwordHash).toBe('argon2id$hash'); // internal saja - presentation hanya mapping field aman
+  });
+
+  it('menerima phone null (opsional)', async () => {
+    const { useCase, userRepo } = makeDeps();
+
+    await useCase.execute({
+      name: 'Budi',
+      email: 'budi@test.com',
+      phone: null,
+      password: 'Password123',
+    });
+
+    expect(userRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: null }),
+    );
   });
 
   it('menolak email yang sudah terdaftar (EMAIL_ALREADY_EXISTS)', async () => {
     const { useCase } = makeDeps({ findByEmail: { id: 1 } });
 
     await expect(
-      useCase.execute({ username: 'budi', email: 'budi@test.com', password: 'Password123' }),
+      useCase.execute({
+        name: 'budi',
+        email: 'budi@test.com',
+        phone: null,
+        password: 'Password123',
+      }),
     ).rejects.toMatchObject({ errorCode: 'EMAIL_ALREADY_EXISTS', statusCode: 409 });
   });
 
-  it('menolak username yang sudah dipakai (USERNAME_ALREADY_EXISTS)', async () => {
+  it('menolak nama yang sudah dipakai (USERNAME_ALREADY_EXISTS)', async () => {
     const { useCase } = makeDeps({ findByUsername: { id: 1 } });
 
     await expect(
-      useCase.execute({ username: 'budi', email: 'budi@test.com', password: 'Password123' }),
+      useCase.execute({
+        name: 'budi',
+        email: 'budi@test.com',
+        phone: null,
+        password: 'Password123',
+      }),
     ).rejects.toMatchObject({ errorCode: 'USERNAME_ALREADY_EXISTS', statusCode: 409 });
+  });
+
+  it('menolak phone yang sudah dipakai (PHONE_ALREADY_EXISTS)', async () => {
+    const { useCase } = makeDeps({ findByPhone: { id: 1 } });
+
+    await expect(
+      useCase.execute({
+        name: 'budi',
+        email: 'budi@test.com',
+        phone: '6281234567890',
+        password: 'Password123',
+      }),
+    ).rejects.toMatchObject({ errorCode: 'PHONE_ALREADY_EXISTS', statusCode: 409 });
   });
 
   it('menolak password lewat Validator Zod (VO domain tetap menjaga invariant)', async () => {
     const { useCase } = makeDeps();
 
     await expect(
-      useCase.execute({ username: 'budi', email: 'budi@test.com', password: 'pendek1' }),
+      useCase.execute({
+        name: 'budi',
+        email: 'budi@test.com',
+        phone: null,
+        password: 'pendek1',
+      }),
     ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
   });
 
@@ -79,7 +135,12 @@ describe('RegisterUserUseCase', () => {
     const { useCase, auditRepo } = makeDeps();
 
     await useCase.execute(
-      { username: 'budi', email: 'budi@test.com', password: 'Password123' },
+      {
+        name: 'budi',
+        email: 'budi@test.com',
+        phone: null,
+        password: 'Password123',
+      },
       'req-123',
     );
 

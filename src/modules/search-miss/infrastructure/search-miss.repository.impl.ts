@@ -1,25 +1,63 @@
 import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { searchMisses, words } from '@/shared/database/drizzle/schema';
+import {
+  meaningTranslations,
+  meanings,
+  searchMisses,
+  wordVariants,
+  words,
+} from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
+import { ConflictError } from '@/shared/errors/app-error';
 import type { CursorPage } from '@/modules/word/domain/repositories/word.repository';
 import type { SearchMiss, SearchMissDirection } from '../domain/entities/search-miss.entity';
-import type { SearchMissListFilter, SearchMissRepository } from '../domain/repositories/search-miss.repository';
+import { normalizeSearchMissTerm } from '../domain/normalize-term';
+import type {
+  SearchMissListFilter,
+  SearchMissRepository,
+  SearchMissUpdatePatch,
+} from '../domain/repositories/search-miss.repository';
 
-// Normalisasi istilah: trim + lowercase + rapikan spasi ganda - kunci unik
-// upsert, sekaligus bikin "Kalintiak" dan "kalintiak" dihitung sama
-export function normalizeTerm(term: string): string {
-  return term.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 255);
-}
+// Re-export supaya caller lama (SearchWordsUseCase) tetap bisa import dari sini
+export const normalizeTerm = normalizeSearchMissTerm;
 
-// Miss 'lemma' terjawab kalau sudah ada kata published dengan lemma sama
-// (case-insensitive). Dievaluasi saat BACA - tanpa kolom status yang harus
-// disinkronkan tiap ada kata baru di-approve.
-const lemmaFulfilledSql = sql`EXISTS (
-  SELECT 1 FROM ${words} w
-  WHERE lower(w.lemma) = ${searchMisses.term}
+const UNIQUE_VIOLATION = '23505';
+
+// Miss 'lemma' terjawab kalau ada kata published dengan lemma sama
+// ATAU variasi penulisan (resolve-as-variant) yang form-nya = term
+const lemmaFulfilledSql = sql`(
+  EXISTS (
+    SELECT 1 FROM ${words} w
+    WHERE lower(trim(w.lemma)) = ${searchMisses.term}
+      AND w.status = 'published'
+      AND w.deleted_at IS NULL
+  )
+  OR EXISTS (
+    SELECT 1 FROM ${wordVariants} v
+    INNER JOIN ${words} w ON w.id = v.word_id
+    WHERE lower(trim(v.form)) = ${searchMisses.term}
+      AND v.deleted_at IS NULL
+      AND w.status = 'published'
+      AND w.deleted_at IS NULL
+  )
+)`;
+
+// Miss 'translation' terjawab kalau ada terjemahan published yang teksnya = term
+const translationFulfilledSql = sql`EXISTS (
+  SELECT 1 FROM ${meaningTranslations} mt
+  INNER JOIN ${meanings} m ON m.id = mt.meaning_id AND m.deleted_at IS NULL
+  INNER JOIN ${words} w ON w.id = m.word_id
+  WHERE lower(trim(mt.translation_text)) = ${searchMisses.term}
     AND w.status = 'published'
     AND w.deleted_at IS NULL
+    AND mt.deleted_at IS NULL
+)`;
+
+const isFulfilledSql = sql`(
+  CASE
+    WHEN ${searchMisses.direction} = 'translation' THEN ${translationFulfilledSql}
+    ELSE ${lemmaFulfilledSql}
+  END
 )`;
 
 export class SearchMissRepositoryImpl implements SearchMissRepository {
@@ -31,6 +69,7 @@ export class SearchMissRepositoryImpl implements SearchMissRepository {
     await this.db
       .insert(searchMisses)
       .values({ term, direction: input.direction })
+      // is_visible andalkan DEFAULT false (14-api); jangan set di insert
       .onConflictDoUpdate({
         target: [searchMisses.term, searchMisses.direction],
         set: {
@@ -38,11 +77,25 @@ export class SearchMissRepositoryImpl implements SearchMissRepository {
           lastSearchedAt: new Date(),
           updatedAt: new Date(),
           // Istilah dicari LAGI setelah di-dismiss → hidupkan kembali
-          // (menjadi peluang kontribusi aktif yang valid saat ini)
           deletedAt: null,
           deletedBy: null,
+          // JANGAN reset is_visible - keputusan admin tetap (14-api §7)
         },
       });
+  }
+
+  async findById(id: string): Promise<SearchMiss | null> {
+    const [row] = await this.db
+      .select()
+      .from(searchMisses)
+      .where(and(eq(searchMisses.id, id), isNull(searchMisses.deletedAt)))
+      .limit(1);
+    if (!row) return null;
+    const fulfilled =
+      row.direction === 'translation'
+        ? (await this.fulfilledTranslationTerms([row.term])).has(row.term)
+        : (await this.fulfilledLemmaTerms([row.term])).has(row.term);
+    return this.toEntity(row, fulfilled);
   }
 
   async list(filter: SearchMissListFilter): Promise<CursorPage<SearchMiss>> {
@@ -55,10 +108,14 @@ export class SearchMissRepositoryImpl implements SearchMissRepository {
         and(
           isNull(searchMisses.deletedAt),
           filter.direction ? eq(searchMisses.direction, filter.direction) : undefined,
-          // Beranda: hanya yang BELUM terjawab (masih jadi peluang kontribusi)
-          isPublic ? sql`NOT ${lemmaFulfilledSql}` : undefined,
-          // Cursor id DESC hanya untuk panel admin (order stabil & unik);
-          // beranda pakai hit_count DESC - top-N single page (lihat routes)
+          // Beranda: hanya tayang + BELUM terjawab (14-api + 03-api)
+          isPublic ? eq(searchMisses.isVisible, true) : undefined,
+          isPublic ? sql`NOT ${isFulfilledSql}` : undefined,
+          // Admin filter status fulfilled (derived)
+          !isPublic && filter.fulfilled === true ? isFulfilledSql : undefined,
+          !isPublic && filter.fulfilled === false ? sql`NOT ${isFulfilledSql}` : undefined,
+          !isPublic && filter.visible === true ? eq(searchMisses.isVisible, true) : undefined,
+          !isPublic && filter.visible === false ? eq(searchMisses.isVisible, false) : undefined,
           !isPublic && filter.cursor ? lt(searchMisses.id, filter.cursor) : undefined,
         ),
       )
@@ -71,25 +128,24 @@ export class SearchMissRepositoryImpl implements SearchMissRepository {
     const hasMore = rows.length > filter.limit;
     const page = hasMore ? rows.slice(0, filter.limit) : rows;
 
-    // Status terjawab untuk ditampilkan (panel admin butuh keduanya)
-    const fulfilled = await this.fulfilledTerms(
-      page.filter((r) => r.direction === 'lemma').map((r) => r.term),
-    );
+    const lemmaTerms = page.filter((r) => r.direction === 'lemma').map((r) => r.term);
+    const translationTerms = page.filter((r) => r.direction === 'translation').map((r) => r.term);
+    const [fulfilledLemmas, fulfilledTranslations] = await Promise.all([
+      this.fulfilledLemmaTerms(lemmaTerms),
+      this.fulfilledTranslationTerms(translationTerms),
+    ]);
 
-    const items: SearchMiss[] = page.map((r) => ({
-      id: r.id,
-      term: r.term,
-      direction: r.direction as SearchMissDirection,
-      hitCount: r.hitCount,
-      lastSearchedAt: r.lastSearchedAt,
-      isFulfilled: r.direction === 'lemma' && fulfilled.has(r.term),
-      createdAt: r.createdAt,
-    }));
+    const items: SearchMiss[] = page.map((r) =>
+      this.toEntity(
+        r,
+        r.direction === 'translation'
+          ? fulfilledTranslations.has(r.term)
+          : fulfilledLemmas.has(r.term),
+      ),
+    );
 
     return {
       items,
-      // Beranda top-N: halaman tunggal, tak perlu cursor majemuk (hit_count
-      // tidak unik) - ponytail: tambahkan compound-cursor kalau butuh paging
       nextCursor: !isPublic && hasMore && items.length > 0 ? items[items.length - 1].id : null,
       hasMore,
     };
@@ -104,18 +160,103 @@ export class SearchMissRepositoryImpl implements SearchMissRepository {
     return updated.length > 0;
   }
 
-  private async fulfilledTerms(terms: string[]): Promise<Set<string>> {
+  async update(id: string, patch: SearchMissUpdatePatch): Promise<SearchMiss | null> {
+    const set: { term?: string; isVisible?: boolean; updatedAt: Date } = {
+      updatedAt: new Date(),
+    };
+    if (patch.term !== undefined) set.term = patch.term;
+    if (patch.isVisible !== undefined) set.isVisible = patch.isVisible;
+
+    let updated: (typeof searchMisses.$inferSelect)[];
+    try {
+      updated = await this.db
+        .update(searchMisses)
+        .set(set)
+        .where(and(eq(searchMisses.id, id), isNull(searchMisses.deletedAt)))
+        .returning();
+    } catch (err) {
+      const code = (err as { cause?: { code?: string } }).cause?.code;
+      if (code === UNIQUE_VIOLATION) {
+        throw new ConflictError(
+          'SEARCH_MISS_TERM_CONFLICT',
+          'Term yang dikoreksi sudah dipakai miss lain dengan arah yang sama',
+        );
+      }
+      throw err;
+    }
+
+    if (updated.length === 0) return null;
+    const row = updated[0];
+    const fulfilled =
+      row.direction === 'translation'
+        ? (await this.fulfilledTranslationTerms([row.term])).has(row.term)
+        : (await this.fulfilledLemmaTerms([row.term])).has(row.term);
+    return this.toEntity(row, fulfilled);
+  }
+
+  private toEntity(
+    row: typeof searchMisses.$inferSelect,
+    isFulfilled: boolean,
+  ): SearchMiss {
+    return {
+      id: row.id,
+      term: row.term,
+      direction: row.direction as SearchMissDirection,
+      hitCount: row.hitCount,
+      lastSearchedAt: row.lastSearchedAt,
+      isFulfilled,
+      isVisible: row.isVisible,
+      createdAt: row.createdAt,
+    };
+  }
+
+  private async fulfilledLemmaTerms(terms: string[]): Promise<Set<string>> {
+    if (terms.length === 0) return new Set();
+    const [lemmaRows, variantRows] = await Promise.all([
+      this.db
+        .select({ lemma: words.lemma })
+        .from(words)
+        .where(
+          and(
+            inArray(sql`lower(trim(${words.lemma}))`, terms),
+            eq(words.status, 'published'),
+            isNull(words.deletedAt),
+          ),
+        ),
+      this.db
+        .select({ form: wordVariants.form })
+        .from(wordVariants)
+        .innerJoin(words, eq(words.id, wordVariants.wordId))
+        .where(
+          and(
+            inArray(sql`lower(trim(${wordVariants.form}))`, terms),
+            isNull(wordVariants.deletedAt),
+            eq(words.status, 'published'),
+            isNull(words.deletedAt),
+          ),
+        ),
+    ]);
+    return new Set([
+      ...lemmaRows.map((r) => r.lemma.trim().toLowerCase()),
+      ...variantRows.map((r) => r.form.trim().toLowerCase()),
+    ]);
+  }
+
+  private async fulfilledTranslationTerms(terms: string[]): Promise<Set<string>> {
     if (terms.length === 0) return new Set();
     const rows = await this.db
-      .select({ lemma: words.lemma })
-      .from(words)
+      .select({ text: meaningTranslations.translationText })
+      .from(meaningTranslations)
+      .innerJoin(meanings, and(eq(meanings.id, meaningTranslations.meaningId), isNull(meanings.deletedAt)))
+      .innerJoin(words, eq(words.id, meanings.wordId))
       .where(
         and(
-          inArray(sql`lower(${words.lemma})`, terms),
+          inArray(sql`lower(trim(${meaningTranslations.translationText}))`, terms),
           eq(words.status, 'published'),
           isNull(words.deletedAt),
+          isNull(meaningTranslations.deletedAt),
         ),
       );
-    return new Set(rows.map((r) => r.lemma.toLowerCase()));
+    return new Set(rows.map((r) => r.text.trim().toLowerCase()));
   }
 }

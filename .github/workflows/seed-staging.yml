@@ -1,6 +1,6 @@
 name: Seed Staging (manual)
 
-# HANYA dipicu manual (workflow_dispatch) — TIDAK pernah jalan otomatis saat
+# HANYA dipicu manual (workflow_dispatch) - TIDAK pernah jalan otomatis saat
 # push. Seed menimpa password admin/root jadi `pass1234`, jadi harus dipicu
 # sadar, bukan bagian dari alur deploy.
 #
@@ -13,7 +13,7 @@ name: Seed Staging (manual)
 # default branch (`main`). Jadi commit/cherry-pick juga ke `main`.
 #
 # Secrets (sama seperti deploy-staging.yml):
-#   STAGING_DATABASE_URL_DIRECT — Neon DIRECT URL staging (?sslmode=require)
+#   STAGING_DATABASE_URL_DIRECT - Neon DIRECT URL staging (?sslmode=require)
 
 on:
   workflow_dispatch:
@@ -40,7 +40,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Seed hanya butuh DATABASE_URL. env.ts mewajibkan JWT key + CORS, tapi
-      # seed tidak memakainya — nilai dummy cukup (lihat src/shared/config/env.ts).
+      # seed tidak memakainya - nilai dummy cukup (lihat src/shared/config/env.ts).
       - name: Seed database staging
         run: pnpm seed
         env:

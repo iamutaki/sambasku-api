@@ -33,6 +33,7 @@ export type ListAdminCommentsQueryBody = z.infer<typeof listAdminCommentsQuerySc
 const commentDataSchema = z.object({
   id: z.string(),
   word_id: z.string(),
+  word_lemma: z.string().nullable(),
   user_id: z.string(),
   username: z.string().nullable(),
   body: z.string(),

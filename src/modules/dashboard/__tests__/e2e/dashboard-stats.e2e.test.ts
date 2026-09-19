@@ -79,13 +79,13 @@ describe.skipIf(!hasTestDb)('Dashboard Stats E2E', () => {
 
     const stamp = Date.now();
     await post('/api/v1/auth/register', {
-      username: `dshadm${stamp}`,
+      name: `dshadm${stamp}`,
       email: `dshadm${stamp}@test.com`,
       password: 'Password123',
       confirm_password: 'Password123',
     });
     await post('/api/v1/auth/register', {
-      username: `dshkon${stamp}`,
+      name: `dshkon${stamp}`,
       email: `dshkon${stamp}@test.com`,
       password: 'Password123',
       confirm_password: 'Password123',

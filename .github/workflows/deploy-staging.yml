@@ -4,15 +4,15 @@ name: Deploy Staging (Cloudflare Workers)
 # Deploy manual (`pnpm deploy:staging`) tetap tersedia sebagai fallback.
 #
 # Secrets GitHub yang DIBUTUHKAN (Settings → Secrets → Actions):
-#   CLOUDFLARE_API_TOKEN      — dashboard CF → My Profile → API Tokens →
+#   CLOUDFLARE_API_TOKEN      - dashboard CF → My Profile → API Tokens →
 #                               template "Edit Cloudflare Workers"
-#   CLOUDFLARE_ACCOUNT_ID     — 547e27ab971bbd809dfd57626049a131
-#   STAGING_DATABASE_URL_DIRECT — Neon DIRECT URL (?sslmode=require, tanpa -pooler)
+#   CLOUDFLARE_ACCOUNT_ID     - 547e27ab971bbd809dfd57626049a131
+#   STAGING_DATABASE_URL_DIRECT - Neon DIRECT URL (?sslmode=require, tanpa -pooler)
 #
-# Secret Worker (DATABASE_URL pooled, JWT keypair, dst.) TIDAK perlu di CI —
+# Secret Worker (DATABASE_URL pooled, JWT keypair, dst.) TIDAK perlu di CI -
 # `wrangler deploy` mempertahankan secret yang sudah terpasang; [vars]
 # non-secret datang dari wrangler.toml.
-# Catatan keamanan: workflow ini TIDAK memakai konten event GitHub di run: —
+# Catatan keamanan: workflow ini TIDAK memakai konten event GitHub di run: -
 # hanya secrets lewat env: (pola aman anti command-injection).
 
 on:
@@ -77,7 +77,7 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       # Urutan aman (Section 16): skema sinkron SEBELUM app versi baru tayang.
-      # Neon DIRECT URL — DDL tidak lewat pooler.
+      # Neon DIRECT URL - DDL tidak lewat pooler.
       - run: pnpm drizzle-kit migrate
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL_DIRECT }}

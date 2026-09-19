@@ -101,6 +101,13 @@ export interface SearchParams {
   wordType?: string;
   /** filter verifikasi (Section 22) */
   isVerified?: boolean;
+  /**
+   * Filter tayang (panel admin Kata). Publik selalu `true`.
+   * - true  → hanya published
+   * - false → selain published (draft/pending_review/rejected)
+   * - omit  → semua status (belum soft-deleted)
+   */
+  published?: boolean;
 }
 
 export interface CursorPage<T> {
@@ -148,6 +155,25 @@ export interface WordRepository {
     id: string,
     data: { isVerified: boolean; verifiedBy: string; verifiedAt: Date },
   ): Promise<boolean>;
+
+  /**
+   * Flip status tayang: published ↔ draft. Publish juga set is_verified.
+   * Return false kalau kata tidak ditemukan / soft-deleted.
+   */
+  setPublished(
+    id: string,
+    data: { published: boolean; actorId: string },
+  ): Promise<boolean>;
+
+  /**
+   * Tayangkan kata, atau jika sudah ada published dengan lemma sama
+   * (bahasa sama, case-insensitive) → pindahkan meanings ke twin lalu
+   * soft-delete sumber (12-api §8). Return null kalau id tidak ada.
+   */
+  publishOrMergeMeanings(
+    id: string,
+    actorId: string,
+  ): Promise<{ wordId: string; mergedIntoWordId: string | null } | null>;
 
   /**
    * Soft-delete kata (07-api-delete-kata.md): set deleted_at + deleted_by,
@@ -208,6 +234,38 @@ export interface WordRepository {
     },
     actorId: string,
   ): Promise<ExampleMedia>;
+
+  /**
+   * Resolve search-miss sebagai variasi penulisan pada kata existing.
+   * Unique (word_id, form, dialect_id) - dialect null = satu form per kata.
+   */
+  addVariant(
+    wordId: string,
+    data: { form: string; variantType?: string; notes?: string | null },
+    actorId: string,
+  ): Promise<{ id: string; form: string; variantType: string }>;
+
+  /**
+   * Resolve search-miss sebagai sinonim: buat kata published baru (lemma),
+   * salin makna target (inherited_from), relasi synonym dua arah.
+   * searchMissId opsional untuk provenance contributions.
+   */
+  createSynonymWord(
+    targetWordId: string,
+    lemma: string,
+    actorId: string,
+    opts?: { searchMissId?: string | null },
+  ): Promise<{ id: string; lemma: string }>;
+
+  /**
+   * Resolve search-miss arah translation: tambah terjemahan pada makna
+   * pertama kata (atau meaningId bila diberi).
+   */
+  addTranslation(
+    wordId: string,
+    data: { languageId: string; translationText: string; meaningId?: string },
+    actorId: string,
+  ): Promise<{ meaningId: string; languageId: string; translationText: string }>;
 }
 
 /** Entitas konten anak hasil kontribusi media (03 doc) */

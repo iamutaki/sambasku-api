@@ -54,7 +54,7 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 - kontribusi pronounce/gambar/con
       ['kon', `kon${stamp}@test.com`, 'contributor'],
     ] as const) {
       await post('/api/v1/auth/register', {
-        username: `${prefix}${stamp}`,
+        name: `${prefix}${stamp}`,
         email,
         password: 'Password123',
         confirm_password: 'Password123',

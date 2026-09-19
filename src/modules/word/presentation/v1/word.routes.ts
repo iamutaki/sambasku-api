@@ -11,6 +11,7 @@ import type { WordController } from './word.controller';
 import {
   createWordResponseSchema,
   createWordSchema,
+  adminListWordsQuerySchema,
   searchWordsQuerySchema,
   wordDetailResponseSchema,
   wordListResponseSchema,
@@ -31,6 +32,7 @@ export interface WordRoutesDeps {
 }
 
 // POST /api/v1/admin/words - authenticate + authorizeRole + rate limit 30/menit
+// GET  /api/v1/admin/words - list panel Kata (tabs tayang)
 export function createAdminWordRoutes(deps: WordRoutesDeps) {
   const routes = createOpenApiApp();
 
@@ -49,6 +51,19 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
     }),
   );
 
+  const listAdminWordsRoute = createRoute({
+    method: 'get',
+    path: '/',
+    tags: ['Words', 'Admin'],
+    summary: 'List kata panel admin - filter tayang (published true|false|all)',
+    request: { query: adminListWordsQuerySchema },
+    responses: {
+      200: { description: 'Daftar kata (cursor)', content: json(wordListResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+    },
+  });
+
   const createWordRoute = createRoute({
     method: 'post',
     path: '/',
@@ -63,6 +78,7 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
     },
   });
 
+  routes.openapi(listAdminWordsRoute, (c) => deps.controller.listAdmin(c, c.req.valid('query')) as never);
   routes.openapi(createWordRoute, (c) => deps.controller.create(c, c.req.valid('json')) as never);
 
   // Edit kata (05-api-edit-kata.md) - verifier team saja: perubahan
@@ -172,6 +188,41 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
 
   routes.openapi(verifyRoute, (c) => deps.controller.verify(c, c.req.param('id'), true) as never);
   routes.openapi(unverifyRoute, (c) => deps.controller.verify(c, c.req.param('id'), false) as never);
+
+  // Publikasikan / tarik tayang (status published ↔ draft)
+  routes.use('/:id/publish', deps.authenticate, authorizeRole('admin', 'root', 'reviewer'), rateLimit({ points: 500, duration: 60 }));
+  routes.use('/:id/unpublish', deps.authenticate, authorizeRole('admin', 'root', 'reviewer'), rateLimit({ points: 500, duration: 60 }));
+
+  const publishRoute = createRoute({
+    method: 'post',
+    path: '/:id/publish',
+    tags: ['Words', 'Admin'],
+    summary: 'Publikasikan kata (status → published, is_verified → true)',
+    request: { params: z.object({ id: z.string().length(26) }) },
+    responses: {
+      200: { description: 'Kata ditayangkan', content: { 'application/json': { schema: okNullResponseSchema } } },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Bukan verifikator (admin/root/reviewer)', content: json(errorResponseSchema) },
+      404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
+  const unpublishRoute = createRoute({
+    method: 'post',
+    path: '/:id/unpublish',
+    tags: ['Words', 'Admin'],
+    summary: 'Tarik kata dari tayang (status → draft)',
+    request: { params: z.object({ id: z.string().length(26) }) },
+    responses: {
+      200: { description: 'Kata ditarik dari tayang', content: { 'application/json': { schema: okNullResponseSchema } } },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Bukan verifikator', content: json(errorResponseSchema) },
+      404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
+  routes.openapi(publishRoute, (c) => deps.controller.publish(c, c.req.param('id'), true) as never);
+  routes.openapi(unpublishRoute, (c) => deps.controller.publish(c, c.req.param('id'), false) as never);
 
   return routes;
 }

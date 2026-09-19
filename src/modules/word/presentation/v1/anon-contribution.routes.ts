@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { createOpenApiApp } from '@/shared/openapi/openapi-app';
 import { errorResponseSchema } from '@/shared/openapi/error-response.schema';
 import type { WordController } from './word.controller';
-import { createWordBodySchema, createWordResponseSchema } from './validators/create-word.validator';
+import {
+  createWordBodySchema,
+  createWordResponseSchema,
+  variantRootRefine,
+} from './validators/create-word.validator';
 
 const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
@@ -14,8 +18,12 @@ export interface WordRoutesDeps {
 }
 
 // Body anonim = create-word TANPA field status (dipaksa 'published' =
-// kirim untuk direview; draft milik anonim tidak bermakna)
-const anonWordSchema = createWordBodySchema.omit({ status: true });
+// kirim untuk direview; draft milik anonim tidak bermakna).
+// Aturan variasi root (≠ lemma) diterapkan setelah .omit karena refine
+// memutus .omit (11-api-variasi-penulisan.md).
+const anonWordSchema = createWordBodySchema
+  .omit({ status: true })
+  .superRefine(variantRootRefine);
 
 // POST /api/v1/contributions/words - submit kata TANPA LOGIN
 // (03-api-kontribusi-verifikasi.md). Atribusi ke user sistem Anonim,

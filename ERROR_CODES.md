@@ -16,13 +16,21 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `WORD_NOT_FOUND` | 404 | Kata tidak ditemukan by id (modul word - belum implement) |
 | `MEANING_NOT_FOUND` | 404 | Makna tidak ditemukan by id (kontribusi contoh kalimat) |
 | `CONTRIBUTION_NOT_FOUND` | 404 | Kontribusi tidak ditemukan by id (antrean review) |
-| `SEARCH_MISS_NOT_FOUND` | 404 | Pencarian kosong tidak ditemukan by id (dismiss panel admin) |
+| `SEARCH_MISS_NOT_FOUND` | 404 | Pencarian kosong tidak ditemukan by id (dismiss / create-from-miss / update / resolve) |
+| `SEARCH_MISS_TERM_MISMATCH` | 400 | Body create kata tidak cocok term miss (soft-check provenance 12-api) |
+| `SEARCH_MISS_TERM_CONFLICT` | 409 | Koreksi term bentrok unique (term, direction) dengan miss lain (14-api) |
+| `WORD_VARIANT_CONFLICT` | 409 | Resolve-as-variant: form sudah ada pada kata target |
+| `WORD_LEMMA_CONFLICT` | 409 | Resolve-as-synonym: lemma miss sudah dipakai kata lain |
+| `TRANSLATION_CONFLICT` | 409 | Resolve-as-translation: teks terjemahan sudah ada pada makna |
 | `VOTE_TARGET_NOT_FOUND` | 404 | Target vote tidak ditemukan / sudah di-soft-delete (word, makna, contoh, pelafalan, gambar, komentar) |
 | `COMMENT_NOT_FOUND` | 404 | Komentar tidak ditemukan by id (hapus / moderasi) |
 | `COMMENT_ALREADY_REVIEWED` | 409 | Komentar sudah punya keputusan moderasi (approve/reject race) |
 | `EMAIL_ALREADY_EXISTS` | 409 | Registrasi dengan email yang sudah dipakai |
-| `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan username yang sudah dipakai |
+| `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan nama (username) yang sudah dipakai |
+| `PHONE_ALREADY_EXISTS` | 409 | Registrasi dengan nomor HP yang sudah dipakai |
 | `CONTRIBUTION_ALREADY_REVIEWED` | 409 | Kontribusi sudah punya keputusan (approve/reject/correct) |
 | `RATE_LIMITED` | 429 | Terlalu banyak percobaan (lihat tabel limit di api-base-stack.md Section 15) |
 | `INTERNAL_ERROR` | 500 | Error tak terduga (bug, koneksi DB putus, dst) |
 | `IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider penyimpanan gambar belum dikonfigurasi (env `IMAGEKIT_*`) |
+| `LEMMA_DEFINITION_PROVIDER_ERROR` | 502 | Provider KBBI gagal (timeout, non-OK, payload tak terparse) |
+| `LEMMA_DEFINITION_PROVIDER_UNAVAILABLE` | 503 | Provider KBBI dinonaktifkan (`KBBI_PROVIDER=none` / `RAF555_BASE_URL=""`) |

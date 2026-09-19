@@ -35,6 +35,8 @@ export interface Vote {
 export interface AdminVoteListItem extends Vote {
   voterUsername: string;
   voterEmail: string;
+  /** Label manusiawi target (body komentar / lemma / dst). Null jika target hilang. */
+  targetPreview: string | null;
 }
 
 export interface AdminVoteCursor {
@@ -64,13 +66,14 @@ export interface AdminTopVoteTarget {
   upvotes: number;
   downvotes: number;
   net: number;
+  targetPreview: string | null;
 }
 
 const ADMIN_CURSOR_SEP = ':';
 
 /**
  * Encode compound cursor (created_at, id) ke base64url string.
- * Pure function (no framework) — aman re-export di domain.
+ * Pure function (no framework) - aman re-export di domain.
  */
 export function encodeAdminCursor(c: AdminVoteCursor): string {
   return Buffer.from(`${c.createdAt.toISOString()}${ADMIN_CURSOR_SEP}${c.id}`).toString('base64url');

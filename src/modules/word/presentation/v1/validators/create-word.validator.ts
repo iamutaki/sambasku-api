@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryBooleanSchema } from '@/shared/validation/query-boolean';
 
 export const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
 
@@ -7,6 +8,77 @@ export const wordStatusSchema = z.enum(['draft', 'pending_review', 'published', 
 
 export const relationTypeSchema = z.enum(['synonym', 'antonym', 'has_component', 'derived_from']);
 export const wordTypeSchema = z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']);
+
+// 11-api-variasi-penulisan.md - item variasi dipakai createWordBodySchema
+// DAN inlineWordSchema (Form B sinonim). Aturan item + dedup antar-item
+// pusat di sini supaya semua pintu masuk (create/update/anon/correct)
+// mewarisinya lewat schema murni.
+const wordVariantItemSchema = z
+  .object({
+    form: z.string().trim().min(1, 'Bentuk turunan tidak boleh kosong').max(255),
+    variant_type: z
+      .enum(['inflection', 'derivation', 'alternative', 'reduplication'])
+      .default('alternative'),
+    affix_type: z.enum(['prefix', 'suffix', 'circumfix', 'reduplication']).optional(),
+    affix_value: z.string().trim().max(50).optional(),
+    dialect_id: ulid.optional(),
+    notes: z.string().max(1000).optional(),
+  })
+  .refine((v) => !v.affix_type || !!v.affix_value, {
+    message: 'affix_value wajib diisi bila affix_type ada',
+    path: ['affix_value'],
+  })
+  // Ejaan alternatif (variasi penulisan, mis. ketek → ketex/kettek/kete')
+  // tidak bermorfolgi - afiks milik inflection/derivation
+  .refine((v) => v.variant_type !== 'alternative' || (!v.affix_type && !v.affix_value), {
+    message: 'Ejaan alternatif tidak memakai afiks - gunakan tipe inflection/derivation',
+    path: ['affix_type'],
+  });
+
+const wordVariantsField = z
+  .array(wordVariantItemSchema)
+  .max(20, 'Maksimal 20 bentuk turunan per kata')
+  // Dedup (form + dialek) antar-item - unique DB tak menutup duplikat
+  // saat dialect_id NULL (Postgres: NULL ≠ NULL)
+  .superRefine((items, ctx) => {
+    const seen = new Set<string>();
+    items.forEach((v, n) => {
+      const key = `${v.form.trim().toLowerCase()}|${v.dialect_id ?? ''}`;
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [n, 'form'],
+          message: 'Variasi duplikat (form + dialek sama) dalam satu request',
+        });
+      }
+      seen.add(key);
+    });
+  })
+  .optional();
+
+/**
+ * Aturan variasi yang butuh konteks ROOT (perbandingan vs lemma induk).
+ * Tidak bisa tinggal di createWordBodySchema karena turunannya memakai
+ * `.omit()` (zod: refine memutus .omit) - jadi diekspor dan diterapkan
+ * di SETIAP schema turunan (create, update, anon, correct).
+ */
+export function variantRootRefine(
+  d: { lemma: string; variants?: Array<{ form: string }> | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  const variants = d.variants;
+  if (!variants?.length) return;
+  const parentLemma = d.lemma.trim().toLowerCase();
+  variants.forEach((v, n) => {
+    if (v.form.trim().toLowerCase() === parentLemma) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['variants', n, 'form'],
+        message: 'Bentuk sama persis dengan lemma - tidak perlu dicatat sebagai variasi',
+      });
+    }
+  });
+}
 
 // 04-api-sinonim-inline.md - override satu-per-satu atas makna hasil salinan.
 // indeks 0-based mengacu makna INDUK; field yang tidak disebut tetap asli.
@@ -88,26 +160,7 @@ const inlineWordSchema = z
       )
       .min(1, 'Minimal harus ada 1 makna')
       .optional(),
-    variants: z
-      .array(
-        z
-          .object({
-            form: z.string().trim().min(1, 'Bentuk turunan tidak boleh kosong').max(255),
-            variant_type: z
-              .enum(['inflection', 'derivation', 'alternative', 'reduplication'])
-              .default('alternative'),
-            affix_type: z.enum(['prefix', 'suffix', 'circumfix', 'reduplication']).optional(),
-            affix_value: z.string().trim().max(50).optional(),
-            dialect_id: ulid.optional(),
-            notes: z.string().max(1000).optional(),
-          })
-          .refine((v) => !v.affix_type || !!v.affix_value, {
-            message: 'affix_value wajib diisi bila affix_type ada',
-            path: ['affix_value'],
-          }),
-      )
-      .max(20, 'Maksimal 20 bentuk turunan per kata')
-      .optional(),
+    variants: wordVariantsField,
     pronunciation: z
       .object({
         notation: z.string().trim().min(1).default('ipa'),
@@ -268,26 +321,7 @@ export const createWordBodySchema = z.object({
         });
       }
     }),
-  variants: z
-    .array(
-      z
-        .object({
-          form: z.string().trim().min(1, 'Bentuk turunan tidak boleh kosong').max(255),
-          variant_type: z
-            .enum(['inflection', 'derivation', 'alternative', 'reduplication'])
-            .default('alternative'),
-          affix_type: z.enum(['prefix', 'suffix', 'circumfix', 'reduplication']).optional(),
-          affix_value: z.string().trim().max(50).optional(),
-          dialect_id: ulid.optional(),
-          notes: z.string().max(1000).optional(),
-        })
-        .refine((v) => !v.affix_type || !!v.affix_value, {
-          message: 'affix_value wajib diisi bila affix_type ada',
-          path: ['affix_value'],
-        }),
-    )
-    .max(20, 'Maksimal 20 bentuk turunan per kata')
-    .optional(),
+  variants: wordVariantsField,
   pronunciation: z
     .object({
       notation: z.string().trim().min(1).default('ipa'),
@@ -305,6 +339,8 @@ export const createWordBodySchema = z.object({
     )
     .max(10, 'Maksimal 10 gambar per kata')
     .optional(),
+  // Provenance jalur search-miss (12-api) - opsional
+  search_miss_id: ulid.optional(),
   status: z.enum(['draft', 'published']).default('draft'),
 });
 
@@ -314,6 +350,7 @@ export const createWordSchema = createWordBodySchema
     { message: 'Hanya satu gambar yang boleh is_primary', path: ['images'] },
   )
   .superRefine((d, ctx) => {
+    variantRootRefine(d, ctx); // 11: variasi ≠ lemma induk
     const parentLemma = d.lemma.trim().toLowerCase();
     // has_component hanya untuk entri frasa (aturan silang word_type)
     if (
@@ -380,6 +417,7 @@ export const createWordResponseSchema = z.object({
     status: wordStatusSchema,
     is_verified: z.boolean(),
     created_at: z.string(),
+    search_miss_id: z.string().nullable().optional(),
     warnings: z.array(warningSchema).optional(),
     // 04-api-sinonim-inline.md - hasil tiap kata inline (Form B) yang dibuat,
     // urut sesuai request; hanya muncul saat ada Form B
@@ -506,6 +544,7 @@ export const wordListResponseSchema = z.object({
       word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']),
       status: wordStatusSchema,
       matched_translation: z.string().optional(), // hanya search_in=translation
+      matched_variant: z.string().optional(), // 11: form variasi yang cocok (search_in=lemma)
     }),
   ),
   meta: z.object({
@@ -537,7 +576,19 @@ export const searchWordsQuerySchema = z.object({
   search_in: z.enum(['lemma', 'translation']).default('lemma'),
   translation_language_id: z.string().length(26).optional(),
   word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']).optional(),
-  is_verified: z.coerce.boolean().optional(),
+  is_verified: queryBooleanSchema,
+});
+
+/** GET /api/v1/admin/words - panel Kata (tabs tayang / tidak / semua) */
+export const adminListWordsQuerySchema = z.object({
+  q: z.string().trim().max(255).default(''),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  cursor: z.string().length(26).optional(),
+  word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']).optional(),
+  is_verified: queryBooleanSchema,
+  /** true=tayang, false=tidak tayang, omit=semua */
+  published: queryBooleanSchema,
 });
 
 export type SearchWordsQueryBody = z.infer<typeof searchWordsQuerySchema>;
+export type AdminListWordsQueryBody = z.infer<typeof adminListWordsQuerySchema>;

@@ -5,6 +5,8 @@ export type CommentStatus = 'pending_review' | 'published' | 'rejected';
 export interface Comment {
   id: string;
   wordId: string;
+  /** Lemma kata (JOIN words) - null kalau kata sudah hilang */
+  wordLemma: string | null;
   userId: string;
   username: string | null;
   body: string;

@@ -7,11 +7,12 @@ import type { UpdateWordUseCase } from '../../application/use-cases/update-word.
 import type { GetWordByIdUseCase } from '../../application/use-cases/get-word-by-id.use-case';
 import type { SearchWordsUseCase } from '../../application/use-cases/search-words.use-case';
 import type { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-case';
+import type { PublishWordUseCase } from '../../application/use-cases/publish-word.use-case';
 import type { SoftDeleteWordUseCase } from '../../application/use-cases/soft-delete-word.use-case';
 import type { AddPronunciationUseCase } from '../../application/use-cases/add-pronunciation.use-case';
 import type { AddWordImageUseCase } from '../../application/use-cases/add-word-image.use-case';
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
-import type { CreateWordBody, SearchWordsQueryBody } from './validators/create-word.validator';
+import type { CreateWordBody, SearchWordsQueryBody, AdminListWordsQueryBody } from './validators/create-word.validator';
 import type { UpdateWordBody } from './validators/update-word.validator';
 import type {
   AddExampleBody,
@@ -21,6 +22,7 @@ import type {
 import { toCreateWordDto, toUpdateWordDto } from './map-create-word';
 import { ANONIM_USER_ID } from '@/shared/constants/anonim';
 import type { WordClassSummary, WordDetail } from '../../domain/entities/word.entity';
+import type { ListAdminWordsUseCase } from '../../application/use-cases/list-admin-words.use-case';
 
 export class WordController {
   constructor(
@@ -29,7 +31,9 @@ export class WordController {
       update: UpdateWordUseCase;
       getById: GetWordByIdUseCase;
       search: SearchWordsUseCase;
+      listAdmin: ListAdminWordsUseCase;
       verify: VerifyWordUseCase;
+      publish: PublishWordUseCase;
       deleteWord: SoftDeleteWordUseCase;
       addPronunciation: AddPronunciationUseCase;
       addWordImage: AddWordImageUseCase;
@@ -45,7 +49,7 @@ export class WordController {
     if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
 
-    const { word, warnings, inlineCreatedWords, inlineWarnings } = await this.deps.create.execute(
+    const { word, warnings, inlineCreatedWords, inlineWarnings, searchMissId } = await this.deps.create.execute(
       toCreateWordDto(body, this.deps.imageProviderName),
       { userId: actor.user_id, role: actor.role, requestId },
     );
@@ -72,6 +76,7 @@ export class WordController {
           status: word.status,
           is_verified: word.isVerified,
           created_at: word.createdAt.toISOString(),
+          search_miss_id: searchMissId,
           ...(warnings.length > 0 ? { warnings } : {}),
           ...(inlineCreatedWords.length > 0
             ? {
@@ -240,18 +245,24 @@ export class WordController {
     });
     return c.json({
       success: true as const,
-      data: items.map((w) => ({
-        id: w.id,
-        lemma: w.lemma,
-        language_id: w.languageId,
-        language_code: w.languageCode,
-        word_type: w.wordType,
-        is_verified: w.isVerified,
-        status: w.status,
-        ...(w.matchedTranslation !== undefined
-          ? { matched_translation: w.matchedTranslation }
-          : {}),
-      })),
+      data: items.map(toListItem),
+      meta,
+    });
+  }
+
+  /** Panel admin Kata - filter tayang via tabs (published true|false|all) */
+  async listAdmin(c: Context, query: AdminListWordsQueryBody) {
+    const { items, meta } = await this.deps.listAdmin.execute({
+      q: query.q,
+      limit: query.limit,
+      cursor: query.cursor,
+      wordType: query.word_type,
+      isVerified: query.is_verified,
+      published: query.published,
+    });
+    return c.json({
+      success: true as const,
+      data: items.map(toListItem),
       meta,
     });
   }
@@ -270,6 +281,26 @@ export class WordController {
     return c.json({ success: true as const, data: null });
   }
 
+  async publish(c: Context, id: string, published: boolean) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+
+    const result = await this.deps.publish.execute({
+      wordId: id,
+      published,
+      actorId: actor.user_id,
+      requestId,
+    });
+    return c.json({
+      success: true as const,
+      data: {
+        word_id: result.wordId,
+        merged_into_word_id: result.mergedIntoWordId,
+      },
+    });
+  }
+
   /**
    * Submit kata oleh pengunjung ANONIM (tanpa login) - endpoint publik
    * /api/v1/contributions/words. Reuse use case create yang sama; actor
@@ -280,7 +311,7 @@ export class WordController {
    */
   async createAnon(c: Context, body: Omit<CreateWordBody, 'status'>) {
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
-    const { word, warnings, inlineCreatedWords, inlineWarnings } = await this.deps.create.execute(
+    const { word, warnings, inlineCreatedWords, inlineWarnings, searchMissId } = await this.deps.create.execute(
       toCreateWordDto({ ...body, status: 'published' }, this.deps.imageProviderName),
       { userId: ANONIM_USER_ID, role: 'contributor', requestId },
     );
@@ -295,6 +326,7 @@ export class WordController {
           status: word.status,
           is_verified: word.isVerified,
           created_at: word.createdAt.toISOString(),
+          search_miss_id: searchMissId,
           ...(warnings.length > 0 ? { warnings } : {}),
           ...(inlineCreatedWords.length > 0
             ? {
@@ -458,4 +490,28 @@ export class WordController {
       })),
     });
   }
+}
+
+function toListItem(w: {
+  id: string;
+  lemma: string;
+  languageId: string;
+  languageCode: string;
+  wordType: string;
+  isVerified: boolean;
+  status: string;
+  matchedTranslation?: string;
+  matchedVariant?: string;
+}) {
+  return {
+    id: w.id,
+    lemma: w.lemma,
+    language_id: w.languageId,
+    language_code: w.languageCode,
+    word_type: w.wordType,
+    is_verified: w.isVerified,
+    status: w.status,
+    ...(w.matchedTranslation !== undefined ? { matched_translation: w.matchedTranslation } : {}),
+    ...(w.matchedVariant !== undefined ? { matched_variant: w.matchedVariant } : {}),
+  };
 }

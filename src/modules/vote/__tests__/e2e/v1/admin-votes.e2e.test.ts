@@ -90,10 +90,10 @@ describe.skipIf(!hasTestDb)('Admin Votes E2E v1 - moderasi vote (root/admin/revi
     const stamp = Date.now();
     voter1Name = `vot1${stamp}`;
     voter2Name = `vot2${stamp}`;
-    const register = async (username: string) =>
+    const register = async (name: string) =>
       post('/api/v1/auth/register', {
-        username,
-        email: `${username}@test.com`,
+        name,
+        email: `${name}@test.com`,
         password: 'Password123',
         confirm_password: 'Password123',
       });
@@ -165,6 +165,19 @@ describe.skipIf(!hasTestDb)('Admin Votes E2E v1 - moderasi vote (root/admin/revi
     });
     // NFR-5: response TIDAK pernah mengandung password_hash
     expect(Object.keys(body.data[0]).includes('password_hash')).toBe(false);
+  });
+
+  it('top-targets: 200 + word seed muncul dengan net=2', async () => {
+    const res = await get('/api/v1/admin/votes/top-targets?target_type=word&limit=50', reviewerToken);
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as {
+      success: boolean;
+      data: { target_id: string; upvotes: number; downvotes: number; net: number }[];
+    };
+    expect(body.success).toBe(true);
+    const hit = body.data.find((r) => r.target_id === wordId);
+    expect(hit).toMatchObject({ upvotes: 2, downvotes: 0, net: 2 });
   });
 
   it('delete vote individual → 200 & vote hilang dari list', async () => {

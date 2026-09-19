@@ -33,7 +33,7 @@ describe.skipIf(!hasTestDb)('Image Upload Token E2E', () => {
     await request('/api/v1/auth/register', {
       method: 'POST',
       body: JSON.stringify({
-        username: `imgadm${stamp}`,
+        name: `imgadm${stamp}`,
         email,
         password: 'Password123',
         confirm_password: 'Password123',
