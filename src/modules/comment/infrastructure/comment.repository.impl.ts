@@ -61,6 +61,7 @@ export class CommentRepositoryImpl implements CommentRepository {
   async listAdmin(params: ListAdminCommentsParams): Promise<CursorPage<Comment>> {
     const where = and(
       params.status ? eq(comments.status, params.status) : undefined,
+      params.wordId ? eq(comments.wordId, params.wordId) : undefined,
       isNull(comments.deletedAt),
       params.cursor ? lt(comments.id, params.cursor) : undefined,
     );

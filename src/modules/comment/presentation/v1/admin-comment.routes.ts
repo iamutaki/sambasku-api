@@ -42,7 +42,7 @@ export function createAdminCommentRoutes(deps: AdminCommentRoutesDeps) {
     method: 'get',
     path: '/',
     tags: ['Comments', 'Admin'],
-    summary: 'Antrean moderasi komentar (filter status, default pending_review) - cursor pagination',
+    summary: 'Antrean moderasi komentar (filter status opsional + word_id) - cursor pagination',
     request: { query: listAdminCommentsQuerySchema },
     responses: {
       200: { description: 'Daftar komentar + username + info moderasi', content: json(adminListCommentsResponseSchema) },

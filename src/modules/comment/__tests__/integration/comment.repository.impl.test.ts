@@ -14,6 +14,7 @@ const SMB = ulid26('01TESTLANGSMB');
 const AUTHOR = ulid26('01TESTCMAUTHOR');
 const ADMIN = ulid26('01TESTCMADMIN');
 const WORD = ulid26('01TESTCMWORD');
+const WORD2 = ulid26('01TESTCMWORTWO');
 
 describe.skipIf(!hasTestDb)('CommentRepositoryImpl (integration, 09 doc)', () => {
   const repo = new CommentRepositoryImpl(getTestDb());
@@ -26,7 +27,10 @@ describe.skipIf(!hasTestDb)('CommentRepositoryImpl (integration, 09 doc)', () =>
       { id: AUTHOR, email: 'cmauthor@test.com', username: 'cmauthor' },
       { id: ADMIN, email: 'cmadmin@test.com', username: 'cmadmin' },
     ]);
-    await db.insert(words).values({ id: WORD, languageId: SMB, lemma: 'makatn' });
+    await db.insert(words).values([
+      { id: WORD, languageId: SMB, lemma: 'makatn' },
+      { id: WORD2, languageId: SMB, lemma: 'ngamakn' },
+    ]);
   });
 
   it('listByWord: hanya published & belum terhapus, terbaru dulu, username ter-join', async () => {
@@ -55,6 +59,22 @@ describe.skipIf(!hasTestDb)('CommentRepositoryImpl (integration, 09 doc)', () =>
     const rejected = await repo.listAdmin({ status: 'rejected', limit: 20 });
     expect(rejected.items.map((cm) => cm.body)).toEqual(['a']);
     expect(rejected.items[0].reviewedBy).toBe(ADMIN);
+  });
+
+  it('listAdmin TANPA status = semua status; word_id = hanya komentar kata itu', async () => {
+    const a = await repo.create({ wordId: WORD, userId: AUTHOR, body: 'kata satu' });
+    const b = await repo.create({ wordId: WORD, userId: AUTHOR, body: 'kata satu (2)' });
+    await repo.create({ wordId: WORD2, userId: AUTHOR, body: 'kata lain' });
+    await repo.review(a.id, 'approve', ADMIN);
+    await repo.review(b.id, 'reject', ADMIN);
+
+    // tanpa status: published + rejected + pending semuanya muncul
+    const all = await repo.listAdmin({ limit: 20 });
+    expect(all.items.map((cm) => cm.body).sort()).toEqual(['kata lain', 'kata satu', 'kata satu (2)']);
+
+    // filter per kata (embed detail admin)
+    const ofWord = await repo.listAdmin({ wordId: WORD, limit: 20 });
+    expect(ofWord.items.map((cm) => cm.body).sort()).toEqual(['kata satu', 'kata satu (2)']);
   });
 
   it('review: WHERE status pending - review ganda → false (race 409)', async () => {

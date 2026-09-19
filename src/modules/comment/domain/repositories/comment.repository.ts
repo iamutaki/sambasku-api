@@ -6,7 +6,10 @@ export interface ListCommentsParams {
 }
 
 export interface ListAdminCommentsParams extends ListCommentsParams {
+  /** absen = semua status (embed detail kata); antrean mengirim eksplisit */
   status?: Comment['status'];
+  /** filter komentar satu kata (section "8. Komentar" di detail admin) */
+  wordId?: string;
 }
 
 // Kontrak repository modul comment (09-api-comment.md). Implementasi

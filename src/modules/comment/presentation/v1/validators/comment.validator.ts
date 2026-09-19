@@ -19,7 +19,11 @@ export const listCommentsQuerySchema = z.object({
 export type ListCommentsQueryBody = z.infer<typeof listCommentsQuerySchema>;
 
 export const listAdminCommentsQuerySchema = z.object({
-  status: commentStatusSchema.default('pending_review'),
+  // Optional TANPA default: absen = semua status (embed detail kata);
+  // halaman antrean selalu mengirim status eksplisit (tab).
+  status: commentStatusSchema.optional(),
+  // Filter per kata - untuk section komentar di halaman detail admin
+  word_id: z.string().length(26).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   cursor: z.string().length(26).optional(),
 });

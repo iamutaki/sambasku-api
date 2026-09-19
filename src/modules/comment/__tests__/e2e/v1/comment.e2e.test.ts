@@ -194,4 +194,38 @@ describe.skipIf(!hasTestDb)('Comment E2E v1 - komentar + moderasi (09 doc)', () 
     expect((await del(`/api/v1/comments/${ulid26('01U2ECMNGACAK')}`, adminToken)).status).toBe(404);
     expect((await post(`/api/v1/words/${wordId}/comments`, { body: '' }, contributorToken)).status).toBe(400);
   });
+
+  it('antrean admin: tanpa status = semua; word_id = hanya kata itu (section detail admin)', async () => {
+    // dua kata: wordId (punya komentar dari test sebelumnya) + kata kedua
+    const create2 = await post('/api/v1/admin/words', {
+      language_id: SMB,
+      lemma: 'kata kedua komentar',
+      meanings: [
+        {
+          word_class_id: NOMINA,
+          definition: 'Kata kedua uji word_id filter',
+          order_index: 1,
+          translations: [{ language_id: IDN, translation_text: 'kata kedua', translation_type: 'direct' }],
+        },
+      ],
+      word_type: 'word',
+      category_ids: [MAKANAN],
+      related_words: [],
+      status: 'published',
+    }, adminToken);
+    const wordId2 = ((await create2.json()) as { data: { word_id: string } }).data.word_id;
+    await post(`/api/v1/words/${wordId2}/comments`, { body: 'komentar kata kedua' }, contributorToken);
+
+    // tanpa status: semua status (published/rejected/pending) muncul
+    const all = await get('/api/v1/admin/comments', adminToken);
+    const allBodies = ((await all.json()) as { data: { word_id: string }[] }).data.map((cm) => cm.word_id);
+    expect(allBodies).toContain(wordId);
+    expect(allBodies).toContain(wordId2);
+
+    // word_id: hanya komentar kata itu
+    const ofWord = await get(`/api/v1/admin/comments?word_id=${wordId}`, adminToken);
+    const bodies = ((await ofWord.json()) as { data: { word_id: string }[] }).data.map((cm) => cm.word_id);
+    expect(bodies.every((w) => w === wordId)).toBe(true);
+    expect(bodies.length).toBeGreaterThan(0);
+  });
 });

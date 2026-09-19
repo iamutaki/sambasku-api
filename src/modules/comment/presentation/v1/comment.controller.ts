@@ -73,9 +73,14 @@ export class CommentController {
     return c.json({ success: true as const, data: null });
   }
 
-  /** GET /api/v1/admin/comments - antrean moderasi */
+  /** GET /api/v1/admin/comments - antrean moderasi (filter status/word_id) */
   async listAdmin(c: Context, query: ListAdminCommentsQueryBody) {
-    const page = await this.deps.listAdmin.execute(query);
+    const page = await this.deps.listAdmin.execute({
+      status: query.status,
+      wordId: query.word_id,
+      limit: query.limit,
+      cursor: query.cursor,
+    });
     return c.json({
       success: true as const,
       data: page.items.map((cm) => ({
