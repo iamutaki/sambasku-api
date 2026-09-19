@@ -23,6 +23,7 @@ import { LogoutUserUseCase } from '@/modules/auth/application/use-cases/logout-u
 import { LogoutAllDevicesUseCase } from '@/modules/auth/application/use-cases/logout-all-devices.use-case';
 import { ForgotPasswordUseCase } from '@/modules/auth/application/use-cases/forgot-password.use-case';
 import { ResetPasswordUseCase } from '@/modules/auth/application/use-cases/reset-password.use-case';
+import { ChangePasswordUseCase } from '@/modules/auth/application/use-cases/change-password.use-case';
 import { AuthController } from '@/modules/auth/presentation/v1/auth.controller';
 import { createAuthRoutes } from '@/modules/auth/presentation/v1/auth.routes';
 import { ListAdminUsersUseCase } from '@/modules/auth/application/use-cases/list-admin-users.use-case';
@@ -149,6 +150,7 @@ const controller = new AuthController({
   logoutAll: new LogoutAllDevicesUseCase(refreshTokenRepo),
   forgot: new ForgotPasswordUseCase(userRepo, resetTokenRepo, mailer, `${env.APP_URL}/reset-password`),
   reset: new ResetPasswordUseCase(resetTokenRepo, userRepo, hasher, auditRepo, refreshTokenRepo),
+  changePassword: new ChangePasswordUseCase(userRepo, hasher, auditRepo, refreshTokenRepo),
 });
 
 const authenticate = createAuthenticateMiddleware((token) => tokenService.verifyAccessToken(token));

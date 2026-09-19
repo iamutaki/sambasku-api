@@ -10,6 +10,7 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `UNAUTHORIZED` | 401 | Token tidak ada/invalid, atau refresh token tidak valid |
 | `TOKEN_EXPIRED` | 401 | Access token kadaluarsa |
 | `RESET_TOKEN_INVALID` | 401 | Token reset password tidak valid, kadaluarsa, atau sudah dipakai |
+| `OAUTH_NO_PASSWORD` | 400 | Ubah password pada akun tanpa password (OAuth-only) - arahkan ke lupa password |
 | `FORBIDDEN` | 403 | Role tidak diizinkan akses endpoint |
 | `NOT_FOUND` | 404 | Route/endpoint tidak ditemukan (via `app.notFound`) |
 | `WORD_NOT_FOUND` | 404 | Kata tidak ditemukan by id (modul word - belum implement) |

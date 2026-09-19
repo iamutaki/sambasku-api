@@ -15,6 +15,7 @@ import {
 import { registerSchema, registerResponseSchema } from './validators/register.validator';
 import { forgotPasswordSchema, forgotPasswordResponseSchema } from './validators/forgot-password.validator';
 import { resetPasswordSchema, resetPasswordResponseSchema } from './validators/reset-password.validator';
+import { changePasswordSchema, changePasswordResponseSchema } from './validators/change-password.validator';
 
 export interface AuthRoutesDeps {
   controller: AuthController;
@@ -29,6 +30,13 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   authRoutes.use('/login', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
   authRoutes.use('/forgot-password', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
   authRoutes.use('/logout-all-devices', deps.authenticate);
+  // authenticate HARUS duluan supaya c.get('user') terisi untuk keyFn
+  // rate limit (10-api-ubah-password.md): 5/15 menit per user_id
+  authRoutes.use(
+    '/change-password',
+    deps.authenticate,
+    rateLimit({ points: 5, duration: 900, keyFn: (c) => `change-password:${c.get('user')?.user_id}` }),
+  );
 
   // Generic supaya tipe schema tetap ter-infer oleh createRoute (c.req.valid tetap typed)
   const json = <T extends z.ZodType>(schema: T) => ({
@@ -120,6 +128,23 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     },
   });
 
+  const changePasswordRoute = createRoute({
+    method: 'post',
+    path: '/change-password',
+    tags: ['Auth'],
+    summary: 'Ubah password sendiri (login) - semua session direvoke, wajib login ulang',
+    request: { body: { content: json(changePasswordSchema) } },
+    responses: {
+      200: { description: 'Password berhasil diubah', content: json(changePasswordResponseSchema) },
+      400: {
+        description: 'Body tidak valid / akun OAuth-only / password baru sama dengan lama',
+        content: json(errorResponseSchema),
+      },
+      401: { description: 'Token tidak ada/invalid atau password lama salah', content: json(errorResponseSchema) },
+      429: { description: 'Terlalu banyak percobaan (5/15 menit per user)', content: json(errorResponseSchema) },
+    },
+  });
+
   // ponytail: cast `as never` - controller memakai Context generik (untuk cookie),
   // jadi status literal tidak ter-infer; bentuk response dicek e2e test + schema validator
   authRoutes.openapi(registerRoute, (c) => deps.controller.register(c, c.req.valid('json')) as never);
@@ -129,6 +154,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   authRoutes.openapi(logoutAllRoute, (c) => deps.controller.logoutAll(c) as never);
   authRoutes.openapi(forgotPasswordRoute, (c) => deps.controller.forgot(c, c.req.valid('json')) as never);
   authRoutes.openapi(resetPasswordRoute, (c) => deps.controller.reset(c, c.req.valid('json')) as never);
+  authRoutes.openapi(changePasswordRoute, (c) => deps.controller.changePassword(c, c.req.valid('json')) as never);
 
   return authRoutes;
 }

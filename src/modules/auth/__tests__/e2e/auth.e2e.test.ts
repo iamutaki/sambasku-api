@@ -173,4 +173,108 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     const res2 = await client.api.v1.auth.refresh.$post({ json: { refresh_token: oldToken } });
     expect(res2.status).toBe(401);
   });
+
+  // ---- POST /api/v1/auth/change-password (10-api-ubah-password.md) ----
+  // Rate limit 5/15 menit per user_id - setiap test pakai user segar.
+  const loginMobile = async (email: string, password: string) => {
+    const res = await client.api.v1.auth.login.$post(
+      { json: { email, password, client_type: 'mobile' } },
+      { headers: xff() },
+    );
+    return { status: res.status, body: await res.json() };
+  };
+
+  const changePassword = (body: unknown, token?: string) =>
+    app.request('/api/v1/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...xff(),
+      },
+    });
+
+  it('change-password: sukses → refresh lama mati, login password baru sukses', async () => {
+    const email = unique();
+    await register(email);
+    const login = await loginMobile(email, 'Password123');
+    expect(login.status).toBe(200);
+    const { access_token: token, refresh_token: oldRefresh } = login.body.data;
+
+    const res = await changePassword(
+      {
+        old_password: 'Password123',
+        new_password: 'PasswordBaru123',
+        confirm_password: 'PasswordBaru123',
+      },
+      token,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      success: true,
+      data: { message: 'Password berhasil diubah. Silakan login kembali.' },
+    });
+
+    // Semua session ter-revoke: refresh token lama ditolak
+    const refreshRes = await client.api.v1.auth.refresh.$post({ json: { refresh_token: oldRefresh } });
+    expect(refreshRes.status).toBe(401);
+
+    // Login dengan password BARU sukses, password lama ditolak
+    expect((await loginMobile(email, 'PasswordBaru123')).status).toBe(200);
+    expect((await loginMobile(email, 'Password123')).status).toBe(401);
+  });
+
+  it('change-password: password lama salah → 401 INVALID_CREDENTIALS', async () => {
+    const email = unique();
+    await register(email);
+    const login = await loginMobile(email, 'Password123');
+
+    const res = await changePassword(
+      {
+        old_password: 'PasswordSalah1',
+        new_password: 'PasswordBaru123',
+        confirm_password: 'PasswordBaru123',
+      },
+      login.body.data.access_token,
+    );
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error_code: 'INVALID_CREDENTIALS', message: 'Password lama salah' });
+  });
+
+  it('change-password: validasi (lemah / confirm beda / sama dengan lama) → 400', async () => {
+    const email = unique();
+    await register(email);
+    const login = await loginMobile(email, 'Password123');
+    const token = login.body.data.access_token;
+
+    const weak = await changePassword(
+      { old_password: 'Password123', new_password: 'pendek', confirm_password: 'pendek' },
+      token,
+    );
+    expect(weak.status).toBe(400);
+
+    const mismatch = await changePassword(
+      { old_password: 'Password123', new_password: 'PasswordBaru123', confirm_password: 'BedaSekali123' },
+      token,
+    );
+    expect(mismatch.status).toBe(400);
+    const mismatchBody = await mismatch.json();
+    expect(mismatchBody.error_code).toBe('VALIDATION_ERROR');
+
+    const sameAsOld = await changePassword(
+      { old_password: 'Password123', new_password: 'Password123', confirm_password: 'Password123' },
+      token,
+    );
+    expect(sameAsOld.status).toBe(400);
+  });
+
+  it('change-password: tanpa token → 401', async () => {
+    const res = await changePassword({
+      old_password: 'Password123',
+      new_password: 'PasswordBaru123',
+      confirm_password: 'PasswordBaru123',
+    });
+    expect(res.status).toBe(401);
+  });
 });

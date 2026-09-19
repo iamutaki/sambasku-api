@@ -10,10 +10,12 @@ import type { LogoutUserUseCase } from '../../application/use-cases/logout-user.
 import type { LogoutAllDevicesUseCase } from '../../application/use-cases/logout-all-devices.use-case';
 import type { ForgotPasswordUseCase } from '../../application/use-cases/forgot-password.use-case';
 import type { ResetPasswordUseCase } from '../../application/use-cases/reset-password.use-case';
+import type { ChangePasswordUseCase } from '../../application/use-cases/change-password.use-case';
 import type { RegisterBody } from './validators/register.validator';
 import type { LoginBody } from './validators/login.validator';
 import type { ForgotPasswordBody } from './validators/forgot-password.validator';
 import type { ResetPasswordBody } from './validators/reset-password.validator';
+import type { ChangePasswordBody } from './validators/change-password.validator';
 
 const REFRESH_TOKEN_COOKIE = 'refresh_token';
 const COOKIE_PATH = '/api/v1/auth'; // cookie hanya dikirim ke endpoint auth
@@ -28,6 +30,7 @@ export class AuthController {
       logoutAll: LogoutAllDevicesUseCase;
       forgot: ForgotPasswordUseCase;
       reset: ResetPasswordUseCase;
+      changePassword: ChangePasswordUseCase;
     },
   ) {}
 
@@ -126,6 +129,26 @@ export class AuthController {
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
     await this.deps.reset.execute({ token: body.token, newPassword: body.new_password }, requestId);
     return c.json({ success: true as const, data: { message: 'Password berhasil direset' } });
+  }
+
+  async changePassword(c: Context, body: ChangePasswordBody) {
+    // user_id SELALU dari token (bukan body) - user hanya bisa mengganti
+    // password sendiri. Semua session di-revoke use case; client wajib
+    // clear sesi lokal + redirect ke login.
+    const typed = c as Context<{ Variables: AppVariables }>;
+    const user = typed.get('user');
+    if (!user) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = typed.get('requestId');
+
+    await this.deps.changePassword.execute(
+      { oldPassword: body.old_password, newPassword: body.new_password },
+      user.user_id,
+      requestId,
+    );
+    return c.json({
+      success: true as const,
+      data: { message: 'Password berhasil diubah. Silakan login kembali.' },
+    });
   }
 
   private setRefreshCookie(c: Context, token: string) {
