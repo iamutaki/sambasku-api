@@ -17,6 +17,79 @@ export interface ToggleVoteResult extends VoteCounts {
   myVote: 1 | -1 | null;
 }
 
+/**
+ * Entity Vote dasar (schema tabel votes, 08-api-upvote-downvote.md).
+ * Vote mati = hard delete (TIDAK ada deleted_at).
+ */
+export interface Vote {
+  id: string;
+  userId: string;
+  entityType: VoteTargetType;
+  entityId: string;
+  value: 1 | -1;
+  createdAt: Date;
+  updatedAt: Date | null;
+}
+
+/** Item hasil join listAdmin votes + users (preview voter, tanpa password_hash). */
+export interface AdminVoteListItem extends Vote {
+  voterUsername: string;
+  voterEmail: string;
+}
+
+export interface AdminVoteCursor {
+  createdAt: Date;
+  id: string;
+}
+
+export interface AdminVoteListFilter {
+  q?: string;
+  entityType?: VoteTargetType;
+  value?: 1 | -1;
+  targetId?: string;
+}
+
+export interface AdminVoteListResult {
+  items: AdminVoteListItem[];
+  meta: {
+    limit: number;
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
+}
+
+export interface AdminTopVoteTarget {
+  entityType: VoteTargetType;
+  entityId: string;
+  upvotes: number;
+  downvotes: number;
+  net: number;
+}
+
+const ADMIN_CURSOR_SEP = ':';
+
+/**
+ * Encode compound cursor (created_at, id) ke base64url string.
+ * Pure function (no framework) — aman re-export di domain.
+ */
+export function encodeAdminCursor(c: AdminVoteCursor): string {
+  return Buffer.from(`${c.createdAt.toISOString()}${ADMIN_CURSOR_SEP}${c.id}`).toString('base64url');
+}
+
+/**
+ * Decode cursor string ke AdminVoteCursor.
+ * Domain TIDAK mengimport NotFoundError (lempar generic Error saja).
+ * Presentation / Use Case layer yang wrap ke NotFoundError ber-code.
+ */
+export function decodeAdminCursor(s: string): AdminVoteCursor {
+  const raw = Buffer.from(s, 'base64url').toString();
+  const [iso, id] = raw.split(ADMIN_CURSOR_SEP);
+  if (!iso || !id) throw new Error('INVALID_CURSOR_FORMAT');
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) throw new Error('INVALID_CURSOR_DATE');
+  return { createdAt: d, id };
+}
+
 export interface VoteRepository {
   /**
    * Cek target ada & belum soft-deleted (per tabel by PK). TIDAK memfilter
@@ -41,4 +114,33 @@ export interface VoteRepository {
 
   /** Vote milik user untuk target batch - hanya target yang dipilih user. */
   findUserVotes(userId: string, targets: VoteTarget[]): Promise<Map<string, 1 | -1>>;
+
+  /**
+   * List vote admin cursor pagination compound (created_at, id) desc.
+   * Join users (username, email) filter deleted_at users IS NULL.
+   * ILIKE username/email untuk `q`. LIMIT+1 has_more detection.
+   */
+  listAdmin(
+    filter: AdminVoteListFilter,
+    limit: number,
+    cursor: AdminVoteCursor | null,
+  ): Promise<AdminVoteListResult>;
+
+  /**
+   * Hard delete satu vote by PK. NotFoundError jika 0 rows.
+   * Vote tidak punya soft delete (schema KEPUTUSAN semantic: baris hilang).
+   */
+  deleteById(id: string): Promise<void>;
+
+  /**
+   * Hard delete SEMUA vote untuk target (spam brigading recovery).
+   * Return count baris yang dihapus (0 = target tidak punya vote).
+   */
+  resetTarget(target: VoteTarget): Promise<number>;
+
+  /**
+   * Top target terurut skor bersih (net = sum(value)) desc.
+   * GROUP BY (entity_type, entity_id). Filter entity_type exact match.
+   */
+  getTopTargets(entityType: VoteTargetType, limit: number): Promise<AdminTopVoteTarget[]>;
 }

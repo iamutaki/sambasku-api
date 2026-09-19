@@ -25,6 +25,10 @@ import { ForgotPasswordUseCase } from '@/modules/auth/application/use-cases/forg
 import { ResetPasswordUseCase } from '@/modules/auth/application/use-cases/reset-password.use-case';
 import { AuthController } from '@/modules/auth/presentation/v1/auth.controller';
 import { createAuthRoutes } from '@/modules/auth/presentation/v1/auth.routes';
+import { ListAdminUsersUseCase } from '@/modules/auth/application/use-cases/list-admin-users.use-case';
+import { UpdateUserRoleUseCase } from '@/modules/auth/application/use-cases/update-user-role.use-case';
+import { AdminUsersController } from '@/modules/auth/presentation/v1/admin-user.controller';
+import { createAdminUserRoutes } from '@/modules/auth/presentation/v1/admin-user.routes';
 import { WordRepositoryImpl } from '@/modules/word/infrastructure/word.repository.impl';
 import { CreateWordUseCase } from '@/modules/word/application/use-cases/create-word.use-case';
 import { UpdateWordUseCase } from '@/modules/word/application/use-cases/update-word.use-case';
@@ -91,6 +95,12 @@ import { GetVoteCountsUseCase } from '@/modules/vote/application/use-cases/get-v
 import { GetMyVotesUseCase } from '@/modules/vote/application/use-cases/get-my-votes.use-case';
 import { VoteController } from '@/modules/vote/presentation/v1/vote.controller';
 import { createVoteRoutes } from '@/modules/vote/presentation/v1/vote.routes';
+import { AdminVotesController } from '@/modules/vote/presentation/v1/admin-vote.controller';
+import { createAdminVoteRoutes } from '@/modules/vote/presentation/v1/admin-vote.routes';
+import { ListAdminVotesUseCase } from '@/modules/vote/application/use-cases/list-admin-votes.use-case';
+import { DeleteAdminVoteUseCase } from '@/modules/vote/application/use-cases/delete-admin-vote.use-case';
+import { ResetTargetVotesUseCase } from '@/modules/vote/application/use-cases/reset-target-votes.use-case';
+import { GetTopTargetVotesUseCase } from '@/modules/vote/application/use-cases/get-top-target-votes.use-case';
 import { CommentRepositoryImpl } from '@/modules/comment/infrastructure/comment.repository.impl';
 import { CreateCommentUseCase } from '@/modules/comment/application/use-cases/create-comment.use-case';
 import { ListWordCommentsUseCase } from '@/modules/comment/application/use-cases/list-word-comments.use-case';
@@ -200,6 +210,15 @@ const voteController = new VoteController({
   toggle: new ToggleVoteUseCase(voteRepo),
   counts: new GetVoteCountsUseCase(voteRepo),
   myVotes: new GetMyVotesUseCase(voteRepo),
+});
+
+// Panel moderasi vote (hapus vote spam + reset massal anti-brigading) -
+// role root/admin/reviewer, audit trail best-effort di use case.
+const adminVotesController = new AdminVotesController({
+  list: new ListAdminVotesUseCase(voteRepo),
+  deleteById: new DeleteAdminVoteUseCase(voteRepo, auditRepo),
+  resetTarget: new ResetTargetVotesUseCase(voteRepo, auditRepo),
+  topTargets: new GetTopTargetVotesUseCase(voteRepo),
 });
 
 // ---- Modul dashboard - statistik agregat halaman admin (kata, kontribusi,
@@ -337,6 +356,10 @@ app.route('/api/v1/votes', createVoteRoutes({ controller: voteController, authen
 app.route('/api/v1/comments', createCommentRoutes({ controller: commentController, authenticate }));
 app.route('/api/v1/admin/comments', createAdminCommentRoutes({ controller: commentController, authenticate }));
 
+// Moderasi vote (hapus vote spam individual + reset massal per target),
+// gate role + rate limit ada di routes factory (root/admin/reviewer)
+app.route('/api/v1/admin/votes', createAdminVoteRoutes({ controller: adminVotesController, authenticate }));
+
 // Antrean review kontribusi - hanya verifikator (Section 22)
 app.route('/api/v1/admin/contributions', createContributionRoutes({ controller: contributionController, authenticate }));
 
@@ -369,6 +392,13 @@ app.route('/api/v1/admin/images/upload-token', createImageRoutes({ controller: i
 
 // Statistik dashboard - semua role yang login (dashboard = halaman pertama konsol)
 app.route('/api/v1/admin/dashboard', createDashboardRoutes({ controller: dashboardController, authenticate }));
+
+// ---- Admin users (Package A): list user + ubah role, hanya admin & root ----
+const adminUsersController = new AdminUsersController({
+  list: new ListAdminUsersUseCase(userRepo),
+  updateRole: new UpdateUserRoleUseCase(userRepo, refreshTokenRepo, auditRepo),
+});
+app.route('/api/v1/admin/users', createAdminUserRoutes({ controller: adminUsersController, authenticate }));
 
 // OpenAPI spec + Scalar docs (api-base-stack.md Section 9)
 app.doc('/openapi.json', {

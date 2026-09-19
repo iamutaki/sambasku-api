@@ -36,7 +36,22 @@ export class UnauthorizedError extends AppError {
 
 export class ForbiddenError extends AppError {
   statusCode = 403;
-  errorCode = 'FORBIDDEN';
+  errorCode: string;
+  // errorCode bisa dioverride: CANNOT_CHANGE_ROOT, CANNOT_CHANGE_SELF_ROLE, dll
+  constructor(errorCode = 'FORBIDDEN', message = 'Tidak diizinkan') {
+    super(message);
+    this.errorCode = errorCode;
+  }
+}
+
+export class BadRequestError extends AppError {
+  statusCode = 400;
+  errorCode: string;
+  // errorCode bisa dioverride untuk kode spesifik: INVALID_ROLE, dll
+  constructor(errorCode = 'BAD_REQUEST', message = 'Permintaan tidak valid') {
+    super(message);
+    this.errorCode = errorCode;
+  }
 }
 
 export class ConflictError extends AppError {

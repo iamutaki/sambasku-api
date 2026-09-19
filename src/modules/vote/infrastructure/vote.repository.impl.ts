@@ -1,21 +1,30 @@
-import { and, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   comments,
   examples,
   meanings,
   pronunciations,
+  users,
   votes,
   wordImages,
   words,
 } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
+import { NotFoundError } from '@/shared/errors/app-error';
 import type {
+  AdminVoteCursor,
+  AdminVoteListFilter,
+  AdminVoteListResult,
+  AdminVoteListItem,
+  AdminTopVoteTarget,
   ToggleVoteResult,
   VoteCounts,
   VoteRepository,
   VoteTarget,
+  VoteTargetType,
 } from '../domain/repositories/vote.repository';
+import { encodeAdminCursor } from '../domain/repositories/vote.repository';
 
 export const voteTargetKey = (t: VoteTarget): string => `${t.entityType}:${t.entityId}`;
 
@@ -170,5 +179,106 @@ export class VoteRepositoryImpl implements VoteRepository {
       result.set(`${row.entityType}:${row.entityId}`, row.value === 1 ? 1 : -1);
     }
     return result;
+  }
+
+  async listAdmin(
+    filter: AdminVoteListFilter,
+    limit: number,
+    cursor: AdminVoteCursor | null,
+  ): Promise<AdminVoteListResult> {
+    const rows = await this.db
+      .select({
+        id: votes.id,
+        userId: votes.userId,
+        voterUsername: users.username,
+        voterEmail: users.email,
+        entityType: votes.entityType,
+        entityId: votes.entityId,
+        value: votes.value,
+        createdAt: votes.createdAt,
+        updatedAt: votes.updatedAt,
+      })
+      .from(votes)
+      .innerJoin(users, eq(users.id, votes.userId))
+      .where(
+        and(
+          isNull(users.deletedAt),
+          filter.entityType ? eq(votes.entityType, filter.entityType) : undefined,
+          filter.value !== undefined ? eq(votes.value, filter.value) : undefined,
+          filter.targetId ? eq(votes.entityId, filter.targetId) : undefined,
+          filter.q
+            ? or(
+                sql`${users.username} ILIKE ${`%${filter.q}%`}`,
+                sql`${users.email} ILIKE ${`%${filter.q}%`}`,
+              )
+            : undefined,
+          cursor
+            ? lt(sql`(${votes.createdAt}, ${votes.id})`, sql`(${cursor.createdAt}, ${cursor.id})`)
+            : undefined,
+        ),
+      )
+      .orderBy(desc(votes.createdAt), desc(votes.id))
+      .limit(limit + 1);
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
+    const nextCursor: string | null = last && hasMore ? encodeAdminCursor({ createdAt: last.createdAt, id: last.id }) : null;
+
+    const items: AdminVoteListItem[] = page.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      voterUsername: row.voterUsername,
+      voterEmail: row.voterEmail,
+      entityType: row.entityType as VoteTargetType,
+      entityId: row.entityId,
+      value: row.value === 1 ? 1 : -1,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
+
+    return {
+      items,
+      meta: { limit, nextCursor, hasMore },
+    };
+  }
+
+  async deleteById(id: string): Promise<void> {
+    const result = await this.db.delete(votes).where(eq(votes.id, id));
+    const affected = Number(result.rowCount ?? 0);
+    if (affected === 0) {
+      throw new NotFoundError('VOTE_NOT_FOUND', 'Vote tidak ditemukan');
+    }
+  }
+
+  async resetTarget(target: VoteTarget): Promise<number> {
+    const result = await this.db
+      .delete(votes)
+      .where(and(eq(votes.entityType, target.entityType), eq(votes.entityId, target.entityId)));
+    return Number(result.rowCount ?? 0);
+  }
+
+  async getTopTargets(entityType: VoteTargetType, limit: number): Promise<AdminTopVoteTarget[]> {
+    const rows = await this.db
+      .select({
+        entityType: votes.entityType,
+        entityId: votes.entityId,
+        upvotes: sql<number>`count(*) filter (where ${votes.value} = 1)`.mapWith(Number),
+        downvotes: sql<number>`count(*) filter (where ${votes.value} = -1)`.mapWith(Number),
+        net: sql<number>`coalesce(sum(${votes.value}), 0)`.mapWith(Number),
+      })
+      .from(votes)
+      .where(eq(votes.entityType, entityType))
+      .groupBy(votes.entityType, votes.entityId)
+      .orderBy(desc(sql`net`))
+      .limit(limit);
+
+    return rows.map((r) => ({
+      entityType: r.entityType as VoteTargetType,
+      entityId: r.entityId,
+      upvotes: r.upvotes,
+      downvotes: r.downvotes,
+      net: r.net,
+    }));
   }
 }
