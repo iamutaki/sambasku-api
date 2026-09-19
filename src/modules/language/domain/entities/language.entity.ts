@@ -12,4 +12,6 @@ export interface Dialect {
   code: string;
   name: string;
   isActive: boolean;
+  /** True = pilihan default form (biasanya code=umum). */
+  isDefault: boolean;
 }

@@ -38,6 +38,7 @@ export class LanguageController {
         code: d.code,
         name: d.name,
         is_active: d.isActive,
+        is_default: d.isDefault,
       })),
     });
   }

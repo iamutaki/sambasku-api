@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { dialects, languages } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
@@ -34,13 +34,14 @@ export class LanguageRepositoryImpl implements LanguageRepository {
           activeOnly ? eq(dialects.isActive, true) : undefined,
         ),
       )
-      .orderBy(asc(dialects.name));
+      .orderBy(desc(dialects.isDefault), asc(dialects.name));
     return rows.map((r) => ({
       id: r.id,
       languageId: r.languageId,
       code: r.code,
       name: r.name,
       isActive: r.isActive,
+      isDefault: r.isDefault,
     }));
   }
 }

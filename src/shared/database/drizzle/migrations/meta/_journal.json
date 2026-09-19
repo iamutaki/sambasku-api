@@ -127,6 +127,13 @@
       "when": 1789849056768,
       "tag": "0017_bookmarks",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789850000000,
+      "tag": "0018_dialects-is-default",
+      "breakpoints": true
     }
   ]
 }

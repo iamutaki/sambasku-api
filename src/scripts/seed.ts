@@ -31,9 +31,9 @@ const SEED_LANGUAGES = [
 ] as const;
 
 const SEED_DIALECTS = [
-  { languageCode: 'SBS', code: 'umum', name: 'Umum' },
-  { languageCode: 'SBS', code: 'kota', name: 'Sambas Kota' },
-  { languageCode: 'SBS', code: 'pesisir', name: 'Sambas Pesisir' },
+  { languageCode: 'SBS', code: 'umum', name: 'Umum', isDefault: true },
+  { languageCode: 'SBS', code: 'kota', name: 'Sambas Kota', isDefault: false },
+  { languageCode: 'SBS', code: 'pesisir', name: 'Sambas Pesisir', isDefault: false },
 ] as const;
 
 // Kelas kata lengkap (KBBI-aligned) + alias nama umum + keterangan.
@@ -128,8 +128,17 @@ async function main() {
   for (const d of SEED_DIALECTS) {
     await db
       .insert(dialects)
-      .values({ languageId: smbLanguage!.id, code: d.code, name: d.name })
-      .onConflictDoNothing();
+      .values({
+        languageId: smbLanguage!.id,
+        code: d.code,
+        name: d.name,
+        isDefault: d.isDefault,
+      })
+      .onConflictDoUpdate({
+        // Unique (language_id, code) — sync is_default saat re-seed
+        target: [dialects.languageId, dialects.code],
+        set: { name: d.name, isDefault: d.isDefault, updatedAt: new Date() },
+      });
   }
   for (const wc of SEED_WORD_CLASSES) {
     await db

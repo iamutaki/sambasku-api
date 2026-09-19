@@ -30,6 +30,7 @@ export const dialectListResponseSchema = z.object({
       code: z.string(),
       name: z.string(),
       is_active: z.boolean(),
+      is_default: z.boolean(),
     }),
   ),
 });

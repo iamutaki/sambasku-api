@@ -14,6 +14,8 @@ export const dialects = pgTable(
     name: varchar('name', { length: 100 }).notNull(),
     description: varchar('description', { length: 500 }),
     isActive: boolean('is_active').notNull().default(true),
+    /** Satu default per language (biasanya code=umum) — UI auto-select. */
+    isDefault: boolean('is_default').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at'),
     deletedAt: timestamp('deleted_at'),
