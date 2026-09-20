@@ -183,6 +183,13 @@
       "when": 1789916761,
       "tag": "0025_words-lemma-az-index",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789920000000,
+      "tag": "0026_device-tokens",
+      "breakpoints": true
     }
   ]
 }

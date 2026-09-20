@@ -46,6 +46,13 @@ const envSchema = z.object({
   RAF555_BASE_URL: z.string().optional(), // default https://kbbi.raf555.dev di factory
   LEMMA_DEFINITION_CACHE_TTL_SECONDS: z.coerce.number().default(3600),
 
+  // Firebase Cloud Messaging (opsional). Tanpa ketiganya → push no-op.
+  // Private key PEM: di Workers lewat `wrangler secret put FIREBASE_PRIVATE_KEY`
+  // (boleh pakai \\n untuk newline).
+  FIREBASE_PROJECT_ID: z.string().optional(),
+  FIREBASE_CLIENT_EMAIL: z.string().optional(),
+  FIREBASE_PRIVATE_KEY: z.string().optional(),
+
   APP_URL: z.url().default('http://localhost:5173'), // basis link reset password
 });
 

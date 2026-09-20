@@ -115,6 +115,7 @@ export class CorrectContributionUseCase {
         entityType: contrib.entityType,
         entityId: contrib.entityId,
         status: 'pending',
+        contributorUserId: contrib.userId,
       };
     }
 

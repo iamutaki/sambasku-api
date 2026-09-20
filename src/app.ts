@@ -129,6 +129,13 @@ import { ToggleBookmarkUseCase } from '@/modules/bookmark/application/use-cases/
 import { GetMyBookmarksUseCase } from '@/modules/bookmark/application/use-cases/get-my-bookmarks.use-case';
 import { BookmarkController } from '@/modules/bookmark/presentation/v1/bookmark.controller';
 import { createBookmarkRoutes } from '@/modules/bookmark/presentation/v1/bookmark.routes';
+import { DeviceTokenRepositoryImpl } from '@/modules/device/infrastructure/device-token.repository.impl';
+import { RegisterDeviceTokenUseCase } from '@/modules/device/application/use-cases/register-device-token.use-case';
+import { RevokeDeviceTokenUseCase } from '@/modules/device/application/use-cases/revoke-device-token.use-case';
+import { NotifyUserUseCase } from '@/modules/device/application/use-cases/notify-user.use-case';
+import { createPushSender } from '@/modules/device/infrastructure/push-sender.factory';
+import { DeviceController } from '@/modules/device/presentation/v1/device.controller';
+import { createDeviceRoutes } from '@/modules/device/presentation/v1/device.routes';
 import { createLemmaDefinitionProviderRegistry } from '@/modules/lemma-definition/infrastructure/lemma-definition-provider.factory';
 import { LookupLemmaDefinitionUseCase } from '@/modules/lemma-definition/application/use-cases/lookup-lemma-definition.use-case';
 import { LemmaDefinitionController } from '@/modules/lemma-definition/presentation/v1/lemma-definition.controller';
@@ -138,6 +145,9 @@ import { createLemmaDefinitionRoutes } from '@/modules/lemma-definition/presenta
 const userRepo = new UserRepositoryImpl(db);
 const refreshTokenRepo = new RefreshTokenRepositoryImpl(db);
 const resetTokenRepo = new PasswordResetTokenRepositoryImpl(db);
+const deviceTokenRepo = new DeviceTokenRepositoryImpl(db);
+const pushSender = createPushSender();
+const notifyUser = new NotifyUserUseCase(deviceTokenRepo, pushSender);
 const tokenService = new JwtTokenService({
   privateKeyPem: env.JWT_PRIVATE_KEY,
   publicKeyPem: env.JWT_PUBLIC_KEY,
@@ -169,7 +179,7 @@ const controller = new AuthController({
     env.JWT_REFRESH_TOKEN_TTL,
   ),
   logout: new LogoutUserUseCase(refreshTokenRepo),
-  logoutAll: new LogoutAllDevicesUseCase(refreshTokenRepo),
+  logoutAll: new LogoutAllDevicesUseCase(refreshTokenRepo, deviceTokenRepo),
   forgot: new ForgotPasswordUseCase(userRepo, resetTokenRepo, mailer, `${env.APP_URL}/reset-password`),
   reset: new ResetPasswordUseCase(resetTokenRepo, userRepo, hasher, auditRepo, refreshTokenRepo),
   changePassword: new ChangePasswordUseCase(userRepo, hasher, auditRepo, refreshTokenRepo),
@@ -210,7 +220,7 @@ const contributionRepo = new ContributionRepositoryImpl(db);
 const contributionController = new ContributionController({
   list: new ListContributionsUseCase(contributionRepo),
   getDetail: new GetContributionDetailUseCase(contributionRepo, wordRepo),
-  review: new ReviewContributionUseCase(contributionRepo, auditRepo),
+  review: new ReviewContributionUseCase(contributionRepo, auditRepo, notifyUser),
   correct: new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo),
   imageProviderName: imageStorage.providerName,
 });
@@ -283,6 +293,12 @@ const bookmarkRepo = new BookmarkRepositoryImpl(db);
 const bookmarkController = new BookmarkController({
   toggle: new ToggleBookmarkUseCase(bookmarkRepo),
   my: new GetMyBookmarksUseCase(bookmarkRepo),
+});
+
+// ---- Modul device (FCM token register/revoke, multi-device) ----
+const deviceController = new DeviceController({
+  register: new RegisterDeviceTokenUseCase(deviceTokenRepo),
+  revoke: new RevokeDeviceTokenUseCase(deviceTokenRepo),
 });
 
 // ---- Modul word-suggestions (usul perubahan kata) ----
@@ -415,6 +431,7 @@ app.route('/api/v1/comments', createCommentRoutes({ controller: commentControlle
 // Bookmark kata per user (16-api-bookmark.md) - toggle + my (login, semua
 // role). Tanpa prefix bentrok, urutan mount bebas.
 app.route('/api/v1/bookmarks', createBookmarkRoutes({ controller: bookmarkController, authenticate }));
+app.route('/api/v1/device', createDeviceRoutes({ controller: deviceController, authenticate }));
 app.route('/api/v1/admin/comments', createAdminCommentRoutes({ controller: commentController, authenticate }));
 
 // Moderasi vote (hapus vote spam individual + reset massal per target),

@@ -39,6 +39,7 @@ function makeDeps() {
       entityType: 'word',
       entityId: '01WORDULID000000000000000',
       status: decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'corrected',
+      contributorUserId: '01CONTRIBUTORULID0000000000',
     })),
     applyChildCorrection: vi.fn().mockResolvedValue(undefined),
   } as unknown as ContributionRepository;
@@ -57,7 +58,12 @@ function makeDeps() {
 describe('ReviewContributionUseCase', () => {
   it('approve → panggil review + audit action approve', async () => {
     const { contributionRepo, auditRepo } = makeDeps();
-    const useCase = new ReviewContributionUseCase(contributionRepo, auditRepo as unknown as AuditLogRepository);
+    const notifyUser = { execute: vi.fn().mockResolvedValue(undefined) };
+    const useCase = new ReviewContributionUseCase(
+      contributionRepo,
+      auditRepo as unknown as AuditLogRepository,
+      notifyUser as never,
+    );
     const outcome = await useCase.execute({
       contributionId: '01CONTRIBULID0000000000000',
       decision: 'approve',
@@ -72,6 +78,30 @@ describe('ReviewContributionUseCase', () => {
     expect(auditRepo.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'approve', entityType: 'word', requestId: 'req-1' }),
     );
+    expect(notifyUser.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: '01CONTRIBUTORULID0000000000',
+        title: 'Kontribusi disetujui',
+        data: expect.objectContaining({ type: 'contribution_approved' }),
+      }),
+    );
+  });
+
+  it('reject → tidak kirim push notifikasi', async () => {
+    const { contributionRepo, auditRepo } = makeDeps();
+    const notifyUser = { execute: vi.fn().mockResolvedValue(undefined) };
+    const useCase = new ReviewContributionUseCase(
+      contributionRepo,
+      auditRepo as unknown as AuditLogRepository,
+      notifyUser as never,
+    );
+    await useCase.execute({
+      contributionId: '01CONTRIBULID0000000000000',
+      decision: 'reject',
+      comment: 'kurang lengkap',
+      actorId: ACTOR.userId,
+    });
+    expect(notifyUser.execute).not.toHaveBeenCalled();
   });
 
   it('reject tanpa comment → VALIDATION_ERROR field comment (domain rule)', async () => {

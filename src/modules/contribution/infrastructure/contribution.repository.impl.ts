@@ -386,6 +386,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
         entityType,
         entityId,
         status,
+        contributorUserId: contrib.userId,
         ...(mergedIntoWordId ? { mergedIntoWordId } : {}),
       };
     });

@@ -1,5 +1,6 @@
 import { ValidationError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
+import type { NotifyUserUseCase } from '@/modules/device/application/use-cases/notify-user.use-case';
 import type { ReviewOutcome } from '../../domain/entities/contribution.entity';
 import type { ContributionRepository } from '../../domain/repositories/contribution.repository';
 
@@ -15,10 +16,12 @@ export interface ReviewContributionCommand {
 // Verifikator (admin/root/reviewer) menyetujui / menolak kontribusi
 // (03-api-kontribusi-verifikasi.md). Role check ada di route; use case
 // murni keputusan + audit. 404/409 dilempar repository DI DALAM transaksi.
+// Setelah approve: push FCM best-effort ke kontributor (multi-device).
 export class ReviewContributionUseCase {
   constructor(
     private readonly contributionRepo: ContributionRepository,
     private readonly auditRepo: AuditLogRepository,
+    private readonly notifyUser?: NotifyUserUseCase,
   ) {}
 
   async execute(cmd: ReviewContributionCommand): Promise<ReviewOutcome> {
@@ -41,6 +44,20 @@ export class ReviewContributionUseCase {
       newData: { contribution_id: outcome.contributionId, status: outcome.status, comment: cmd.comment },
       requestId: cmd.requestId ?? null,
     });
+
+    if (cmd.decision === 'approve' && this.notifyUser) {
+      void this.notifyUser.execute({
+        userId: outcome.contributorUserId,
+        title: 'Kontribusi disetujui',
+        body: 'Usulan Anda telah disetujui dan dipublikasikan.',
+        data: {
+          type: 'contribution_approved',
+          contribution_id: outcome.contributionId,
+          entity_type: outcome.entityType,
+          entity_id: outcome.entityId,
+        },
+      });
+    }
 
     return outcome;
   }

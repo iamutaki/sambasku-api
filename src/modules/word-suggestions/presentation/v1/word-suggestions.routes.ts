@@ -62,8 +62,10 @@ export function createWordHistoryRoutes(deps: WordSuggestionRoutesDeps) {
 export function createWordSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
   const routes = createOpenApiApp();
 
+  // Path harus sama dengan route. `use('/')` di Hono hanya match `/`,
+  // bukan `/:id/suggest-edit` — auth terlewat, user_id jadi '' lalu FK gagal.
   routes.use(
-    '/',
+    '/:id/suggest-edit',
     deps.authenticate,
     authorizeRole('admin', 'editor', 'contributor', 'root', 'reviewer'),
     rateLimit({
@@ -97,7 +99,7 @@ export function createWordSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
   routes.openapi(createSuggestionRoute, ((c: any) => {
     const { id: wordId } = c.req.param();
     const body = c.req.valid('json');
-    const user = (c.get('user') as AuthUser) ?? { user_id: '' };
+    const user = c.get('user') as AuthUser;
     return deps.controller.createSuggestion(c, body, user.user_id, wordId);
   }) as never);
 
@@ -108,8 +110,7 @@ export function createWordSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
 export function createAdminSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
   const routes = createOpenApiApp();
 
-  routes.use(
-    '/',
+  const adminGuard = [
     deps.authenticate,
     authorizeRole('admin', 'root', 'reviewer'),
     rateLimit({
@@ -120,7 +121,14 @@ export function createAdminSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
         return `admin-suggestion:${user?.user_id ?? c.req.header('x-forwarded-for') ?? 'unknown'}`;
       },
     }),
-  );
+  ] as const;
+  // Sama seperti contribution.routes: setiap path didaftarkan eksplisit.
+  // `use('/')` tidak melindungi `/word-suggestions` atau subpath-nya.
+  routes.use('/word-suggestions', ...adminGuard);
+  routes.use('/word-suggestions/:id', ...adminGuard);
+  routes.use('/word-suggestions/:id/approve', ...adminGuard);
+  routes.use('/word-suggestions/:id/reject', ...adminGuard);
+  routes.use('/word-suggestions/:id/correct', ...adminGuard);
 
   const listRoute = createRoute({
     method: 'get',
@@ -176,7 +184,7 @@ export function createAdminSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
   routes.openapi(approveRoute, ((c: any) => {
     const { id } = c.req.param();
     const body = c.req.valid('json');
-    const user = (c.get('user') as AuthUser) ?? { user_id: '' };
+    const user = c.get('user') as AuthUser;
     return deps.controller.approveSuggestion(c, id, user.user_id, body.comment);
   }) as never);
 
@@ -200,7 +208,7 @@ export function createAdminSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
   routes.openapi(rejectRoute, ((c: any) => {
     const { id } = c.req.param();
     const body = c.req.valid('json');
-    const user = (c.get('user') as AuthUser) ?? { user_id: '' };
+    const user = c.get('user') as AuthUser;
     return deps.controller.rejectSuggestion(c, id, user.user_id, body.comment);
   }) as never);
 
@@ -245,7 +253,7 @@ export function createAdminSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
   routes.openapi(correctRoute, ((c: any) => {
     const { id } = c.req.param();
     const body = c.req.valid('json');
-    const user = (c.get('user') as AuthUser) ?? { user_id: '' };
+    const user = c.get('user') as AuthUser;
     return deps.controller.correctSuggestion(
       c,
       id,
