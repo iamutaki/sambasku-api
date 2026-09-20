@@ -117,6 +117,35 @@ export interface CursorPage<T> {
   hasMore: boolean;
 }
 
+// 18-api-list-words.md - browsing A-Z publik. Cursor komposit (lemma, id):
+// lemma tidak unik, id wajib tie-breaker. BEDA bentuk dari ULID tunggal
+// search() - client memperlakukan cursor sebagai opaque.
+export interface ListAtoZParams {
+  q: string;
+  limit: number;
+  wordType?: string;
+  cursor?: { lemma: string; id: string };
+}
+
+const LIST_CURSOR_SEP = '\x00';
+
+/** Encode compound cursor (lemma, id) ke base64url string. Pure function. */
+export function encodeListCursor(c: { lemma: string; id: string }): string {
+  return Buffer.from(`${c.lemma}${LIST_CURSOR_SEP}${c.id}`).toString('base64url');
+}
+
+/**
+ * Decode cursor string ke (lemma, id). Domain melempar generic Error saja
+ * (pola decodeAdminCursor vote) - use case yang wrap ke ValidationError.
+ */
+export function decodeListCursor(s: string): { lemma: string; id: string } {
+  const parts = Buffer.from(s, 'base64url').toString().split(LIST_CURSOR_SEP);
+  if (parts.length !== 2 || !parts[0] || parts[1].length !== 26) {
+    throw new Error('INVALID_CURSOR_FORMAT');
+  }
+  return { lemma: parts[0], id: parts[1] };
+}
+
 // Kontrak repository modul word - implementasi Drizzle di infrastructure/.
 // saveWithRelations & saveWithInlineRelations DIJAMIN atomik (satu
 // db.transaction) - use case tidak perlu tahu soal transaction
@@ -145,6 +174,14 @@ export interface WordRepository {
    *  Dipakai correct-contribution (modul contribution) & update admin (menyusul) */
   updateWithRelations(id: string, word: WordToSave, actorId: string): Promise<Word | null>;
   search(params: SearchParams): Promise<CursorPage<WordSummary>>;
+  /**
+   * 18-api-list-words.md: daftar semua kata published urut lemma ASC, id ASC
+   * (browsing A-Z, BUKAN pencarian). q = filter ILIKE %q% pada lemma saja -
+   * tanpa variasi penulisan, tanpa rekaman search-miss. published +
+   * deleted_at IS NULL dijamin di sini (endpoint publik, bukan opsional).
+   * nextCursor sudah ter-encode (impl memanggil encodeListCursor).
+   */
+  listAtoZ(params: ListAtoZParams): Promise<CursorPage<WordSummary>>;
   findMissingReferences(refs: ReferenceCheck): Promise<MissingReferences>;
   /** data referensi dropdown kelas kata (hierarki parent) */
   listWordClasses(): Promise<WordClassSummary[]>;

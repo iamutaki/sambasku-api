@@ -36,6 +36,7 @@ import { UpdateWordUseCase } from '@/modules/word/application/use-cases/update-w
 import { GetWordByIdUseCase } from '@/modules/word/application/use-cases/get-word-by-id.use-case';
 import { SearchWordsUseCase } from '@/modules/word/application/use-cases/search-words.use-case';
 import { ListAdminWordsUseCase } from '@/modules/word/application/use-cases/list-admin-words.use-case';
+import { ListWordsUseCase } from '@/modules/word/application/use-cases/list-words.use-case';
 import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-word.use-case';
 import { PublishWordUseCase } from '@/modules/word/application/use-cases/publish-word.use-case';
 import { SoftDeleteWordUseCase } from '@/modules/word/application/use-cases/soft-delete-word.use-case';
@@ -190,6 +191,7 @@ const wordController = new WordController({
   getById: new GetWordByIdUseCase(wordRepo),
   search: new SearchWordsUseCase(wordRepo, searchMissRepo),
   listAdmin: new ListAdminWordsUseCase(wordRepo),
+  list: new ListWordsUseCase(wordRepo),
   verify: new VerifyWordUseCase(wordRepo, auditRepo),
   publish: new PublishWordUseCase(wordRepo, auditRepo),
   deleteWord: new SoftDeleteWordUseCase(wordRepo, auditRepo),

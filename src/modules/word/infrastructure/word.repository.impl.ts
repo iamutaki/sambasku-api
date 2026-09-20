@@ -27,6 +27,7 @@ import type {
   CursorPage,
   ExampleMedia,
   InlineCreatedWordSummary,
+  ListAtoZParams,
   MissingReferences,
   PronunciationMedia,
   ReferenceCheck,
@@ -37,6 +38,7 @@ import type {
   WordRepository,
   WordToSave,
 } from '../domain/repositories/word.repository';
+import { encodeListCursor } from '../domain/repositories/word.repository';
 import type { CreateWordRelatedDto } from '../application/dto/create-word.dto';
 
 const FOREIGN_KEY_VIOLATION = '23503';
@@ -653,6 +655,57 @@ export class WordRepositoryImpl implements WordRepository {
     return {
       items: page,
       nextCursor: hasMore && page.length > 0 ? page[page.length - 1].id : null,
+      hasMore,
+    };
+  }
+
+  // 18-api-list-words.md - browsing A-Z: keyset komposit (lemma, id),
+  // BUKAN ulang search() yang ORDER BY id DESC. Row comparison Postgres
+  // tertolak index words_lemma_id_idx; id wajib tie-breaker karena lemma
+  // tidak unik. q = filter ILIKE lemma saja (tanpa word_variants).
+  async listAtoZ(params: ListAtoZParams): Promise<CursorPage<WordSummary>> {
+    const where = and(
+      isNull(words.deletedAt),
+      // Endpoint publik - selalu published (bukan opsional seperti search())
+      eq(words.status, 'published'),
+      params.q ? ilike(words.lemma, `%${escapeLike(params.q.trim())}%`) : undefined,
+      params.wordType ? eq(words.wordType, params.wordType) : undefined,
+      params.cursor
+        ? sql`(${words.lemma}, ${words.id}) > (${params.cursor.lemma}, ${params.cursor.id})`
+        : undefined,
+    );
+
+    const rows = await this.db
+      .select({
+        id: words.id,
+        lemma: words.lemma,
+        languageId: words.languageId,
+        languageCode: languages.code,
+        wordType: words.wordType,
+        isVerified: words.isVerified,
+        status: words.status,
+      })
+      .from(words)
+      .innerJoin(languages, eq(words.languageId, languages.id))
+      .where(where)
+      .orderBy(asc(words.lemma), asc(words.id))
+      .limit(params.limit + 1);
+
+    const hasMore = rows.length > params.limit;
+    const page: WordSummary[] = (hasMore ? rows.slice(0, params.limit) : rows).map((r) => ({
+      id: r.id,
+      lemma: r.lemma,
+      languageId: r.languageId,
+      languageCode: r.languageCode,
+      wordType: r.wordType as Word['wordType'],
+      isVerified: r.isVerified,
+      status: r.status as WordStatus,
+    }));
+
+    const last = page[page.length - 1];
+    return {
+      items: page,
+      nextCursor: hasMore && last ? encodeListCursor({ lemma: last.lemma, id: last.id }) : null,
       hasMore,
     };
   }

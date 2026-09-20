@@ -591,5 +591,16 @@ export const adminListWordsQuerySchema = z.object({
   published: queryBooleanSchema,
 });
 
+/** GET /api/v1/words - daftar semua kata A-Z publik (18-api-list-words.md) */
+export const listWordsQuerySchema = z.object({
+  q: z.string().trim().max(255).default(''),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  // OPAQUE base64url komposit (lemma, id) - BEDA dari ULID search; jangan
+  // share validator length(26)
+  cursor: z.string().optional(),
+  word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']).optional(),
+});
+
 export type SearchWordsQueryBody = z.infer<typeof searchWordsQuerySchema>;
 export type AdminListWordsQueryBody = z.infer<typeof adminListWordsQuerySchema>;
+export type ListWordsQueryBody = z.infer<typeof listWordsQuerySchema>;

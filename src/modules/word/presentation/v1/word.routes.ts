@@ -12,6 +12,7 @@ import {
   createWordResponseSchema,
   createWordSchema,
   adminListWordsQuerySchema,
+  listWordsQuerySchema,
   searchWordsQuerySchema,
   wordDetailResponseSchema,
   wordListResponseSchema,
@@ -227,11 +228,25 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
   return routes;
 }
 
-// GET /api/v1/words/:id + /search - publik, rate limit 100/menit per IP
+// GET /api/v1/words + /search + /:id - publik, rate limit 100/menit per IP
 export function createPublicWordRoutes(deps: WordRoutesDeps) {
   const routes = createOpenApiApp();
 
   routes.use('*', rateLimit({ points: 100, duration: 60 }));
+
+  // 18-api-list-words.md: daftar semua kata A-Z (browsing, bukan pencarian).
+  // Literal '/' didaftarkan SEBELUM '/:id' (pola '/search').
+  const listWordsRoute = createRoute({
+    method: 'get',
+    path: '/',
+    tags: ['Words'],
+    summary: 'Daftar semua kata A-Z (browsing publik) - cursor komposit + filter q',
+    request: { query: listWordsQuerySchema },
+    responses: {
+      200: { description: 'Daftar kata urut lemma', content: json(wordListResponseSchema) },
+      400: { description: 'Query tidak valid', content: json(errorResponseSchema) },
+    },
+  });
 
   const wordDetailRoute = createRoute({
     method: 'get',
@@ -259,6 +274,7 @@ export function createPublicWordRoutes(deps: WordRoutesDeps) {
     },
   });
 
+  routes.openapi(listWordsRoute, (c) => deps.controller.list(c, c.req.valid('query')) as never);
   routes.openapi(searchWordsRoute, (c) => deps.controller.search(c, c.req.valid('query')) as never);
   routes.openapi(wordDetailRoute, (c) => deps.controller.detail(c, c.req.param('id')) as never);
 

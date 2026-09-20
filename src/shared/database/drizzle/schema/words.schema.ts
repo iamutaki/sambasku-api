@@ -35,5 +35,10 @@ export const words = pgTable(
     deletedAt: timestamp('deleted_at'),
     deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
   },
-  (t) => [index('words_language_lemma_idx').on(t.languageId, t.lemma)],
+  (t) => [
+    index('words_language_lemma_idx').on(t.languageId, t.lemma),
+    // 18-api-list-words.md: keyset A-Z (lemma ASC, id ASC) - id wajib
+    // tie-breaker karena lemma tidak unik
+    index('words_lemma_id_idx').on(t.lemma, t.id),
+  ],
 );

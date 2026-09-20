@@ -162,6 +162,13 @@
       "when": 1789854000000,
       "tag": "0022_meanings-is-have-translation",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789913015802,
+      "tag": "0023_words-lemma-id-index",
+      "breakpoints": true
     }
   ]
 }

@@ -13,7 +13,12 @@ import type { AddPronunciationUseCase } from '../../application/use-cases/add-pr
 import type { AddWordImageUseCase } from '../../application/use-cases/add-word-image.use-case';
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
 import type { AddMeaningUseCase } from '../../application/use-cases/add-meaning.use-case';
-import type { CreateWordBody, SearchWordsQueryBody, AdminListWordsQueryBody } from './validators/create-word.validator';
+import type {
+  CreateWordBody,
+  SearchWordsQueryBody,
+  AdminListWordsQueryBody,
+  ListWordsQueryBody,
+} from './validators/create-word.validator';
 import type { UpdateWordBody } from './validators/update-word.validator';
 import type {
   AddExampleBody,
@@ -25,6 +30,7 @@ import { toCreateWordDto, toUpdateWordDto } from './map-create-word';
 import { ANONIM_USER_ID } from '@/shared/constants/anonim';
 import type { WordClassSummary, WordDetail } from '../../domain/entities/word.entity';
 import type { ListAdminWordsUseCase } from '../../application/use-cases/list-admin-words.use-case';
+import type { ListWordsUseCase } from '../../application/use-cases/list-words.use-case';
 
 export class WordController {
   constructor(
@@ -34,6 +40,7 @@ export class WordController {
       getById: GetWordByIdUseCase;
       search: SearchWordsUseCase;
       listAdmin: ListAdminWordsUseCase;
+      list: ListWordsUseCase;
       verify: VerifyWordUseCase;
       publish: PublishWordUseCase;
       deleteWord: SoftDeleteWordUseCase;
@@ -265,6 +272,21 @@ export class WordController {
       wordType: query.word_type,
       isVerified: query.is_verified,
       published: query.published,
+    });
+    return c.json({
+      success: true as const,
+      data: items.map(toListItem),
+      meta,
+    });
+  }
+
+  /** 18-api-list-words.md - browsing A-Z publik (tanpa search-miss) */
+  async list(c: Context, query: ListWordsQueryBody) {
+    const { items, meta } = await this.deps.list.execute({
+      q: query.q,
+      limit: query.limit,
+      cursor: query.cursor,
+      wordType: query.word_type,
     });
     return c.json({
       success: true as const,

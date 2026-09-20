@@ -2,6 +2,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type * as schema from './schema';
 import {
   auditLogs,
+  authIdentities,
   bookmarks,
   categories,
   comments,
@@ -21,6 +22,7 @@ import {
   votes,
   wordCategories,
   wordClasses,
+  wordEditSuggestions,
   wordImages,
   wordVariants,
   words,
@@ -33,6 +35,7 @@ export async function truncateAll(db: NodePgDatabase<typeof schema>): Promise<vo
     auditLogs,
     contributionReviews,
     contributions,
+    wordEditSuggestions,
     votes,
     comments,
     bookmarks,
@@ -42,6 +45,7 @@ export async function truncateAll(db: NodePgDatabase<typeof schema>): Promise<vo
     meaningTranslations,
     passwordResetTokens,
     refreshTokens,
+    authIdentities,
     searchMisses,
     wordCategories,
     wordImages,

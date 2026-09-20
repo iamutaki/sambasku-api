@@ -18,6 +18,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { truncateAll } from '@/shared/database/drizzle/test-utils';
 import { WordRepositoryImpl } from '../../infrastructure/word.repository.impl';
+import { decodeListCursor } from '../../domain/repositories/word.repository';
 import type { ResolvedInlineRelation } from '../../domain/repositories/word.repository';
 import type { WordToSave } from '../../domain/repositories/word.repository';
 
@@ -620,5 +621,57 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     const pendingReview = await repo.findDetailById(result.inlineCreatedWords[1].id, { includeAllStatuses: true });
     expect(pendingReview).not.toBeNull();
     expect(pendingReview!.meanings[0].inheritedFromMeaningId).toBeNull();
+  });
+
+  // ---- 18-api-list-words.md: listAtoZ (browsing A-Z, keyset komposit) ----
+
+  it('listAtoZ: urut (lemma, id) ASC, hanya published, keyset lintas halaman tanpa duplikat', async () => {
+    const budu = await repo.saveWithRelations(baseWord({ lemma: 'budu' }), ACTOR);
+    const apam1 = await repo.saveWithRelations(baseWord({ lemma: 'apam' }), ACTOR);
+    const apam2 = await repo.saveWithRelations(baseWord({ lemma: 'apam' }), ACTOR); // lemma kembar
+    await repo.saveWithRelations(baseWord({ lemma: 'zeta', status: 'draft' }), ACTOR); // tidak tayang
+
+    const p1 = await repo.listAtoZ({ q: '', limit: 2 });
+    expect(p1.items.map((w) => w.lemma)).toEqual(['apam', 'apam']);
+    // tie-breaker id: kembar urut id ASC (string compare = urutan b-tree)
+    expect(p1.items[0]!.id < p1.items[1]!.id).toBe(true);
+    expect(p1.hasMore).toBe(true);
+    expect(p1.nextCursor).not.toBeNull();
+    // cursor decode → pasangan (lemma, id) item terakhir halaman
+    expect(decodeListCursor(p1.nextCursor!)).toEqual({
+      lemma: 'apam',
+      id: p1.items[1]!.id,
+    });
+
+    const p2 = await repo.listAtoZ({ q: '', limit: 2, cursor: decodeListCursor(p1.nextCursor!) });
+    expect(p2.items.map((w) => w.id)).toEqual([budu.id]); // draft zeta tidak ikut
+    expect(p2.hasMore).toBe(false);
+    expect(p2.nextCursor).toBeNull();
+
+    // gabungan = A-Z penuh, tiap kata tepat sekali (apam kembar keduanya)
+    expect([...p1.items, ...p2.items].map((w) => w.id).sort()).toEqual(
+      [apam1.id, apam2.id, budu.id].sort(),
+    );
+  });
+
+  it('listAtoZ: q ILIKE case-insensitive memfilter + karakter LIKE di-escape', async () => {
+    await repo.saveWithRelations(baseWord({ lemma: 'makatn' }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'miyang' }), ACTOR);
+
+    const hit = await repo.listAtoZ({ q: 'MAK', limit: 10 });
+    expect(hit.items.map((w) => w.lemma)).toEqual(['makatn']);
+    expect(hit.items[0]!.languageCode).toBe('smb');
+
+    // q = '%' TIDAK boleh match semua (escapeLike)
+    const escaped = await repo.listAtoZ({ q: '%', limit: 10 });
+    expect(escaped.items).toHaveLength(0);
+  });
+
+  it('listAtoZ: word_type memfilter', async () => {
+    await repo.saveWithRelations(baseWord({ lemma: 'kiasan', wordType: 'peribahasa' }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'biasa' }), ACTOR);
+
+    const tipe = await repo.listAtoZ({ q: '', limit: 10, wordType: 'peribahasa' });
+    expect(tipe.items.map((w) => w.lemma)).toEqual(['kiasan']);
   });
 });
