@@ -4,6 +4,7 @@ import type {
   ContributionEntityType,
   ContributionReview,
   ContributionStatus,
+  MySubmission,
   ReviewDecision,
   ReviewOutcome,
 } from '../entities/contribution.entity';
@@ -14,6 +15,13 @@ export interface ContributionListFilter {
   action?: string;
   limit: number;
   /** cursor-based (Section 13): ULID id item terakhir halaman sebelumnya */
+  cursor?: string;
+}
+
+export interface MyContributionListFilter {
+  userId: string;
+  status?: ContributionStatus;
+  limit: number;
   cursor?: string;
 }
 
@@ -90,6 +98,8 @@ export type { ContributionEntityType };
 // didokumentasikan di docs/api/03-api-kontribusi-verifikasi.md).
 export interface ContributionRepository {
   list(filter: ContributionListFilter): Promise<CursorPage<Contribution>>;
+  /** Daftar kontribusi milik satu user (halaman Kontribusi Saya). */
+  listMine(filter: MyContributionListFilter): Promise<CursorPage<MySubmission>>;
   findById(id: string): Promise<Contribution | null>;
   /** baris review terakhir untuk kontribsi (null kalau belum ada keputusan) */
   findReview(contributionId: string): Promise<ContributionReview | null>;

@@ -72,6 +72,10 @@ import { ReviewContributionUseCase } from '@/modules/contribution/application/us
 import { CorrectContributionUseCase } from '@/modules/contribution/application/use-cases/correct-contribution.use-case';
 import { ContributionController } from '@/modules/contribution/presentation/v1/contribution.controller';
 import { createContributionRoutes } from '@/modules/contribution/presentation/v1/contribution.routes';
+import { createMyContributionRoutes } from '@/modules/contribution/presentation/v1/my-contribution.routes';
+import { MyContributionController } from '@/modules/contribution/presentation/v1/my-contribution.controller';
+import { ListMyContributionsUseCase } from '@/modules/contribution/application/use-cases/list-my-contributions.use-case';
+import { GetMyContributionDetailUseCase } from '@/modules/contribution/application/use-cases/get-my-contribution-detail.use-case';
 import { SearchMissRepositoryImpl } from '@/modules/search-miss/infrastructure/search-miss.repository.impl';
 import { ListSearchMissesUseCase } from '@/modules/search-miss/application/use-cases/list-search-misses.use-case';
 import { DismissSearchMissUseCase } from '@/modules/search-miss/application/use-cases/dismiss-search-miss.use-case';
@@ -147,6 +151,10 @@ import { createLemmaDefinitionProviderRegistry } from '@/modules/lemma-definitio
 import { LookupLemmaDefinitionUseCase } from '@/modules/lemma-definition/application/use-cases/lookup-lemma-definition.use-case';
 import { LemmaDefinitionController } from '@/modules/lemma-definition/presentation/v1/lemma-definition.controller';
 import { createLemmaDefinitionRoutes } from '@/modules/lemma-definition/presentation/v1/lemma-definition.routes';
+import { createShareBackgroundProvider } from '@/modules/share/infrastructure/share-background.factory';
+import { ListShareBackgroundsUseCase } from '@/modules/share/application/use-cases/list-share-backgrounds.use-case';
+import { ShareController } from '@/modules/share/presentation/v1/share.controller';
+import { createShareRoutes } from '@/modules/share/presentation/v1/share.routes';
 import { VerifierApplicationRepositoryImpl } from '@/modules/verifier-application/infrastructure/verifier-application.repository.impl';
 import { CreateVerifierApplicationUseCase } from '@/modules/verifier-application/application/use-cases/create-verifier-application.use-case';
 import { GetMyVerifierApplicationUseCase } from '@/modules/verifier-application/application/use-cases/get-my-verifier-application.use-case';
@@ -330,6 +338,10 @@ const deviceController = new DeviceController({
 // ---- Modul word-suggestions (usul perubahan kata) ----
 const suggestionRepo = new WordSuggestionRepositoryImpl();
 const suggestionController = new WordSuggestionController({ repository: suggestionRepo });
+const myContributionController = new MyContributionController({
+  listMine: new ListMyContributionsUseCase(contributionRepo, suggestionRepo),
+  getMine: new GetMyContributionDetailUseCase(contributionRepo, suggestionRepo),
+});
 
 // ---- HTTP app ----
 export const app = createOpenApiApp();
@@ -477,6 +489,10 @@ app.route(
   '/api/v1/contributions',
   createAnonContributionRoutes({ controller: wordController, optionalAuthenticate }),
 );
+app.route(
+  '/api/v1/contributions',
+  createMyContributionRoutes({ controller: myContributionController, authenticate }),
+);
 
 // Search miss - beranda publik (peluang kontribusi) + panel admin
 app.route('/api/v1/search-misses', createSearchMissRoutes({ controller: searchMissController, authenticate }));
@@ -548,6 +564,15 @@ app.route(
   '/api/v1/lemma-definitions',
   createLemmaDefinitionRoutes({ controller: lemmaDefinitionController, authenticate }),
 );
+
+// Latar kartu share — proxy Unsplash (docs/backlogs/SHARE.md). Publik.
+const shareController = new ShareController({
+  listBackgrounds: new ListShareBackgroundsUseCase(
+    createShareBackgroundProvider(),
+    env.SHARE_BACKGROUNDS_CACHE_TTL_SECONDS,
+  ),
+});
+app.route('/api/v1/share', createShareRoutes({ controller: shareController }));
 
 // OpenAPI spec + Scalar docs (api-base-stack.md Section 9)
 app.doc('/openapi.json', {

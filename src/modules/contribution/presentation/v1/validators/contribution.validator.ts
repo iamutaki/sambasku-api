@@ -1,3 +1,4 @@
+import { opaqueId } from '@/shared/validation/id';
 import { z } from 'zod';
 import {
   createWordBodySchema,
@@ -124,4 +125,56 @@ export const reviewDecisionResponseSchema = z.object({
     /** Set saat makna digabung ke lemma published yang sudah ada (12-api §8) */
     merged_into_word_id: z.string().optional(),
   }),
+});
+
+export const mySubmissionKindSchema = z.enum(['contribution', 'suggestion']);
+
+export const listMyContributionsQuerySchema = z.object({
+  status: contributionStatusSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  cursor: opaqueId.optional(),
+});
+
+export type ListMyContributionsQueryBody = z.infer<typeof listMyContributionsQuerySchema>;
+
+export const mySubmissionItemSchema = z.object({
+  id: z.string(),
+  kind: mySubmissionKindSchema,
+  entity_type: z.enum([
+    'word',
+    'pronunciation',
+    'word_image',
+    'example',
+    'meaning',
+    'word_suggestion',
+  ]),
+  lemma: z.string().nullable(),
+  status: contributionStatusSchema,
+  created_at: z.string(),
+  review_comment: z.string().nullable(),
+  word_id: z.string().nullable(),
+  action: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
+  reason_code: z.string().nullable().optional(),
+  reviewed_at: z.string().nullable().optional(),
+});
+
+export const listMyContributionsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(mySubmissionItemSchema),
+  meta: z.object({
+    limit: z.number().int(),
+    next_cursor: z.string().nullable(),
+    has_more: z.boolean(),
+  }),
+});
+
+export const myContributionDetailParamsSchema = z.object({
+  kind: mySubmissionKindSchema,
+  id: opaqueId,
+});
+
+export const myContributionDetailResponseSchema = z.object({
+  success: z.literal(true),
+  data: mySubmissionItemSchema,
 });

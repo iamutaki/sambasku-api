@@ -23,6 +23,7 @@ import type {
   ContributionEntityType,
   ContributionReview,
   ContributionStatus,
+  MySubmission,
   ReviewOutcome,
 } from '../domain/entities/contribution.entity';
 import type {
@@ -30,6 +31,7 @@ import type {
   ChildEntityWithParent,
   ContributionListFilter,
   ContributionRepository,
+  MyContributionListFilter,
   ReviewCommand,
 } from '../domain/repositories/contribution.repository';
 
@@ -129,6 +131,54 @@ export class ContributionRepositoryImpl implements ContributionRepository {
     };
   }
 
+  async listMine(filter: MyContributionListFilter): Promise<CursorPage<MySubmission>> {
+    const rows = await this.db
+      .select(contributionColumns)
+      .from(contributions)
+      .leftJoin(users, eq(users.id, contributions.userId))
+      .leftJoin(searchMisses, eq(searchMisses.id, contributions.searchMissId))
+      .where(
+        and(
+          isNull(contributions.deletedAt),
+          eq(contributions.userId, filter.userId),
+          filter.status ? eq(contributions.status, filter.status) : undefined,
+          filter.cursor ? lt(contributions.id, filter.cursor) : undefined,
+        ),
+      )
+      .orderBy(desc(contributions.id))
+      .limit(filter.limit + 1);
+
+    const hasMore = rows.length > filter.limit;
+    const sliced = hasMore ? rows.slice(0, filter.limit) : rows;
+    const parents = await this.resolveWordParents(sliced);
+    const comments = await this.resolveReviewComments(sliced.map((r) => r.id));
+    const items: MySubmission[] = sliced.map((row) => {
+      const key = `${row.entityType}:${row.entityId}`;
+      const parent = parents.get(key);
+      const wordId =
+        row.entityType === 'word' ? row.entityId : (parent?.wordId ?? null);
+      return {
+        id: row.id,
+        kind: 'contribution',
+        entityType: row.entityType as ContributionEntityType,
+        lemma: parent?.lemma ?? null,
+        status: row.status as ContributionStatus,
+        createdAt: row.createdAt,
+        reviewComment: comments.get(row.id) ?? null,
+        wordId,
+        action: row.action,
+        reason: null,
+        reasonCode: null,
+        reviewedAt: null,
+      };
+    });
+    return {
+      items,
+      nextCursor: hasMore && items.length > 0 ? items[items.length - 1]!.id : null,
+      hasMore,
+    };
+  }
+
   async findById(id: string): Promise<Contribution | null> {
     const [row] = await this.db
       .select(contributionColumns)
@@ -146,13 +196,13 @@ export class ContributionRepositoryImpl implements ContributionRepository {
   }
 
   /**
-   * Batch-resolve lemma untuk antrean: word = lemma sendiri;
-   * entity anak = lemma parent (satu query per jenis yang ada di page).
+   * Batch-resolve lemma + word_id parent untuk antrean / Kontribusi Saya.
+   * word = lemma + id sendiri; entity anak = parent.
    */
-  private async resolveWordLemmas(
+  private async resolveWordParents(
     items: Array<{ entityType: string; entityId: string }>,
-  ): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
+  ): Promise<Map<string, { lemma: string; wordId: string }>> {
+    const out = new Map<string, { lemma: string; wordId: string }>();
     if (items.length === 0) return out;
 
     const idsOf = (type: string) =>
@@ -164,50 +214,80 @@ export class ContributionRepositoryImpl implements ContributionRepository {
         .select({ id: words.id, lemma: words.lemma })
         .from(words)
         .where(inArray(words.id, wordIds));
-      for (const r of rows) out.set(`word:${r.id}`, r.lemma);
+      for (const r of rows) out.set(`word:${r.id}`, { lemma: r.lemma, wordId: r.id });
     }
 
     const pronunciationIds = idsOf('pronunciation');
     if (pronunciationIds.length > 0) {
       const rows = await this.db
-        .select({ id: pronunciations.id, lemma: words.lemma })
+        .select({ id: pronunciations.id, lemma: words.lemma, wordId: pronunciations.wordId })
         .from(pronunciations)
         .innerJoin(words, eq(words.id, pronunciations.wordId))
         .where(inArray(pronunciations.id, pronunciationIds));
-      for (const r of rows) out.set(`pronunciation:${r.id}`, r.lemma);
+      for (const r of rows) out.set(`pronunciation:${r.id}`, { lemma: r.lemma, wordId: r.wordId });
     }
 
     const imageIds = idsOf('word_image');
     if (imageIds.length > 0) {
       const rows = await this.db
-        .select({ id: wordImages.id, lemma: words.lemma })
+        .select({ id: wordImages.id, lemma: words.lemma, wordId: wordImages.wordId })
         .from(wordImages)
         .innerJoin(words, eq(words.id, wordImages.wordId))
         .where(inArray(wordImages.id, imageIds));
-      for (const r of rows) out.set(`word_image:${r.id}`, r.lemma);
+      for (const r of rows) out.set(`word_image:${r.id}`, { lemma: r.lemma, wordId: r.wordId });
     }
 
     const meaningIds = idsOf('meaning');
     if (meaningIds.length > 0) {
       const rows = await this.db
-        .select({ id: meanings.id, lemma: words.lemma })
+        .select({ id: meanings.id, lemma: words.lemma, wordId: meanings.wordId })
         .from(meanings)
         .innerJoin(words, eq(words.id, meanings.wordId))
         .where(inArray(meanings.id, meaningIds));
-      for (const r of rows) out.set(`meaning:${r.id}`, r.lemma);
+      for (const r of rows) out.set(`meaning:${r.id}`, { lemma: r.lemma, wordId: r.wordId });
     }
 
     const exampleIds = idsOf('example');
     if (exampleIds.length > 0) {
       const rows = await this.db
-        .select({ id: examples.id, lemma: words.lemma })
+        .select({ id: examples.id, lemma: words.lemma, wordId: meanings.wordId })
         .from(examples)
         .innerJoin(meanings, eq(meanings.id, examples.meaningId))
         .innerJoin(words, eq(words.id, meanings.wordId))
         .where(inArray(examples.id, exampleIds));
-      for (const r of rows) out.set(`example:${r.id}`, r.lemma);
+      for (const r of rows) out.set(`example:${r.id}`, { lemma: r.lemma, wordId: r.wordId });
     }
 
+    return out;
+  }
+
+  private async resolveWordLemmas(
+    items: Array<{ entityType: string; entityId: string }>,
+  ): Promise<Map<string, string>> {
+    const parents = await this.resolveWordParents(items);
+    const out = new Map<string, string>();
+    for (const [key, value] of parents) out.set(key, value.lemma);
+    return out;
+  }
+
+  private async resolveReviewComments(ids: string[]): Promise<Map<string, string | null>> {
+    const out = new Map<string, string | null>();
+    if (ids.length === 0) return out;
+    const rows = await this.db
+      .select({
+        contributionId: contributionReviews.contributionId,
+        comment: contributionReviews.comment,
+        createdAt: contributionReviews.createdAt,
+      })
+      .from(contributionReviews)
+      .where(
+        and(inArray(contributionReviews.contributionId, ids), isNull(contributionReviews.deletedAt)),
+      )
+      .orderBy(desc(contributionReviews.createdAt));
+    for (const row of rows) {
+      if (out.has(row.contributionId)) continue;
+      out.set(row.contributionId, row.comment);
+    }
     return out;
   }
 

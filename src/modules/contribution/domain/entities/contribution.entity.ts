@@ -29,6 +29,24 @@ export interface Contribution {
   wordLemma: string | null;
 }
 
+/** Satu baris "Kontribusi Saya" - gabungan contributions + word_edit_suggestions. */
+export type MySubmissionKind = 'contribution' | 'suggestion';
+
+export interface MySubmission {
+  id: string;
+  kind: MySubmissionKind;
+  entityType: ContributionEntityType | 'word_suggestion';
+  lemma: string | null;
+  status: ContributionStatus;
+  createdAt: Date;
+  reviewComment: string | null;
+  wordId: string | null;
+  action: string | null;
+  reason: string | null;
+  reasonCode: string | null;
+  reviewedAt: Date | null;
+}
+
 export interface ContributionReview {
   reviewerId: string | null;
   status: ContributionStatus;

@@ -46,6 +46,11 @@ const envSchema = z.object({
   RAF555_BASE_URL: z.string().optional(), // default https://kbbi.raf555.dev di factory
   LEMMA_DEFINITION_CACHE_TTL_SECONDS: z.coerce.number().default(3600),
 
+  // Unsplash — latar kartu share (docs/backlogs/SHARE.md). Tanpa key →
+  // GET /api/v1/share/backgrounds mengembalikan items [].
+  UNSPLASH_ACCESS_KEY: z.string().optional(),
+  SHARE_BACKGROUNDS_CACHE_TTL_SECONDS: z.coerce.number().default(86_400),
+
   // Firebase Cloud Messaging (opsional). Tanpa ketiganya → push no-op.
   // Private key PEM: di Workers lewat `wrangler secret put FIREBASE_PRIVATE_KEY`
   // (boleh pakai \\n untuk newline).

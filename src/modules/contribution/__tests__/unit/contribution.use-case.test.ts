@@ -3,6 +3,8 @@ import { ReviewContributionUseCase } from '../../application/use-cases/review-co
 import { CorrectContributionUseCase } from '../../application/use-cases/correct-contribution.use-case';
 import { ListContributionsUseCase } from '../../application/use-cases/list-contributions.use-case';
 import { GetContributionDetailUseCase } from '../../application/use-cases/get-contribution-detail.use-case';
+import { ListMyContributionsUseCase } from '../../application/use-cases/list-my-contributions.use-case';
+import { GetMyContributionDetailUseCase } from '../../application/use-cases/get-my-contribution-detail.use-case';
 import type { ContributionRepository } from '../../domain/repositories/contribution.repository';
 import type { WordRepository } from '@/modules/word/domain/repositories/word.repository';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
@@ -272,6 +274,92 @@ describe('ListContributionsUseCase / GetContributionDetailUseCase', () => {
     await expect(useCase.execute('01CONTRIBULID0000000000000')).rejects.toMatchObject({
       errorCode: 'CONTRIBUTION_NOT_FOUND',
       statusCode: 404,
+    });
+  });
+});
+
+describe('ListMyContributionsUseCase / GetMyContributionDetailUseCase', () => {
+  const USER = '01CONTRIBUTORULID0000000000';
+
+  it('merge kontribusi + usulan by id DESC, cursor dari item terakhir', async () => {
+    const { contributionRepo } = makeDeps();
+    contributionRepo.listMine = vi.fn().mockResolvedValue({
+      items: [
+        {
+          id: '01B00000000000000000000000',
+          kind: 'contribution',
+          entityType: 'word',
+          lemma: 'lama',
+          status: 'pending',
+          createdAt: new Date(),
+          reviewComment: null,
+          wordId: 'w1',
+          action: 'create',
+          reason: null,
+          reasonCode: null,
+          reviewedAt: null,
+        },
+      ],
+      nextCursor: null,
+      hasMore: false,
+    });
+    const suggestionRepo = {
+      listMine: vi.fn().mockResolvedValue({
+        items: [
+          {
+            id: '01C00000000000000000000000',
+            wordId: 'w2',
+            wordLemma: 'baru',
+            status: 'pending',
+            createdAt: new Date(),
+            reviewComment: null,
+            reason: 'typo',
+            reasonCode: 'typo',
+            reviewedAt: null,
+          },
+        ],
+        nextCursor: null,
+        hasMore: false,
+      }),
+    };
+    const useCase = new ListMyContributionsUseCase(contributionRepo, suggestionRepo as never);
+    const page = await useCase.execute({ userId: USER, limit: 20 });
+    expect(page.items.map((i) => i.id)).toEqual([
+      '01C00000000000000000000000',
+      '01B00000000000000000000000',
+    ]);
+    expect(page.items[0]?.kind).toBe('suggestion');
+    expect(page.hasMore).toBe(false);
+  });
+
+  it('detail suggestion milik orang lain → 404 SUGGESTION_NOT_FOUND', async () => {
+    const { contributionRepo } = makeDeps();
+    const suggestionRepo = {
+      findById: vi.fn().mockResolvedValue({ id: 's1', userId: 'orang-lain' }),
+    };
+    const useCase = new GetMyContributionDetailUseCase(contributionRepo, suggestionRepo as never);
+    await expect(useCase.execute(USER, 'suggestion', 's1')).rejects.toMatchObject({
+      errorCode: 'SUGGESTION_NOT_FOUND',
+      statusCode: 404,
+    });
+  });
+
+  it('detail contribution milik sendiri', async () => {
+    const { contributionRepo } = makeDeps();
+    contributionRepo.findReview = vi.fn().mockResolvedValue({
+      reviewerId: 'r1',
+      status: 'rejected',
+      comment: 'kurang akurat',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    });
+    const suggestionRepo = { findById: vi.fn() };
+    const useCase = new GetMyContributionDetailUseCase(contributionRepo, suggestionRepo as never);
+    const item = await useCase.execute(USER, 'contribution', '01CONTRIBULID0000000000000');
+    expect(item).toMatchObject({
+      kind: 'contribution',
+      lemma: 'makatn',
+      reviewComment: 'kurang akurat',
+      wordId: '01WORDULID000000000000000',
     });
   });
 });

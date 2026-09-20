@@ -45,3 +45,5 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider penyimpanan gambar belum dikonfigurasi (env `IMAGEKIT_*`) |
 | `LEMMA_DEFINITION_PROVIDER_ERROR` | 502 | Provider KBBI gagal (timeout, non-OK, payload tak terparse) |
 | `LEMMA_DEFINITION_PROVIDER_UNAVAILABLE` | 503 | Provider KBBI dinonaktifkan (`KBBI_PROVIDER=none` / `RAF555_BASE_URL=""`) |
+| `SHARE_BACKGROUND_PROVIDER_ERROR` | 502 | Unsplash gagal (timeout / non-OK / payload); endpoint share biasanya swallow → items [] |
+| `SHARE_BACKGROUND_PROVIDER_UNAVAILABLE` | 503 | `UNSPLASH_ACCESS_KEY` kosong (provider internal); endpoint publik tetap 200 + items [] |

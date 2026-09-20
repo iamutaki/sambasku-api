@@ -1,5 +1,11 @@
-import type { WordEditSuggestion, SuggestionStatus, SuggestionDetail, SuggestionSummary } from '../entities/word-suggestion.entity';
-import type { ProposedChanges } from '../entities/word-suggestion.entity';
+import type {
+  WordEditSuggestion,
+  SuggestionStatus,
+  SuggestionDetail,
+  SuggestionSummary,
+  SuggestionReasonCode,
+  ProposedChanges,
+} from '../entities/word-suggestion.entity';
 
 // Kontrak repository modul word-suggestions - implementasi Drizzle di
 // infrastructure/. Dipakai oleh use case, TIDAK boleh tahu soal HTTP/Hono.
@@ -19,6 +25,28 @@ export interface WordSuggestionRepository {
     limit: number;
     cursor?: string;
   }): Promise<{ items: SuggestionSummary[]; nextCursor: string | null; hasMore: boolean }>;
+
+  /** Daftar usulan perubahan milik satu user (Kontribusi Saya). */
+  listMine(opts: {
+    userId: string;
+    status?: SuggestionStatus;
+    limit: number;
+    cursor?: string;
+  }): Promise<{
+    items: Array<{
+      id: string;
+      wordId: string;
+      wordLemma: string;
+      status: SuggestionStatus;
+      createdAt: Date;
+      reviewComment: string | null;
+      reason: string;
+      reasonCode: SuggestionReasonCode;
+      reviewedAt: Date | null;
+    }>;
+    nextCursor: string | null;
+    hasMore: boolean;
+  }>;
 
   /** Detail usulan + snapshot kata saat ini + diff (WAJIB join users + words) */
   getSuggestionDetail(id: string): Promise<SuggestionDetail | null>;

@@ -394,6 +394,72 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
     };
   }
 
+  async listMine(opts: {
+    userId: string;
+    status?: SuggestionStatus;
+    limit: number;
+    cursor?: string;
+  }): Promise<{
+    items: Array<{
+      id: string;
+      wordId: string;
+      wordLemma: string;
+      status: SuggestionStatus;
+      createdAt: Date;
+      reviewComment: string | null;
+      reason: string;
+      reasonCode: SuggestionReasonCode;
+      reviewedAt: Date | null;
+    }>;
+    nextCursor: string | null;
+    hasMore: boolean;
+  }> {
+    const limit = Math.min(opts.limit, 100);
+    const conditions = [
+      isNull(wordEditSuggestions.deletedAt),
+      eq(wordEditSuggestions.userId, opts.userId),
+    ];
+    if (opts.status) conditions.push(eq(wordEditSuggestions.status, opts.status));
+    if (opts.cursor) conditions.push(lt(wordEditSuggestions.id, opts.cursor));
+
+    const rows = await db
+      .select({
+        id: wordEditSuggestions.id,
+        wordId: wordEditSuggestions.wordId,
+        reason: wordEditSuggestions.reason,
+        reasonCode: wordEditSuggestions.reasonCode,
+        status: wordEditSuggestions.status,
+        createdAt: wordEditSuggestions.createdAt,
+        reviewComment: wordEditSuggestions.reviewComment,
+        reviewedAt: wordEditSuggestions.reviewedAt,
+        lemma: words.lemma,
+      })
+      .from(wordEditSuggestions)
+      .innerJoin(words, eq(wordEditSuggestions.wordId, words.id))
+      .where(and(...conditions))
+      .orderBy(desc(wordEditSuggestions.id))
+      .limit(limit + 1);
+
+    const slice = rows.slice(0, limit);
+    const items = slice.map((s) => ({
+      id: s.id,
+      wordId: s.wordId,
+      wordLemma: s.lemma,
+      status: s.status as SuggestionStatus,
+      createdAt: s.createdAt,
+      reviewComment: s.reviewComment,
+      reason: s.reason,
+      reasonCode: (s.reasonCode ?? 'other') as SuggestionReasonCode,
+      reviewedAt: s.reviewedAt,
+    }));
+    const hasMore = rows.length > limit;
+    return {
+      items,
+      nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
+      hasMore,
+    };
+  }
+
   async getSuggestionDetail(id: string): Promise<SuggestionDetail | null> {
     const [row] = await db
       .select({

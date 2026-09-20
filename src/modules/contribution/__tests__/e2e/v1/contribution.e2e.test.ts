@@ -294,4 +294,38 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
       (e: { source_sentence: string }) => e.source_sentence === 'Sudah diperbaiki.',
     )).toBe(false);
   });
+
+  it('GET /contributions/my: 401 tanpa token; milik sendiri; 404 id orang lain', async () => {
+    expect((await get('/api/v1/contributions/my')).status).toBe(401);
+
+    const create = await post(
+      '/api/v1/contributions/words',
+      validWordBody('usulanku-my'),
+      contributorToken,
+    );
+    expect(create.status).toBe(201);
+    const { data } = await create.json();
+
+    const mine = await get('/api/v1/contributions/my', contributorToken);
+    expect(mine.status).toBe(200);
+    const body = await mine.json();
+    const item = body.data.find((c: { word_id: string }) => c.word_id === data.word_id);
+    expect(item).toMatchObject({
+      kind: 'contribution',
+      entity_type: 'word',
+      lemma: 'usulanku-my',
+      status: 'pending',
+    });
+    expect(body.meta).toMatchObject({ has_more: false });
+
+    const detail = await get(`/api/v1/contributions/my/contribution/${item.id}`, contributorToken);
+    expect(detail.status).toBe(200);
+    expect((await detail.json()).data.id).toBe(item.id);
+
+    expect((await get(`/api/v1/contributions/my/contribution/${item.id}`, adminToken)).status).toBe(404);
+
+    const adminMine = await get('/api/v1/contributions/my', adminToken);
+    const adminBody = await adminMine.json();
+    expect(adminBody.data.some((c: { id: string }) => c.id === item.id)).toBe(false);
+  });
 });
