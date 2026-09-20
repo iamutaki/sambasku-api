@@ -151,7 +151,7 @@ import { createLemmaDefinitionProviderRegistry } from '@/modules/lemma-definitio
 import { LookupLemmaDefinitionUseCase } from '@/modules/lemma-definition/application/use-cases/lookup-lemma-definition.use-case';
 import { LemmaDefinitionController } from '@/modules/lemma-definition/presentation/v1/lemma-definition.controller';
 import { createLemmaDefinitionRoutes } from '@/modules/lemma-definition/presentation/v1/lemma-definition.routes';
-import { createShareBackgroundProvider } from '@/modules/share/infrastructure/share-background.factory';
+import { createShareBackgroundProviderRegistry, listShareBackgroundProviderInfos } from '@/modules/share/infrastructure/share-background.factory';
 import { ListShareBackgroundsUseCase } from '@/modules/share/application/use-cases/list-share-backgrounds.use-case';
 import { ShareController } from '@/modules/share/presentation/v1/share.controller';
 import { createShareRoutes } from '@/modules/share/presentation/v1/share.routes';
@@ -566,11 +566,14 @@ app.route(
 );
 
 // Latar kartu share — proxy Unsplash (docs/backlogs/SHARE.md). Publik.
+// Latar kartu share — multi-provider (docs/backlogs/SHARE.md). Publik.
+const shareBackgroundProviders = createShareBackgroundProviderRegistry();
 const shareController = new ShareController({
   listBackgrounds: new ListShareBackgroundsUseCase(
-    createShareBackgroundProvider(),
+    shareBackgroundProviders,
     env.SHARE_BACKGROUNDS_CACHE_TTL_SECONDS,
   ),
+  listProviders: () => listShareBackgroundProviderInfos(shareBackgroundProviders),
 });
 app.route('/api/v1/share', createShareRoutes({ controller: shareController }));
 
