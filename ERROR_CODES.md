@@ -29,6 +29,11 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan nama (username) yang sudah dipakai |
 | `PHONE_ALREADY_EXISTS` | 409 | Registrasi dengan nomor HP yang sudah dipakai |
 | `CONTRIBUTION_ALREADY_REVIEWED` | 409 | Kontribusi sudah punya keputusan (approve/reject/correct) |
+| `SUGGESTION_NOT_FOUND` | 404 | Usulan perubahan kata tidak ditemukan |
+| `SUGGESTION_ALREADY_REVIEWED` | 400/409 | Usulan sudah punya keputusan (approve/reject/correct) |
+| `WORD_NOT_PUBLISHED` | 400 | Usul edit hanya untuk kata berstatus published |
+| `CANNOT_SUGGEST_OWN_WORD` | 403 | Kontributor tidak boleh mengusulkan edit pada kata buatannya sendiri |
+| `INVALID_SUGGESTION_CHANGES` | 400 | proposed_changes kosong / tidak valid |
 | `RATE_LIMITED` | 429 | Terlalu banyak percobaan (lihat tabel limit di api-base-stack.md Section 15) |
 | `INTERNAL_ERROR` | 500 | Error tak terduga (bug, koneksi DB putus, dst) |
 | `IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider penyimpanan gambar belum dikonfigurasi (env `IMAGEKIT_*`) |

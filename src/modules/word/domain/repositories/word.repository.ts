@@ -8,6 +8,7 @@ import type {
   WordType,
 } from '../entities/word.entity';
 import type { CreateWordDto, RelationType } from '../../application/dto/create-word.dto';
+import type { MeaningMedia } from '../entities/meaning.entity';
 
 // status & isVerified & isCorrected di-override use case
 // (Section 22 - approval gate; resolvePublication)
@@ -244,6 +245,23 @@ export interface WordRepository {
     data: { form: string; variantType?: string; notes?: string | null },
     actorId: string,
   ): Promise<{ id: string; form: string; variantType: string }>;
+
+  /**
+   * Kontribusi definisi (makna) pada kata existing (17-api-usul-definisi.md)
+   * + baris contributions - satu transaksi. Dipakai jalur "Bantu definisi"
+   * untuk kata placeholder (is_have_definition=false).
+   */
+  addMeaning(
+    wordId: string,
+    data: {
+      wordClassId?: string | null;
+      definition: string;
+      translations: { languageId: string; translationText: string; translationType: string }[];
+      status: ChildStatus;
+      isVerified: boolean;
+    },
+    actorId: string,
+  ): Promise<MeaningMedia>;
 
   /**
    * Resolve search-miss sebagai sinonim: buat kata published baru (lemma),

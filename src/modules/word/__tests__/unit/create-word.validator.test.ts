@@ -243,3 +243,108 @@ describe('createWordSchema - related_words dua bentuk (04)', () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe('createWordSchema - padanan opsional (is_have_translation)', () => {
+  it('definisi nyata + translations kosong + is_have_translation=false → valid', () => {
+    const result = createWordSchema.safeParse(
+      build({
+        meanings: [
+          {
+            word_class_id: ULID('01WCNOMINA'),
+            definition: 'bagian tubuh di bawah ketiak',
+            is_have_definition: true,
+            is_have_translation: false,
+            order_index: 1,
+            translations: [],
+          },
+        ],
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.meanings[0].is_have_translation).toBe(false);
+      expect(result.data.meanings[0].translations).toEqual([]);
+    }
+  });
+
+  it('definisi nyata + translations kosong (default flag) → valid', () => {
+    const result = createWordSchema.safeParse(
+      build({
+        meanings: [
+          {
+            word_class_id: ULID('01WCNOMINA'),
+            definition: 'uraian makna tanpa padanan tunggal',
+            order_index: 1,
+            translations: [],
+          },
+        ],
+      }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('is_have_definition=false + translations kosong → ditolak', () => {
+    const result = createWordSchema.safeParse(
+      build({
+        meanings: [
+          {
+            word_class_id: ULID('01WCNOMINA'),
+            definition: '-',
+            is_have_definition: false,
+            is_have_translation: false,
+            order_index: 1,
+            translations: [],
+          },
+        ],
+      }),
+    );
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('createWordSchema - is_have_definition placeholder (17)', () => {
+  it('is_have_definition=false + sentinel "-" tetap valid (checkbox mobile)', () => {
+    const result = createWordSchema.safeParse(
+      build({
+        meanings: [
+          {
+            word_class_id: ULID('01WCNOMINA'),
+            definition: '-',
+            is_have_definition: false,
+            order_index: 1,
+            translations: [{ language_id: ULID('01LANGIDN'), translation_text: '-', translation_type: 'direct' }],
+          },
+        ],
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.meanings[0].is_have_definition).toBe(false);
+    }
+  });
+
+  it('tanpa is_have_definition → default true (kompatibilitas client lama)', () => {
+    const result = createWordSchema.safeParse(build());
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.meanings[0].is_have_definition).toBe(true);
+    }
+  });
+
+  it('definisi tetap wajib min 1 walau placeholder - konvensi client, bukan refine', () => {
+    const result = createWordSchema.safeParse(
+      build({
+        meanings: [
+          {
+            word_class_id: ULID('01WCNOMINA'),
+            definition: '',
+            is_have_definition: false,
+            order_index: 1,
+            translations: [{ language_id: ULID('01LANGIDN'), translation_text: '-', translation_type: 'direct' }],
+          },
+        ],
+      }),
+    );
+    expect(result.success).toBe(false);
+  });
+});

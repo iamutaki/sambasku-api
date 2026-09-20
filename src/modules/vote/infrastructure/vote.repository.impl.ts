@@ -275,7 +275,7 @@ export class VoteRepositoryImpl implements VoteRepository {
   }
 
   async getTopTargets(entityType: VoteTargetType, limit: number): Promise<AdminTopVoteTarget[]> {
-    // ponytail: order by expression, not alias — drizzle select keys aren't SQL AS aliases
+    // ponytail: order by expression, not alias - drizzle select keys aren't SQL AS aliases
     const netExpr = sql<number>`coalesce(sum(${votes.value}), 0)`.mapWith(Number);
     const rows = await this.db
       .select({

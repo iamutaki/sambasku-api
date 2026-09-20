@@ -9,6 +9,10 @@ export interface Meaning {
    *  di-override; terisi = masih "mengikuti" makna induk */
   inheritedFromMeaningId: string | null;
   definition: string;
+  /** 17-api-usul-definisi.md: false = placeholder "-" (belum ada definisi) */
+  isHaveDefinition: boolean;
+  /** false = tanpa padanan kata Indonesia */
+  isHaveTranslation: boolean;
   orderIndex: number;
   notes: string | null;
 }
@@ -31,4 +35,16 @@ export interface MeaningDetail extends Meaning {
     isVerified?: boolean;
     isCorrected?: boolean;
   }[];
+}
+
+/** 17-api-usul-definisi.md: hasil POST /words/:wordId/meanings (per role). */
+export interface MeaningMedia {
+  id: string;
+  wordId: string;
+  wordClassId: string | null;
+  definition: string;
+  orderIndex: number;
+  status: import('./word.entity').ChildStatus;
+  isVerified: boolean;
+  isCorrected: boolean;
 }

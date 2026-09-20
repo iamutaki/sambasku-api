@@ -12,10 +12,12 @@ import type { SoftDeleteWordUseCase } from '../../application/use-cases/soft-del
 import type { AddPronunciationUseCase } from '../../application/use-cases/add-pronunciation.use-case';
 import type { AddWordImageUseCase } from '../../application/use-cases/add-word-image.use-case';
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
+import type { AddMeaningUseCase } from '../../application/use-cases/add-meaning.use-case';
 import type { CreateWordBody, SearchWordsQueryBody, AdminListWordsQueryBody } from './validators/create-word.validator';
 import type { UpdateWordBody } from './validators/update-word.validator';
 import type {
   AddExampleBody,
+  AddMeaningBody,
   AddPronunciationBody,
   AddWordImageBody,
 } from './validators/word-media.validator';
@@ -38,6 +40,7 @@ export class WordController {
       addPronunciation: AddPronunciationUseCase;
       addWordImage: AddWordImageUseCase;
       addExample: AddExampleUseCase;
+      addMeaning: AddMeaningUseCase;
       listWordClasses: () => Promise<WordClassSummary[]>;
       /** provider gambar aktif - dari composition root, bukan hardcode */
       imageProviderName: string;
@@ -180,6 +183,9 @@ export class WordController {
           : null,
         inherited_from_meaning_id: m.inheritedFromMeaningId,
         definition: m.definition,
+        // 17: false = placeholder "-" - client menurunkan CTA "Bantu definisi"
+        is_have_definition: m.isHaveDefinition,
+        is_have_translation: m.isHaveTranslation,
         order_index: m.orderIndex,
         translations: m.translations.map((t) => ({
           language_id: t.languageId,
@@ -445,6 +451,41 @@ export class WordController {
           target_sentence: media.targetSentence,
           source_type: media.sourceType,
           notes: media.notes,
+          status: media.status,
+          is_verified: media.isVerified,
+          is_corrected: media.isCorrected,
+        },
+      },
+      201,
+    );
+  }
+
+  /** POST /api/v1/words/:wordId/meanings - kontribusi definisi (17-api) */
+  async addMeaning(c: Context, wordId: string, body: AddMeaningBody) {
+    const media = await this.withActor(c, (actor) =>
+      this.deps.addMeaning.execute(
+        wordId,
+        {
+          wordClassId: body.word_class_id,
+          definition: body.definition,
+          translations: body.translations.map((t) => ({
+            languageId: t.language_id,
+            translationText: t.translation_text,
+            translationType: t.translation_type,
+          })),
+        },
+        actor,
+      ),
+    );
+    return c.json(
+      {
+        success: true as const,
+        data: {
+          id: media.id,
+          word_id: media.wordId,
+          word_class_id: media.wordClassId,
+          definition: media.definition,
+          order_index: media.orderIndex,
           status: media.status,
           is_verified: media.isVerified,
           is_corrected: media.isCorrected,

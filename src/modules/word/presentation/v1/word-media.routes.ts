@@ -10,6 +10,8 @@ import type { WordController } from './word.controller';
 import {
   addExampleResponseSchema,
   addExampleSchema,
+  addMeaningResponseSchema,
+  addMeaningSchema,
   addPronunciationResponseSchema,
   addPronunciationSchema,
   addWordImageResponseSchema,
@@ -48,6 +50,8 @@ export function createWordMediaRoutes(deps: WordMediaRoutesDeps) {
 
   routes.use('/:wordId/pronunciations', ...mediaMiddleware(deps, 'admin', 'editor', 'contributor', 'root', 'reviewer'));
   routes.use('/:wordId/images', ...mediaMiddleware(deps, 'admin', 'editor', 'contributor', 'root', 'reviewer'));
+  // 17-api-usul-definisi.md - kontribusi definisi pada kata existing
+  routes.use('/:wordId/meanings', ...mediaMiddleware(deps, 'admin', 'editor', 'contributor', 'root', 'reviewer'));
 
   const addPronunciationRoute = createRoute({
     method: 'post',
@@ -85,11 +89,32 @@ export function createWordMediaRoutes(deps: WordMediaRoutesDeps) {
     },
   });
 
+  const addMeaningRoute = createRoute({
+    method: 'post',
+    path: '/:wordId/meanings',
+    tags: ['Words'],
+    summary: 'Kontribusi definisi (makna) pada kata existing (contributor → antrean review)',
+    request: {
+      params: z.object({ wordId: z.string().length(26) }),
+      body: { content: json(addMeaningSchema) },
+    },
+    responses: {
+      201: { description: 'Makna tersimpan (status per role)', content: json(addMeaningResponseSchema) },
+      400: { description: 'Body tidak valid / duplikat', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+      404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
   routes.openapi(addPronunciationRoute, (c) =>
     deps.controller.addPronunciation(c, c.req.param('wordId'), c.req.valid('json')) as never,
   );
   routes.openapi(addWordImageRoute, (c) =>
     deps.controller.addWordImage(c, c.req.param('wordId'), c.req.valid('json')) as never,
+  );
+  routes.openapi(addMeaningRoute, (c) =>
+    deps.controller.addMeaning(c, c.req.param('wordId'), c.req.valid('json')) as never,
   );
 
   return routes;

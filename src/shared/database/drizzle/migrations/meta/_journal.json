@@ -134,6 +134,34 @@
       "when": 1789850000000,
       "tag": "0018_dialects-is-default",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789851000000,
+      "tag": "0019_meanings-publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789852000000,
+      "tag": "0020_word-edit-suggestions",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789853000000,
+      "tag": "0021_suggestion-reason-code",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789854000000,
+      "tag": "0022_meanings-is-have-translation",
+      "breakpoints": true
     }
   ]
 }

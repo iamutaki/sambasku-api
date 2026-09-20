@@ -40,6 +40,7 @@ import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-w
 import { PublishWordUseCase } from '@/modules/word/application/use-cases/publish-word.use-case';
 import { SoftDeleteWordUseCase } from '@/modules/word/application/use-cases/soft-delete-word.use-case';
 import { AddPronunciationUseCase } from '@/modules/word/application/use-cases/add-pronunciation.use-case';
+import { AddMeaningUseCase } from '@/modules/word/application/use-cases/add-meaning.use-case';
 import { AddWordImageUseCase } from '@/modules/word/application/use-cases/add-word-image.use-case';
 import { AddExampleUseCase } from '@/modules/word/application/use-cases/add-example.use-case';
 import { WordController } from '@/modules/word/presentation/v1/word.controller';
@@ -53,6 +54,13 @@ import {
 } from '@/modules/word/presentation/v1/word-media.routes';
 import { createAnonContributionRoutes } from '@/modules/word/presentation/v1/anon-contribution.routes';
 import { createWordClassRoutes } from '@/modules/word/presentation/v1/word-class.routes';
+import {
+  createWordSuggestionRoutes,
+  createWordHistoryRoutes,
+  createAdminSuggestionRoutes,
+} from '@/modules/word-suggestions/presentation/v1/word-suggestions.routes';
+import { WordSuggestionController } from '@/modules/word-suggestions/presentation/v1/word-suggestions.controller';
+import { WordSuggestionRepositoryImpl } from '@/modules/word-suggestions/infrastructure/word-suggestion.repository.impl';
 import { ContributionRepositoryImpl } from '@/modules/contribution/infrastructure/contribution.repository.impl';
 import { ListContributionsUseCase } from '@/modules/contribution/application/use-cases/list-contributions.use-case';
 import { GetContributionDetailUseCase } from '@/modules/contribution/application/use-cases/get-contribution-detail.use-case';
@@ -188,6 +196,7 @@ const wordController = new WordController({
   addPronunciation: new AddPronunciationUseCase(wordRepo, auditRepo),
   addWordImage: new AddWordImageUseCase(wordRepo, auditRepo),
   addExample: new AddExampleUseCase(wordRepo, auditRepo),
+  addMeaning: new AddMeaningUseCase(wordRepo, auditRepo),
   listWordClasses: () => wordRepo.listWordClasses(),
   imageProviderName: imageStorage.providerName,
 });
@@ -273,6 +282,10 @@ const bookmarkController = new BookmarkController({
   toggle: new ToggleBookmarkUseCase(bookmarkRepo),
   my: new GetMyBookmarksUseCase(bookmarkRepo),
 });
+
+// ---- Modul word-suggestions (usul perubahan kata) ----
+const suggestionRepo = new WordSuggestionRepositoryImpl();
+const suggestionController = new WordSuggestionController({ repository: suggestionRepo });
 
 // ---- HTTP app ----
 export const app = createOpenApiApp();
@@ -377,6 +390,15 @@ app.route('/api/v1/words', createWordMediaRoutes({ controller: wordController, a
 // supaya /:wordId/comments tidak tertelan routes.use('*') rate limit publik
 app.route('/api/v1/words', createWordCommentRoutes({ controller: commentController, authenticate }));
 app.route('/api/v1/words', createPublicWordRoutes({ controller: wordController, authenticate }));
+app.route('/api/v1/words', createWordHistoryRoutes({ controller: suggestionController, authenticate }));
+app.route(
+  '/api/v1/words',
+  createWordSuggestionRoutes({ controller: suggestionController, authenticate }),
+);
+app.route(
+  '/api/v1/admin',
+  createAdminSuggestionRoutes({ controller: suggestionController, authenticate }),
+);
 app.route('/api/v1/meanings', createMeaningExampleRoutes({ controller: wordController, authenticate }));
 app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordController }));
 

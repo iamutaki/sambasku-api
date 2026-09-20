@@ -35,11 +35,63 @@ const wordVariantItemSchema = z
     path: ['affix_type'],
   });
 
+const meaningTranslationItemSchema = z.object({
+  language_id: ulid,
+  translation_text: z.string().trim().min(1, 'Terjemahan tidak boleh kosong'),
+  translation_type: z.enum(['direct', 'descriptive', 'idiomatic']).default('direct'),
+});
+
+/** Aturan padanan opsional: translations[] boleh kosong jika definisi nyata. */
+export function refineMeaningPadanan(
+  m: {
+    definition: string;
+    is_have_definition?: boolean;
+    is_have_translation?: boolean;
+    translations?: unknown[];
+  },
+  ctx: z.RefinementCtx,
+  pathPrefix: (string | number)[],
+): void {
+  const translations = m.translations ?? [];
+  const def = m.definition.trim();
+  const hasRealDefinition = m.is_have_definition !== false && def !== '-' && def.length > 0;
+  if (translations.length === 0 && !hasRealDefinition) {
+    ctx.addIssue({
+      code: 'custom',
+      path: [...pathPrefix, 'translations'],
+      message:
+        'Padanan kata wajib jika definisi belum diisi. Isi definisi dulu, atau isi padanan.',
+    });
+  }
+}
+
+const meaningInputObjectSchema = z.object({
+  word_class_id: ulid,
+  definition: z.string().trim().min(1, 'Definisi tidak boleh kosong'),
+  // false = placeholder "-" (belum tahu definisi Indonesia)
+  is_have_definition: z.boolean().default(true),
+  // false = sengaja tanpa padanan (definisi uraian sudah cukup)
+  is_have_translation: z.boolean().default(true),
+  order_index: z.coerce.number().int().min(1).default(1),
+  translations: z.array(meaningTranslationItemSchema).default([]),
+  examples: z
+    .array(
+      z.object({
+        source_language_id: ulid,
+        source_sentence: z.string().trim().min(1, 'Contoh kalimat tidak boleh kosong'),
+        target_language_id: ulid.optional(),
+        target_sentence: z.string().optional(),
+        source_type: z
+          .enum(['native_speaker', 'book', 'corpus', 'interview', 'other'])
+          .optional(),
+      }),
+    )
+    .optional(),
+});
+
 const wordVariantsField = z
   .array(wordVariantItemSchema)
   .max(20, 'Maksimal 20 bentuk turunan per kata')
-  // Dedup (form + dialek) antar-item - unique DB tak menutup duplikat
-  // saat dialect_id NULL (Postgres: NULL ≠ NULL)
   .superRefine((items, ctx) => {
     const seen = new Set<string>();
     items.forEach((v, n) => {
@@ -128,38 +180,7 @@ const inlineWordSchema = z
     inherit_meanings: z.boolean().default(true),
     meaning_overrides: z.array(meaningOverrideSchema).max(20).optional(),
     // wajib DAN hanya saat inherit_meanings=false
-    meanings: z
-      .array(
-        z.object({
-          word_class_id: ulid,
-          definition: z.string().trim().min(1, 'Definisi tidak boleh kosong'),
-          order_index: z.coerce.number().int().min(1).default(1),
-          translations: z
-            .array(
-              z.object({
-                language_id: ulid,
-                translation_text: z.string().trim().min(1, 'Terjemahan tidak boleh kosong'),
-                translation_type: z.enum(['direct', 'descriptive', 'idiomatic']).default('direct'),
-              }),
-            )
-            .min(1, 'Minimal harus ada 1 terjemahan'),
-          examples: z
-            .array(
-              z.object({
-                source_language_id: ulid,
-                source_sentence: z.string().trim().min(1, 'Contoh kalimat tidak boleh kosong'),
-                target_language_id: ulid.optional(),
-                target_sentence: z.string().optional(),
-                source_type: z
-                  .enum(['native_speaker', 'book', 'corpus', 'interview', 'other'])
-                  .optional(),
-              }),
-            )
-            .optional(),
-        }),
-      )
-      .min(1, 'Minimal harus ada 1 makna')
-      .optional(),
+    meanings: z.array(meaningInputObjectSchema).min(1, 'Minimal harus ada 1 makna').optional(),
     variants: wordVariantsField,
     pronunciation: z
       .object({
@@ -220,37 +241,7 @@ export const createWordBodySchema = z.object({
   dialect_id: ulid.optional(),
   lemma: z.string().trim().min(1, 'Kata tidak boleh kosong').max(255),
   notes: z.string().optional(),
-  meanings: z
-    .array(
-      z.object({
-        word_class_id: ulid,
-        definition: z.string().trim().min(1, 'Definisi tidak boleh kosong'),
-        order_index: z.coerce.number().int().min(1).default(1),
-        translations: z
-          .array(
-            z.object({
-              language_id: ulid,
-              translation_text: z.string().trim().min(1, 'Terjemahan tidak boleh kosong'),
-              translation_type: z.enum(['direct', 'descriptive', 'idiomatic']).default('direct'),
-            }),
-          )
-          .min(1, 'Minimal harus ada 1 terjemahan'),
-        examples: z
-          .array(
-            z.object({
-              source_language_id: ulid,
-              source_sentence: z.string().trim().min(1, 'Contoh kalimat tidak boleh kosong'),
-              target_language_id: ulid.optional(),
-              target_sentence: z.string().optional(),
-              source_type: z
-                .enum(['native_speaker', 'book', 'corpus', 'interview', 'other'])
-                .optional(),
-            }),
-          )
-          .optional(),
-      }),
-    )
-    .min(1, 'Minimal harus ada 1 makna'),
+  meanings: z.array(meaningInputObjectSchema).min(1, 'Minimal harus ada 1 makna'),
   word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']).default('word'),
   category_ids: z
     .array(ulid)
@@ -351,6 +342,7 @@ export const createWordSchema = createWordBodySchema
   )
   .superRefine((d, ctx) => {
     variantRootRefine(d, ctx); // 11: variasi ≠ lemma induk
+    d.meanings.forEach((m, i) => refineMeaningPadanan(m, ctx, ['meanings', i]));
     const parentLemma = d.lemma.trim().toLowerCase();
     // has_component hanya untuk entri frasa (aturan silang word_type)
     if (
@@ -401,6 +393,11 @@ export const createWordSchema = createWordBodySchema
           seen.add(ov.meaning_index);
         });
       }
+
+      // padanan opsional untuk makna inline penuh
+      word.meanings?.forEach((m, mi) => {
+        refineMeaningPadanan(m, ctx, ['related_words', n, 'word', 'meanings', mi]);
+      });
     });
   });
 
@@ -467,6 +464,10 @@ export const wordDetailResponseSchema = z.object({
         // 04: provenance - terisi = masih "mengikuti" induk, null = mandiri/di-override
         inherited_from_meaning_id: z.string().nullable(),
         definition: z.string(),
+        // 17: false = placeholder "-" (belum ada definisi) - client menurunkan
+        // CTA "Bantu definisi" dari flag ini, bukan dari teks
+        is_have_definition: z.boolean(),
+        is_have_translation: z.boolean(),
         order_index: z.number().int(),
         translations: z.array(
           z.object({

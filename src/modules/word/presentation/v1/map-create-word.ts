@@ -20,8 +20,10 @@ export function toCreateWordDto(body: CreateWordBody, imageProviderName: string)
     meanings: body.meanings.map((m, i) => ({
       wordClassId: m.word_class_id,
       definition: m.definition,
+      isHaveDefinition: m.is_have_definition ?? true,
+      isHaveTranslation: m.is_have_translation ?? true,
       orderIndex: m.order_index ?? i + 1,
-      translations: m.translations.map((t) => ({
+      translations: (m.translations ?? []).map((t) => ({
         languageId: t.language_id,
         translationText: t.translation_text,
         translationType: t.translation_type,
@@ -106,8 +108,10 @@ function toInlineWordDto(w: InlineWordBody, imageProviderName: string): InlineWo
     meanings: w.meanings?.map((m, i) => ({
       wordClassId: m.word_class_id,
       definition: m.definition,
+      isHaveDefinition: m.is_have_definition ?? true,
+      isHaveTranslation: m.is_have_translation ?? true,
       orderIndex: m.order_index ?? i + 1,
-      translations: m.translations.map((t) => ({
+      translations: (m.translations ?? []).map((t) => ({
         languageId: t.language_id,
         translationText: t.translation_text,
         translationType: t.translation_type,

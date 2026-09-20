@@ -15,6 +15,10 @@ export interface CreateWordExampleDto {
 export interface CreateWordMeaningDto {
   wordClassId: string;
   definition: string;
+  /** 17-api-usul-definisi.md: false = placeholder "-" (belum ada definisi). */
+  isHaveDefinition?: boolean;
+  /** false = sengaja tanpa padanan kata Indonesia (definisi uraian sudah ada). */
+  isHaveTranslation?: boolean;
   orderIndex: number;
   translations: CreateWordTranslationDto[];
   examples?: CreateWordExampleDto[];

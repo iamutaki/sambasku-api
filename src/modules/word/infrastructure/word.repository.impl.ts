@@ -22,6 +22,7 @@ import type * as schema from '@/shared/database/drizzle/schema';
 import { ConflictError, ValidationError } from '@/shared/errors/app-error';
 import { publishOrMergeMeaningsInTx } from './publish-or-merge-meanings';
 import type { ChildStatus, Word, WordDetail, WordStatus, WordSummary } from '../domain/entities/word.entity';
+import type { MeaningMedia } from '../domain/entities/meaning.entity';
 import type {
   CursorPage,
   ExampleMedia,
@@ -356,7 +357,15 @@ export class WordRepositoryImpl implements WordRepository {
     const meaningRows = await this.db
       .select()
       .from(meanings)
-      .where(and(eq(meanings.wordId, id), isNull(meanings.deletedAt)))
+      .where(
+        and(
+          eq(meanings.wordId, id),
+          isNull(meanings.deletedAt),
+          // 17: makna kontribusi (pending_review) tidak tayang publik -
+          // pola examples/pronunciations di bawah; admin memakai includeAll
+          includeAll ? undefined : eq(meanings.status, 'published'),
+        ),
+      )
       .orderBy(meanings.orderIndex);
 
     // Kelas kata tersemat per makna (Nomina/Verba/…) - satu query, map by id
@@ -489,6 +498,8 @@ export class WordRepositoryImpl implements WordRepository {
         // 04: provenance - null = makna mandiri/sudah di-override
         inheritedFromMeaningId: m.inheritedFromMeaningId,
         definition: m.definition,
+        isHaveDefinition: m.isHaveDefinition,
+        isHaveTranslation: m.isHaveTranslation,
         orderIndex: m.orderIndex,
         notes: m.notes,
         translations: translationRows
@@ -655,6 +666,11 @@ export class WordRepositoryImpl implements WordRepository {
           ? ne(words.status, 'published')
           : undefined,
       isNull(meanings.deletedAt),
+      // 17: makna kontribusi pending tidak boleh bocor ke pencarian;
+      // sentinel "-" (placeholder tanpa definisi) juga bukan hasil yang
+      // bermakna untuk pencarian terjemahan.
+      eq(meanings.status, 'published'),
+      ne(meaningTranslations.translationText, '-'),
       isNull(meaningTranslations.deletedAt),
       params.q
         ? ilike(meaningTranslations.translationText, `%${escapeLike(params.q.trim())}%`)
@@ -973,6 +989,78 @@ export class WordRepositoryImpl implements WordRepository {
     }
   }
 
+  async addMeaning(
+    wordId: string,
+    data: {
+      wordClassId?: string | null;
+      definition: string;
+      translations: { languageId: string; translationText: string; translationType: string }[];
+      status: ChildStatus;
+      isVerified: boolean;
+    },
+    actorId: string,
+  ): Promise<MeaningMedia> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        // Urut setelah makna terakhir - kontribusi definisi tidak menimpa
+        // urutan makna yang sudah ada.
+        const [last] = await tx
+          .select({ maxOrder: sql<number>`coalesce(max(${meanings.orderIndex}), 0)`.mapWith(Number) })
+          .from(meanings)
+          .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)));
+
+        const [row] = await tx
+          .insert(meanings)
+          .values({
+            wordId,
+            wordClassId: data.wordClassId ?? null,
+            definition: data.definition,
+            isHaveDefinition: true,
+            isHaveTranslation: data.translations.length > 0,
+            orderIndex: (last?.maxOrder ?? 0) + 1,
+            status: data.status,
+            isVerified: data.isVerified,
+            createdBy: actorId,
+          })
+          .returning();
+
+        if (data.translations.length > 0) {
+          await tx.insert(meaningTranslations).values(
+            data.translations.map((t) => ({
+              meaningId: row.id,
+              languageId: t.languageId,
+              translationText: t.translationText,
+              translationType: t.translationType,
+              createdBy: actorId,
+            })),
+          );
+        }
+
+        await tx.insert(contributions).values({
+          userId: actorId,
+          entityType: 'meaning',
+          entityId: row.id,
+          action: 'create',
+          status: contributionStatusOf(data.status),
+        });
+
+        return {
+          id: row.id,
+          wordId: row.wordId,
+          wordClassId: row.wordClassId,
+          definition: row.definition,
+          orderIndex: row.orderIndex,
+          status: row.status as ChildStatus,
+          isVerified: row.isVerified,
+          isCorrected: row.isCorrected,
+        };
+      });
+    } catch (err) {
+      mapMediaViolation(err, '');
+      throw err;
+    }
+  }
+
   async addVariant(
     wordId: string,
     data: { form: string; variantType?: string; notes?: string | null },
@@ -1055,6 +1143,8 @@ export class WordRepositoryImpl implements WordRepository {
               wordClassId: m.wordClass?.id ?? null,
               inheritedFromMeaningId: m.id,
               definition: m.definition,
+              isHaveDefinition: m.isHaveDefinition,
+              isHaveTranslation: m.isHaveTranslation,
               orderIndex: idx,
               notes: m.notes,
               createdBy: actorId,
@@ -1270,7 +1360,13 @@ export class WordRepositoryImpl implements WordRepository {
           wordClassId: meaning.wordClassId,
           inheritedFromMeaningId: opts?.inheritedFrom?.[index] ?? null,
           definition: meaning.definition,
+          isHaveDefinition: meaning.isHaveDefinition ?? true,
+          isHaveTranslation: meaning.isHaveTranslation ?? (meaning.translations.length > 0),
           orderIndex: meaning.orderIndex,
+          // Gerbang anak (17): makna ikut status kata - contoh kalimat di
+          // bawah memakai pola yang sama (childStatusOf + isVerified kata)
+          status: childStatusOf(word.status),
+          isVerified: word.isVerified,
           createdBy: actorId,
         })
         .returning();

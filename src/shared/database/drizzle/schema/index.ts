@@ -7,6 +7,7 @@ export * from './password-reset-tokens.schema';
 export * from './languages.schema';
 export * from './dialects.schema';
 export * from './word-classes.schema';
+export * from './word-edit-suggestions.schema';
 export * from './words.schema';
 export * from './meanings.schema';
 export * from './meaning-translations.schema';

@@ -16,10 +16,12 @@ export const auditLogs = pgTable(
     newData: json('new_data'),
     requestId: varchar('request_id', { length: 100 }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
+    sourceContributionId: varchar('source_contribution_id', { length: 26 }),
   },
   (t) => [
     index('audit_logs_entity_created_idx').on(t.entityType, t.entityId, t.createdAt),
     index('audit_logs_user_created_idx').on(t.userId, t.createdAt),
     index('audit_logs_request_id_idx').on(t.requestId),
+    index('audit_logs_source_contribution_idx').on(t.sourceContributionId),
   ],
 );

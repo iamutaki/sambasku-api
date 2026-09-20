@@ -135,7 +135,7 @@ async function main() {
         isDefault: d.isDefault,
       })
       .onConflictDoUpdate({
-        // Unique (language_id, code) — sync is_default saat re-seed
+        // Unique (language_id, code) - sync is_default saat re-seed
         target: [dialects.languageId, dialects.code],
         set: { name: d.name, isDefault: d.isDefault, updatedAt: new Date() },
       });

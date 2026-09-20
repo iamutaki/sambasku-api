@@ -94,7 +94,7 @@ export interface ContributionRepository {
   /** baris review terakhir untuk kontribsi (null kalau belum ada keputusan) */
   findReview(contributionId: string): Promise<ContributionReview | null>;
   findChildWithParent(
-    entityType: 'pronunciation' | 'word_image' | 'example',
+    entityType: 'pronunciation' | 'word_image' | 'example' | 'meaning',
     entityId: string,
   ): Promise<ChildEntityWithParent | null>;
   review(cmd: ReviewCommand): Promise<ReviewOutcome>;

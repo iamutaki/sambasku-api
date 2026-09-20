@@ -6,7 +6,7 @@ import {
 import { addPronunciationSchema, addWordImageSchema } from '@/modules/word/presentation/v1/validators/word-media.validator';
 
 export const contributionStatusSchema = z.enum(['pending', 'approved', 'rejected', 'corrected']);
-export const entityTypeSchema = z.enum(['word', 'pronunciation', 'word_image', 'example']);
+export const entityTypeSchema = z.enum(['word', 'pronunciation', 'word_image', 'example', 'meaning']);
 
 export const listContributionsQuerySchema = z.object({
   status: contributionStatusSchema.optional(),

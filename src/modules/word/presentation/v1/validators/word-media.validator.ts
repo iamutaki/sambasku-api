@@ -31,9 +31,26 @@ export const addExampleSchema = z.object({
   notes: z.string().optional(),
 });
 
+// 17-api-usul-definisi.md: definisi selalu nyata (BUKAN placeholder "-");
+// placeholder hanya lahir dari create-word dengan is_have_definition=false.
+export const addMeaningSchema = z.object({
+  word_class_id: ulid.optional(),
+  definition: z.string().trim().min(1, 'Definisi tidak boleh kosong'),
+  translations: z
+    .array(
+      z.object({
+        language_id: ulid,
+        translation_text: z.string().trim().min(1, 'Terjemahan tidak boleh kosong'),
+        translation_type: z.enum(['direct', 'descriptive', 'idiomatic']).default('direct'),
+      }),
+    )
+    .min(1, 'Minimal harus ada 1 terjemahan'),
+});
+
 export type AddPronunciationBody = z.infer<typeof addPronunciationSchema>;
 export type AddWordImageBody = z.infer<typeof addWordImageSchema>;
 export type AddExampleBody = z.infer<typeof addExampleSchema>;
+export type AddMeaningBody = z.infer<typeof addMeaningSchema>;
 
 // Response 201 - field publikasi per role (contributor → pending_review)
 export const addPronunciationResponseSchema = z.object({
@@ -79,6 +96,20 @@ export const addExampleResponseSchema = z.object({
     target_sentence: z.string().nullable(),
     source_type: z.string().nullable(),
     notes: z.string().nullable(),
+    status: childStatusSchema,
+    is_verified: z.boolean(),
+    is_corrected: z.boolean(),
+  }),
+});
+
+export const addMeaningResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    id: z.string(),
+    word_id: z.string(),
+    word_class_id: z.string().nullable(),
+    definition: z.string(),
+    order_index: z.number().int(),
     status: childStatusSchema,
     is_verified: z.boolean(),
     is_corrected: z.boolean(),

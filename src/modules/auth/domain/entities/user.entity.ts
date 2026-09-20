@@ -5,7 +5,7 @@ export interface User {
   id: string; // ULID
   username: string;
   email: string;
-  // Digit internasional tanpa '+', mis. 62899… — null bila user skip saat register
+  // Digit internasional tanpa '+', mis. 62899… - null bila user skip saat register
   phone: string | null;
   // NULL untuk user OAuth-only (Section 23) - login password wajib menolaknya
   passwordHash: string | null;

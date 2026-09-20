@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lt } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, ne } from 'drizzle-orm';
 import type { ExtractTablesWithRelations } from 'drizzle-orm';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
 import type { NodePgDatabase, NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';
@@ -7,6 +7,7 @@ import {
   contributions,
   examples,
   meanings,
+  meaningTranslations,
   pronunciations,
   searchMisses,
   users,
@@ -146,7 +147,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
   }
 
   async findChildWithParent(
-    entityType: 'pronunciation' | 'word_image' | 'example',
+    entityType: 'pronunciation' | 'word_image' | 'example' | 'meaning',
     entityId: string,
   ): Promise<ChildEntityWithParent | null> {
     if (entityType === 'pronunciation') {
@@ -211,6 +212,61 @@ export class ContributionRepositoryImpl implements ContributionRepository {
         status,
         isVerified,
         isCorrected,
+      };
+    }
+
+    // 17-api-usul-definisi.md: definisi kontribusi pada kata existing -
+    // makna + terjemahannya (batch kedua, pola word detail).
+    if (entityType === 'meaning') {
+      const [row] = await this.db
+        .select({
+          id: meanings.id,
+          wordId: meanings.wordId,
+          wordLemma: words.lemma,
+          wordClassId: meanings.wordClassId,
+          definition: meanings.definition,
+          status: meanings.status,
+          isVerified: meanings.isVerified,
+          isCorrected: meanings.isCorrected,
+        })
+        .from(meanings)
+        .innerJoin(words, eq(words.id, meanings.wordId))
+        .where(and(eq(meanings.id, entityId), isNull(meanings.deletedAt)))
+        .limit(1);
+      if (!row) return null;
+
+      const translationRows = row.wordId
+        ? await this.db
+            .select({
+              languageId: meaningTranslations.languageId,
+              translationText: meaningTranslations.translationText,
+              translationType: meaningTranslations.translationType,
+            })
+            .from(meaningTranslations)
+            .where(
+              and(
+                eq(meaningTranslations.meaningId, row.id),
+                isNull(meaningTranslations.deletedAt),
+              ),
+            )
+        : [];
+
+      return {
+        id: row.id,
+        wordId: row.wordId,
+        wordLemma: row.wordLemma,
+        data: {
+          word_class_id: row.wordClassId,
+          definition: row.definition,
+          translations: translationRows.map((t) => ({
+            language_id: t.languageId,
+            translation_text: t.translationText,
+            translation_type: t.translationType,
+          })),
+        },
+        status: row.status,
+        isVerified: row.isVerified,
+        isCorrected: row.isCorrected,
       };
     }
 
@@ -310,6 +366,9 @@ export class ContributionRepositoryImpl implements ContributionRepository {
           break;
         case 'example':
           await this.reviewExample(tx, contrib.entityId, cmd, now);
+          break;
+        case 'meaning':
+          await this.reviewMeaning(tx, contrib.entityId, cmd, now);
           break;
       }
 
@@ -514,6 +573,54 @@ export class ContributionRepositoryImpl implements ContributionRepository {
           isCorrected: true,
         })
         .where(where);
+    }
+  }
+
+  // 17-api-usul-definisi.md: approve → publish + bersihkan placeholder "-"
+  // pada kata yang sama (satu tx); reject → status rejected (baris tetap,
+  // preseden reviewPronunciation). 'correct' tidak didukung untuk makna.
+  private async reviewMeaning(tx: Tx, entityId: string, cmd: ReviewCommand, now: Date): Promise<void> {
+    const where = and(eq(meanings.id, entityId), isNull(meanings.deletedAt));
+
+    if (cmd.decision === 'reject') {
+      await tx
+        .update(meanings)
+        .set({ status: 'rejected', isVerified: false, updatedBy: cmd.reviewerId, updatedAt: now })
+        .where(where);
+      return;
+    }
+
+    if (cmd.decision === 'correct') {
+      throw new ConflictError(
+        'CONTRIBUTION_ALREADY_REVIEWED',
+        'Koreksi langsung tidak didukung untuk kontribusi makna - reject + usul ulang',
+      );
+    }
+
+    // approve
+    const [approved] = await tx
+      .update(meanings)
+      .set({ status: 'published', isVerified: true, updatedBy: cmd.reviewerId, updatedAt: now })
+      .where(where)
+      .returning({ wordId: meanings.wordId, isHaveDefinition: meanings.isHaveDefinition });
+    if (!approved) return;
+
+    // Placeholder "-" tidak lagi diperlukan begitu definisi nyata tayang.
+    // GUARD: hanya bersihkan kalau baris yang di-approve memang definisi
+    // nyata (isHaveDefinition=true) - placeholder tidak menghapus placeholder.
+    if (approved.isHaveDefinition) {
+      await tx
+        .update(meanings)
+        .set({ deletedAt: now, deletedBy: cmd.reviewerId })
+        .where(
+          and(
+            eq(meanings.wordId, approved.wordId),
+            eq(meanings.isHaveDefinition, false),
+            eq(meanings.status, 'published'),
+            isNull(meanings.deletedAt),
+            ne(meanings.id, entityId),
+          ),
+        );
     }
   }
 
