@@ -45,6 +45,12 @@ import type { CreateWordRelatedDto } from '../application/dto/create-word.dto';
 const FOREIGN_KEY_VIOLATION = '23503';
 const UNIQUE_VIOLATION = '23505';
 
+function verificationCols(isVerified: boolean, actorId: string, at = new Date()) {
+  return isVerified
+    ? { verifiedBy: actorId, verifiedAt: at }
+    : { verifiedBy: null, verifiedAt: null };
+}
+
 // Tipe transaction Drizzle (pg) - dipakai helper yang menerima tx
 type Tx = PgTransaction<NodePgQueryResultHKT, typeof schema, ExtractTablesWithRelations<typeof schema>>;
 
@@ -162,6 +168,7 @@ export class WordRepositoryImpl implements WordRepository {
             isVerified: word.isVerified,
             isCorrected: word.isCorrected ?? false,
             createdBy: actorId,
+            ...verificationCols(word.isVerified, actorId),
           })
           .returning();
         const wordId = wordRow.id;
@@ -227,6 +234,7 @@ export class WordRepositoryImpl implements WordRepository {
             isVerified: word.isVerified,
             isCorrected: word.isCorrected ?? false,
             createdBy: actorId,
+            ...verificationCols(word.isVerified, actorId),
           })
           .returning();
         const wordId = wordRow.id;
@@ -256,6 +264,7 @@ export class WordRepositoryImpl implements WordRepository {
               isVerified: rel.inlineWord.isVerified,
               isCorrected: rel.inlineWord.isCorrected ?? false,
               createdBy: actorId,
+              ...verificationCols(rel.inlineWord.isVerified, actorId),
             })
             .returning();
           const inlineId = inlineRow.id;
@@ -1335,6 +1344,7 @@ export class WordRepositoryImpl implements WordRepository {
     try {
       return await this.db.transaction(async (tx) => {
         // Update baris words
+        const now = new Date();
         const [wordRow] = await tx
           .update(words)
           .set({
@@ -1346,7 +1356,9 @@ export class WordRepositoryImpl implements WordRepository {
             isVerified: word.isVerified,
             isCorrected: word.isCorrected ?? false,
             updatedBy: actorId,
-            updatedAt: new Date(),
+            updatedAt: now,
+            verifiedBy: word.isVerified ? sql`COALESCE(${words.verifiedBy}, ${actorId})` : null,
+            verifiedAt: word.isVerified ? sql`COALESCE(${words.verifiedAt}, ${now})` : null,
           })
           .where(and(eq(words.id, id), isNull(words.deletedAt)))
           .returning();
