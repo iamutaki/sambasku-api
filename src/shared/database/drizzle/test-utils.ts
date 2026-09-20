@@ -4,7 +4,6 @@ import {
   auditLogs,
   authIdentities,
   bookmarks,
-  deviceTokens,
   categories,
   comments,
   contributionReviews,

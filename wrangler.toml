@@ -76,6 +76,9 @@ MAIL_FROM = "Kamus Sambas Staging <no-reply@iamutaki.com>"
 KBBI_PROVIDER = "raf555"
 RAF555_BASE_URL = "https://kbbi.raf555.dev"
 LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
+# FCM project id boleh di vars (bukan rahasia); email+PEM tetap secret.
+# Samakan dengan mobile flavorizr/firebase/staging → project_id.
+FIREBASE_PROJECT_ID = "sambasku-staging"
 
 # DB: driver Neon serverless (WebSocket) dari secret DATABASE_URL -
 # Hyperdrive TIDAK dipakai (lihat catatan Section 8 docs: pg/node:net
@@ -90,3 +93,7 @@ enabled = true
 #   npx wrangler secret put JWT_PUBLIC_KEY --env staging
 #   npx wrangler secret put RESEND_API_KEY --env staging      # opsional (sandbox!)
 #   npx wrangler secret put IMAGEKIT_PRIVATE_KEY --env staging # opsional
+#   # FCM push (project Firebase = sambasku-staging, samakan dengan mobile):
+#   npx wrangler secret put FIREBASE_PROJECT_ID --env staging
+#   npx wrangler secret put FIREBASE_CLIENT_EMAIL --env staging
+#   npx wrangler secret put FIREBASE_PRIVATE_KEY --env staging
