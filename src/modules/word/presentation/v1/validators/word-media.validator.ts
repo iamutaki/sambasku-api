@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { choiceId, opaqueId } from '@/shared/validation/id';
 
-const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
+const ulid = opaqueId;
+const wordClassId = choiceId('Kelas kata');
 
 // Status konten anak (03-api-kontribusi-verifikasi.md): tanpa draft -
 // kontribusi media langsung masuk gerbang pending/published per role
@@ -34,7 +36,7 @@ export const addExampleSchema = z.object({
 // 17-api-usul-definisi.md: definisi selalu nyata (BUKAN placeholder "-");
 // placeholder hanya lahir dari create-word dengan is_have_definition=false.
 export const addMeaningSchema = z.object({
-  word_class_id: ulid.optional(),
+  word_class_id: wordClassId.optional(),
   definition: z.string().trim().min(1, 'Definisi tidak boleh kosong'),
   translations: z
     .array(

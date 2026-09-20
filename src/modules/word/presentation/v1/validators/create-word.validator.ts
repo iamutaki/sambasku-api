@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { choiceId, opaqueId } from '@/shared/validation/id';
 import { queryBooleanSchema } from '@/shared/validation/query-boolean';
 
-export const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
+export const ulid = opaqueId;
+const wordClassId = choiceId('Kelas kata');
 
 // Section 22 - approval gate: pending_review/rejected hanya di-set sistem
 export const wordStatusSchema = z.enum(['draft', 'pending_review', 'published', 'rejected']);
@@ -66,7 +68,7 @@ export function refineMeaningPadanan(
 }
 
 const meaningInputObjectSchema = z.object({
-  word_class_id: ulid,
+  word_class_id: wordClassId,
   definition: z.string().trim().min(1, 'Definisi tidak boleh kosong'),
   // false = placeholder "-" (belum tahu definisi Indonesia)
   is_have_definition: z.boolean().default(true),
@@ -137,7 +139,7 @@ export function variantRootRefine(
 const meaningOverrideSchema = z.object({
   meaning_index: z.coerce.number().int().min(0, 'meaning_index harus >= 0'),
   definition: z.string().trim().min(1, 'Definisi tidak boleh kosong').optional(),
-  word_class_id: ulid.optional(),
+  word_class_id: wordClassId.optional(),
   translations: z
     .array(
       z.object({

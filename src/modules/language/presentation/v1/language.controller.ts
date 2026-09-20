@@ -27,7 +27,7 @@ export class LanguageController {
 
   async dialects(c: Context, languageId: unknown) {
     if (typeof languageId !== 'string' || languageId.length !== 26) {
-      throw new ValidationError([{ field: 'language_id', message: 'language_id wajib ULID 26 karakter' }]);
+      throw new ValidationError([{ field: 'language_id', message: 'Bahasa wajib dipilih' }]);
     }
     const items = await this.deps.listDialects.execute(languageId);
     return c.json({

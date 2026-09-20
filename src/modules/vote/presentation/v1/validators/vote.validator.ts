@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { VoteTarget, VoteTargetType } from '@/modules/vote/domain/repositories/vote.repository';
+import { opaqueId } from '@/shared/validation/id';
 
-const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
+const ulid = opaqueId;
 
 export const voteTargetTypeEnum = z.enum(['word', 'meaning', 'example', 'pronunciation', 'word_image', 'comment']);
 

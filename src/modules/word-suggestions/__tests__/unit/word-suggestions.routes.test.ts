@@ -38,8 +38,13 @@ describe('word-suggestions routes auth wiring', () => {
   });
 
   it('POST /:id/suggest-edit dengan user contributor → user_id dari context, bukan string kosong', async () => {
-    const createSuggestion = vi.fn(async (c: { json: (body: unknown, status: number) => Response }) =>
-      c.json({ success: true }, 201),
+    const createSuggestion = vi.fn(
+      async (
+        c: { json: (body: unknown, status: number) => Response },
+        _body: unknown,
+        _userId: string,
+        _wordId: string,
+      ) => c.json({ success: true }, 201),
     );
     const authenticate = createMiddleware(async (c, next) => {
       c.set('user', { user_id: USER_ID, role: 'contributor' });

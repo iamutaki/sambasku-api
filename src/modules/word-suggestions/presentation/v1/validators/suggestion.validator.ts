@@ -1,16 +1,18 @@
 import { z } from 'zod';
+import { choiceId, opaqueId } from '@/shared/validation/id';
 import type {
   ProposedChanges,
   SuggestionReasonCode,
 } from '../../../domain/entities/word-suggestion.entity';
 import { composeReasonDisplay } from '../../../domain/entities/word-suggestion.entity';
 
-const ulid = z.string().length(26);
+const ulid = opaqueId;
+const wordClassId = choiceId('Kelas kata');
 
 const meaningChangeSchema = z.object({
   meaning_id: ulid.optional(),
   action: z.enum(['update', 'add', 'delete']),
-  word_class_id: ulid.optional(),
+  word_class_id: wordClassId.optional(),
   definition: z.string().max(5000).optional(),
   translations: z
     .array(

@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { MAX_BOOKMARK_WORD_IDS } from '@/modules/bookmark/domain/repositories/bookmark.repository';
+import { opaqueId } from '@/shared/validation/id';
 
-const ulid = z.string().length(26, 'ID harus ULID 26 karakter');
+const ulid = opaqueId;
 
 export const toggleBookmarkSchema = z.object({
   word_id: ulid,

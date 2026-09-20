@@ -331,6 +331,51 @@ describe('createWordSchema - is_have_definition placeholder (17)', () => {
     }
   });
 
+  it('kelas kata kosong → pesan manusiawi, bukan jargon ULID', () => {
+    const result = createWordSchema.safeParse(
+      build({
+        meanings: [
+          {
+            word_class_id: '',
+            definition: 'Aktivitas memasukkan makanan ke mulut',
+            order_index: 1,
+            translations: [
+              { language_id: ULID('01LANGIDN'), translation_text: 'makan', translation_type: 'direct' },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'meanings.0.word_class_id');
+      expect(issue?.message).toBe('Kelas kata wajib dipilih');
+      expect(issue?.message).not.toMatch(/ULID/i);
+    }
+  });
+
+  it('kelas kata tidak valid → minta pilih ulang dari daftar', () => {
+    const result = createWordSchema.safeParse(
+      build({
+        meanings: [
+          {
+            word_class_id: 'bukan-ulid',
+            definition: 'Aktivitas memasukkan makanan ke mulut',
+            order_index: 1,
+            translations: [
+              { language_id: ULID('01LANGIDN'), translation_text: 'makan', translation_type: 'direct' },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'meanings.0.word_class_id');
+      expect(issue?.message).toBe('Kelas kata tidak valid. Pilih ulang dari daftar.');
+    }
+  });
+
   it('definisi tetap wajib min 1 walau placeholder - konvensi client, bukan refine', () => {
     const result = createWordSchema.safeParse(
       build({
