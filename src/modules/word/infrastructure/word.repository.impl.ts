@@ -659,11 +659,12 @@ export class WordRepositoryImpl implements WordRepository {
     };
   }
 
-  // 18-api-list-words.md - browsing A-Z: keyset komposit (lemma, id),
-  // BUKAN ulang search() yang ORDER BY id DESC. Row comparison Postgres
-  // tertolak index words_lemma_id_idx; id wajib tie-breaker karena lemma
-  // tidak unik. q = filter ILIKE lemma saja (tanpa word_variants).
+  // 18-api-list-words.md - browsing A-Z: keyset (lower(lemma) COLLATE "C", id).
+  // Bukan ORDER BY lemma mentah: collation DB (staging sering "C") membuat
+  // "Zebra" < "apam" (ASCII kapital sebelum huruf kecil) → list tampak acak.
+  // Index words_lemma_az_idx menopang ekspresi yang sama.
   async listAtoZ(params: ListAtoZParams): Promise<CursorPage<WordSummary>> {
+    const lemmaAz = sql`lower(${words.lemma}) COLLATE "C"`;
     const where = and(
       isNull(words.deletedAt),
       // Endpoint publik - selalu published (bukan opsional seperti search())
@@ -671,7 +672,7 @@ export class WordRepositoryImpl implements WordRepository {
       params.q ? ilike(words.lemma, `%${escapeLike(params.q.trim())}%`) : undefined,
       params.wordType ? eq(words.wordType, params.wordType) : undefined,
       params.cursor
-        ? sql`(${words.lemma}, ${words.id}) > (${params.cursor.lemma}, ${params.cursor.id})`
+        ? sql`(${lemmaAz}, ${words.id}) > (lower(${params.cursor.lemma}) COLLATE "C", ${params.cursor.id})`
         : undefined,
     );
 
@@ -688,7 +689,7 @@ export class WordRepositoryImpl implements WordRepository {
       .from(words)
       .innerJoin(languages, eq(words.languageId, languages.id))
       .where(where)
-      .orderBy(asc(words.lemma), asc(words.id))
+      .orderBy(lemmaAz, asc(words.id))
       .limit(params.limit + 1);
 
     const hasMore = rows.length > params.limit;

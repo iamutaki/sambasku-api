@@ -175,11 +175,12 @@ export interface WordRepository {
   updateWithRelations(id: string, word: WordToSave, actorId: string): Promise<Word | null>;
   search(params: SearchParams): Promise<CursorPage<WordSummary>>;
   /**
-   * 18-api-list-words.md: daftar semua kata published urut lemma ASC, id ASC
-   * (browsing A-Z, BUKAN pencarian). q = filter ILIKE %q% pada lemma saja -
-   * tanpa variasi penulisan, tanpa rekaman search-miss. published +
-   * deleted_at IS NULL dijamin di sini (endpoint publik, bukan opsional).
-   * nextCursor sudah ter-encode (impl memanggil encodeListCursor).
+   * 18-api-list-words.md: daftar semua kata published urut
+   * lower(lemma) COLLATE "C" ASC, id ASC (browsing A-Z case-insensitive).
+   * q = filter ILIKE %q% pada lemma saja - tanpa variasi penulisan,
+   * tanpa rekaman search-miss. published + deleted_at IS NULL dijamin
+   * di sini (endpoint publik, bukan opsional). nextCursor sudah
+   * ter-encode (impl memanggil encodeListCursor).
    */
   listAtoZ(params: ListAtoZParams): Promise<CursorPage<WordSummary>>;
   findMissingReferences(refs: ReferenceCheck): Promise<MissingReferences>;

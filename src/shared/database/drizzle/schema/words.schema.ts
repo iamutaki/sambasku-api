@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { boolean, index, pgTable, timestamp, varchar, text } from 'drizzle-orm/pg-core';
 import { generateId } from '@/shared/utils/ulid';
 import { languages } from './languages.schema';
@@ -37,8 +38,10 @@ export const words = pgTable(
   },
   (t) => [
     index('words_language_lemma_idx').on(t.languageId, t.lemma),
-    // 18-api-list-words.md: keyset A-Z (lemma ASC, id ASC) - id wajib
-    // tie-breaker karena lemma tidak unik
-    index('words_lemma_id_idx').on(t.lemma, t.id),
+    // 18-api-list-words.md: keyset A-Z (lower(lemma) COLLATE "C", id).
+    // COLLATE "C" + lower() dipin supaya urutan identik di SEMUA DB -
+    // collation column mengikuti locale DB (staging = C: "Zebra" < "apam",
+    // dev = en_US: interleaving) → list A-Z tampak tidak alfabetis.
+    index('words_lemma_az_idx').on(sql`lower(${t.lemma}) COLLATE "C"`, t.id),
   ],
 );

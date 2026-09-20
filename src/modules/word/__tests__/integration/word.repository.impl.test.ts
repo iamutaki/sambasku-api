@@ -654,6 +654,16 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     );
   });
 
+  it('listAtoZ: urut lower(lemma) case-insensitive (bukan collation C mentah)', async () => {
+    // Collation "C" pada lemma mentah: "Zebra" < "apam" (Z ASCII sebelum a).
+    // Sort A-Z kamus harus: apam → Zebra (via lower()).
+    await repo.saveWithRelations(baseWord({ lemma: 'Zebra' }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'apam' }), ACTOR);
+
+    const page = await repo.listAtoZ({ q: '', limit: 10 });
+    expect(page.items.map((w) => w.lemma)).toEqual(['apam', 'Zebra']);
+  });
+
   it('listAtoZ: q ILIKE case-insensitive memfilter + karakter LIKE di-escape', async () => {
     await repo.saveWithRelations(baseWord({ lemma: 'makatn' }), ACTOR);
     await repo.saveWithRelations(baseWord({ lemma: 'miyang' }), ACTOR);
