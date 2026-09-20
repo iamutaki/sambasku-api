@@ -7,9 +7,26 @@ export const socialPlatformSchema = z.enum(
   { error: 'Platform tidak valid. Pilih dari daftar.' },
 );
 
+export const socialScreenshotSchema = z.object({
+  url: z.url('URL screenshot tidak valid'),
+  provider_file_id: z.string().trim().min(1, 'provider_file_id wajib diisi'),
+});
+
 export const socialLinkSchema = z.object({
   platform: socialPlatformSchema,
-  url: z.url('URL tautan tidak valid'),
+  username: z
+    .string({ error: 'Nama atau username wajib diisi' })
+    .trim()
+    .min(1, 'Nama atau username wajib diisi')
+    .max(80, 'Nama atau username maksimal 80 karakter')
+    .transform((s) => s.replace(/^@+/, '').trim())
+    .pipe(
+      z
+        .string()
+        .min(2, 'Nama atau username minimal 2 karakter')
+        .max(80, 'Nama atau username maksimal 80 karakter'),
+    ),
+  screenshot: socialScreenshotSchema,
 });
 
 export const submitVerifierApplicationSchema = z
@@ -25,9 +42,9 @@ export const submitVerifierApplicationSchema = z
       .min(10, 'Alamat minimal 10 karakter')
       .max(500, 'Alamat maksimal 500 karakter'),
     social_links: z
-      .array(socialLinkSchema, { error: 'Minimal satu tautan media sosial' })
-      .min(1, 'Minimal satu tautan media sosial')
-      .max(5, 'Maksimal 5 tautan media sosial'),
+      .array(socialLinkSchema, { error: 'Minimal satu akun media sosial' })
+      .min(1, 'Minimal satu akun media sosial')
+      .max(5, 'Maksimal 5 akun media sosial'),
   })
   .superRefine((d, ctx) => {
     if (normalizeIdPhone(d.phone) === '__INVALID__') {
@@ -66,7 +83,11 @@ export const verifierApplicationIdParamSchema = z.object({
 
 const socialLinkWire = z.object({
   platform: socialPlatformSchema,
-  url: z.string(),
+  username: z.string(),
+  screenshot: z.object({
+    url: z.string(),
+    provider_file_id: z.string(),
+  }),
 });
 
 export const myVerifierApplicationResponseSchema = z.object({

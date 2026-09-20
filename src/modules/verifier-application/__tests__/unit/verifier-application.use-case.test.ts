@@ -12,7 +12,16 @@ const USER = '01JDUSERKONTRIB0000000000A';
 const ADMIN = '01JDADMINULID000000000000A';
 const APP_ID = '01JDVA0000000000000000000A';
 
-const links = [{ platform: 'instagram' as const, url: 'https://instagram.com/budi' }];
+const links = [
+  {
+    platform: 'instagram' as const,
+    username: 'budi',
+    screenshot: {
+      url: 'https://ik.imagekit.io/test/verifier-applications/budi.jpg',
+      provider_file_id: 'file_va_budi',
+    },
+  },
+];
 
 function makeApp(overrides: Partial<VerifierApplication> = {}): VerifierApplication {
   return {

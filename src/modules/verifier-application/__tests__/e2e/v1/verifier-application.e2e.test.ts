@@ -9,7 +9,16 @@ if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL;
 const body = {
   phone: '81234567890',
   address: 'Jl. Merdeka No. 1, Sambas, Kalimantan Barat',
-  social_links: [{ platform: 'instagram', url: 'https://instagram.com/budi' }],
+  social_links: [
+    {
+      platform: 'instagram',
+      username: 'budi',
+      screenshot: {
+        url: 'https://ik.imagekit.io/test/verifier-applications/budi.jpg',
+        provider_file_id: 'file_va_budi',
+      },
+    },
+  ],
 };
 
 describe.skipIf(!hasTestDb)('Verifier application E2E v1 (20 doc)', () => {

@@ -135,6 +135,7 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     expect(publik.status).toBe(200);
     const publikBody = await publik.json();
     expect(publikBody.data.is_verified).toBe(true);
+    expect(publikBody.data.self_verified).toBe(false);
     expect(typeof publikBody.data.verified_at).toBe('string');
   });
 

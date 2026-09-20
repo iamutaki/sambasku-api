@@ -8,7 +8,16 @@ import { VerifierApplicationRepositoryImpl } from '../../infrastructure/verifier
 const { parsed } = config({ path: '.env.test', quiet: true });
 const hasTestDb = !!parsed?.DATABASE_URL;
 
-const links = [{ platform: 'instagram' as const, url: 'https://instagram.com/budi' }];
+const links = [
+  {
+    platform: 'instagram' as const,
+    username: 'budi',
+    screenshot: {
+      url: 'https://ik.imagekit.io/test/verifier-applications/budi.jpg',
+      provider_file_id: 'file_va_budi',
+    },
+  },
+];
 
 describe.skipIf(!hasTestDb)('VerifierApplicationRepositoryImpl', () => {
   const db = hasTestDb ? getTestDb() : null!;
@@ -41,14 +50,32 @@ describe.skipIf(!hasTestDb)('VerifierApplicationRepositoryImpl', () => {
     expect(await repo.resubmit(user.id, {
       phone: '6281111111111',
       address: 'Alamat baru yang cukup panjang',
-      socialLinks: [{ platform: 'website', url: 'https://budi.example' }],
+      socialLinks: [
+        {
+          platform: 'website',
+          username: 'budi.example',
+          screenshot: {
+            url: 'https://ik.imagekit.io/test/verifier-applications/budi-web.jpg',
+            provider_file_id: 'file_va_budi_web',
+          },
+        },
+      ],
     })).toBeNull();
 
     await repo.markRejected(created.id, user.id, 'perbaiki');
     const again = await repo.resubmit(user.id, {
       phone: '6281111111111',
       address: 'Alamat baru yang cukup panjang',
-      socialLinks: [{ platform: 'website', url: 'https://budi.example' }],
+      socialLinks: [
+        {
+          platform: 'website',
+          username: 'budi.example',
+          screenshot: {
+            url: 'https://ik.imagekit.io/test/verifier-applications/budi-web.jpg',
+            provider_file_id: 'file_va_budi_web',
+          },
+        },
+      ],
     });
     expect(again?.status).toBe('pending');
     expect(again?.adminComment).toBeNull();

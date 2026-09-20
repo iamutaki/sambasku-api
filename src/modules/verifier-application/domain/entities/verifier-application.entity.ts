@@ -2,9 +2,15 @@ export type VerifierApplicationStatus = 'pending' | 'approved' | 'rejected';
 
 export type SocialPlatform = 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'x' | 'website';
 
+export interface SocialScreenshot {
+  url: string;
+  provider_file_id: string;
+}
+
 export interface SocialLink {
   platform: SocialPlatform;
-  url: string;
+  username: string;
+  screenshot: SocialScreenshot;
 }
 
 export interface VerifierApplication {

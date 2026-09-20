@@ -203,6 +203,7 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
       is_primary: true,
     });
     expect(body.data.is_verified).toBe(true);
+    expect(body.data.self_verified).toBe(true);
     expect(body.data.verified_by).toMatchObject({
       username: expect.stringMatching(/^adm/),
       role: 'admin',
@@ -228,6 +229,7 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data.is_verified).toBe(false);
+    expect(body.data.self_verified).toBe(false);
     expect(body.data.verified_by).toBeNull();
     expect(body.data.verified_at).toBeNull();
   });

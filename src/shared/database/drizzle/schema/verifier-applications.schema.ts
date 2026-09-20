@@ -4,7 +4,8 @@ import { users } from './users.schema';
 
 export type VerifierApplicationSocialLink = {
   platform: 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'x' | 'website';
-  url: string;
+  username: string;
+  screenshot: { url: string; provider_file_id: string };
 };
 
 /** Pengajuan contributor menjadi reviewer (20-api-verifier-application.md). */
