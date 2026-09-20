@@ -17,6 +17,7 @@ export const deviceTokenMutationResponseSchema = z.object({
   success: z.literal(true),
   data: z.object({
     udid: z.string(),
+    fcm_token_registered: z.boolean().optional(),
     revoked: z.boolean().optional(),
   }),
 });

@@ -66,9 +66,15 @@ async function getFcmAccessToken(clientEmail: string, privateKey: string): Promi
       assertion: jwt,
     }),
   });
-  const data = (await res.json()) as { access_token?: string };
+  const data = (await res.json()) as {
+    access_token?: string;
+    error?: string;
+    error_description?: string;
+  };
   if (!data.access_token) {
-    throw new Error('FCM OAuth token kosong');
+    throw new Error(
+      `FCM OAuth gagal (status=${res.status}): ${data.error ?? 'unknown'} ${data.error_description ?? ''}`,
+    );
   }
   return data.access_token;
 }
@@ -79,21 +85,19 @@ async function pushOne(
   fcmToken: string,
   message: PushMessage,
 ): Promise<boolean> {
-  const payload: {
-    message: {
-      token: string;
-      notification: { title: string; body: string };
-      data?: Record<string, string>;
-    };
-  } = {
+  // Samakan 1:1 dengan jnn_api `pushOne`: notification + optional data.
+  // Jangan set android.channel_id — di jnn tidak ada dan notif background
+  // tampil lewat channel default Firebase Messaging. Channel AwesomeNotifications
+  // (`sambasku_notifications`) hanya untuk foreground via onMessage.
+  const payload = {
     message: {
       token: fcmToken,
       notification: { title: message.title, body: message.body },
+      ...(message.data && Object.keys(message.data).length > 0
+        ? { data: message.data }
+        : {}),
     },
   };
-  if (message.data && Object.keys(message.data).length > 0) {
-    payload.message.data = message.data;
-  }
 
   const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -107,7 +111,10 @@ async function pushOne(
     },
   );
 
-  if (res.ok) return true;
+  if (res.ok) {
+    logger.info({ token_prefix: fcmToken.slice(0, 16) }, 'fcm push ok');
+    return true;
+  }
   const errBody = await res.text();
   logger.warn(
     { status: res.status, body: errBody, token_prefix: fcmToken.slice(0, 16) },

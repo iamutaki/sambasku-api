@@ -29,7 +29,11 @@ export class DeviceController {
 
     return c.json({
       success: true as const,
-      data: { udid: result.udid },
+      data: {
+        udid: result.udid,
+        // Echo supaya client/debug yakin FCM ikut tersimpan (bukan hanya udid).
+        fcm_token_registered: true,
+      },
     });
   }
 

@@ -76,9 +76,11 @@ MAIL_FROM = "Kamus Sambas Staging <no-reply@iamutaki.com>"
 KBBI_PROVIDER = "raf555"
 RAF555_BASE_URL = "https://kbbi.raf555.dev"
 LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
-# FCM project id boleh di vars (bukan rahasia); email+PEM tetap secret.
+# FCM — pola jnn_api: project id + client email di vars (bukan rahasia);
+# hanya FIREBASE_PRIVATE_KEY lewat wrangler secret.
 # Samakan dengan mobile flavorizr/firebase/staging → project_id.
 FIREBASE_PROJECT_ID = "sambasku-staging"
+FIREBASE_CLIENT_EMAIL = "firebase-adminsdk-fbsvc@sambasku-staging.iam.gserviceaccount.com"
 
 # DB: driver Neon serverless (WebSocket) dari secret DATABASE_URL -
 # Hyperdrive TIDAK dipakai (lihat catatan Section 8 docs: pg/node:net

@@ -46,7 +46,10 @@ export class ReviewContributionUseCase {
     });
 
     if (cmd.decision === 'approve' && this.notifyUser) {
-      void this.notifyUser.execute({
+      // WAJIB await: di Cloudflare Workers, void/fire-and-forget sering
+      // terbunuh saat response sudah dikirim. Approve sedikit lebih lambat
+      // (~FCM RTT) tapi push benar-benar selesai.
+      await this.notifyUser.execute({
         userId: outcome.contributorUserId,
         title: 'Kontribusi disetujui',
         body: 'Usulan Anda telah disetujui dan dipublikasikan.',

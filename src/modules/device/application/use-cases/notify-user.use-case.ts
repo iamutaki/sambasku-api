@@ -8,6 +8,14 @@ export interface NotifyUserCommand {
   data?: Record<string, string>;
 }
 
+function log(level: 'info' | 'warn' | 'error', msg: string, obj: Record<string, unknown> = {}) {
+  // console.* agar Workers Logs menangkap tanpa import logger→env (unit test aman).
+  const line = JSON.stringify({ level, time: new Date().toISOString(), msg, ...obj });
+  if (level === 'error') console.error(line);
+  else if (level === 'warn') console.warn(line);
+  else console.log(line);
+}
+
 /** Fan-out FCM ke semua device aktif user. Best-effort (tidak throw). */
 export class NotifyUserUseCase {
   constructor(
@@ -18,21 +26,36 @@ export class NotifyUserUseCase {
   async execute(cmd: NotifyUserCommand): Promise<void> {
     try {
       if (!this.pushSender.isConfigured) {
+        log('warn', 'push skipped: FIREBASE_* belum dikonfigurasi (NoopPushSender)', {
+          user_id: cmd.userId,
+        });
         return;
       }
 
       const tokens = await this.deviceTokenRepo.listActiveFcmTokensByUserId(cmd.userId);
       if (tokens.length === 0) {
+        log('warn', 'push skipped: tidak ada device_tokens aktif untuk user', {
+          user_id: cmd.userId,
+        });
         return;
       }
 
-      await this.pushSender.send(tokens, {
+      const result = await this.pushSender.send(tokens, {
         title: cmd.title,
         body: cmd.body,
         data: cmd.data,
       });
-    } catch {
-      // Best-effort: jangan gagalkan approve/review karena push.
+
+      log('info', 'push fan-out done', {
+        user_id: cmd.userId,
+        success: result.success.length,
+        failed: result.failed.length,
+      });
+    } catch (err) {
+      log('error', 'push fan-out failed', {
+        user_id: cmd.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 }
