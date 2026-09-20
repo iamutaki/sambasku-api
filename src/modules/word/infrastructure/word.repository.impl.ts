@@ -12,6 +12,7 @@ import {
   meanings,
   meaningTranslations,
   pronunciations,
+  users,
   wordCategories,
   wordClasses,
   wordImages,
@@ -345,16 +346,22 @@ export class WordRepositoryImpl implements WordRepository {
     opts?: { includeAllStatuses?: boolean },
   ): Promise<WordDetail | null> {
     const includeAll = opts?.includeAllStatuses === true;
-    const [wordRow] = await this.db
-      .select()
+    const [joined] = await this.db
+      .select({
+        word: words,
+        verifierUsername: users.username,
+        verifierRole: users.role,
+      })
       .from(words)
+      .leftJoin(users, eq(words.verifiedBy, users.id))
       .where(
         includeAll
           ? and(eq(words.id, id), isNull(words.deletedAt))
           : and(eq(words.id, id), eq(words.status, 'published'), isNull(words.deletedAt)),
       )
       .limit(1);
-    if (!wordRow) return null;
+    if (!joined) return null;
+    const wordRow = joined.word;
 
     const meaningRows = await this.db
       .select()
@@ -481,6 +488,10 @@ export class WordRepositoryImpl implements WordRepository {
 
     return {
       ...toWord(wordRow),
+      verifier:
+        joined.verifierUsername != null && joined.verifierRole != null
+          ? { username: joined.verifierUsername, role: joined.verifierRole }
+          : null,
       meanings: meaningRows.map((m) => ({
         id: m.id,
         wordId: m.wordId,

@@ -4,9 +4,13 @@ import type { ChildStatus } from '../../domain/entities/word.entity';
 // create-word + kontribusi media (03-api-kontribusi-verifikasi.md).
 // Role verifikator (admin/editor/root/reviewer) self-verified langsung
 // tayang; contributor masuk antrean pending_review (tidak tayang).
+export function isVerifierRole(role: string): boolean {
+  return ['admin', 'editor', 'root', 'reviewer'].includes(role);
+}
+
 export function resolvePublication(requested: 'draft' | 'published', role: string) {
   if (requested === 'draft') return { status: 'draft' as const, isVerified: false };
-  const isVerifier = ['admin', 'editor', 'root', 'reviewer'].includes(role);
+  const isVerifier = isVerifierRole(role);
   return isVerifier
     ? { status: 'published' as const, isVerified: true }
     : { status: 'pending_review' as const, isVerified: false };

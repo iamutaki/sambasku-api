@@ -34,3 +34,29 @@ export function createAuthenticateMiddleware(verifyAccessToken: VerifyFn) {
     }
   });
 }
+
+/**
+ * Auth opsional: Bearer valid → set `user`; tanpa token → lanjut sebagai tamu.
+ * Token invalid/expired tetap 401 (jangan diam-diam jadi anonim).
+ * Dipakai endpoint publik yang atribusi bergantung login
+ * (mis. POST /contributions/words).
+ */
+export function createOptionalAuthenticateMiddleware(verifyAccessToken: VerifyFn) {
+  return createMiddleware<{ Variables: AppVariables }>(async (c, next) => {
+    const header = c.req.header('Authorization') ?? '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : undefined;
+    if (!token) {
+      await next();
+      return;
+    }
+
+    try {
+      const payload = await verifyAccessToken(token);
+      c.set('user', { user_id: payload.user_id, role: payload.role });
+      await next();
+    } catch (err) {
+      const code = err instanceof AppError && err.errorCode === 'TOKEN_EXPIRED' ? 'TOKEN_EXPIRED' : 'UNAUTHORIZED';
+      return unauthorized(c, code, 'Token tidak valid atau kadaluarsa');
+    }
+  });
+}

@@ -24,6 +24,7 @@ function makeContribution(overrides: Partial<Contribution> = {}): Contribution {
     searchMissId: null,
     searchMissTerm: null,
     searchMissDirection: null,
+    wordLemma: 'makatn',
     ...overrides,
   };
 }

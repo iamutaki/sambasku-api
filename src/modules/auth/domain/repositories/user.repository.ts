@@ -9,4 +9,5 @@ export interface UserRepository {
   updatePassword(id: string, passwordHash: string): Promise<void>;
   list(filter: UserListFilter): Promise<UserListResult>;
   updateRole(id: string, role: UserRole): Promise<void>;
+  updatePhone(id: string, phone: string): Promise<void>;
 }

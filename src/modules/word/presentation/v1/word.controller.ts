@@ -175,7 +175,8 @@ export class WordController {
       status: word.status,
       is_verified: word.isVerified,
       is_corrected: word.isCorrected,
-      verified_at: word.verifiedAt ? word.verifiedAt.toISOString() : null,
+      verified_by: word.isVerified && word.verifier ? word.verifier : null,
+      verified_at: word.isVerified && word.verifiedAt ? word.verifiedAt.toISOString() : null,
       meanings: word.meanings.map((m) => ({
         id: m.id,
         word_class: m.wordClass
@@ -330,18 +331,23 @@ export class WordController {
   }
 
   /**
-   * Submit kata oleh pengunjung ANONIM (tanpa login) - endpoint publik
-   * /api/v1/contributions/words. Reuse use case create yang sama; actor
-   * = user sistem Anonim (role contributor) sehingga otomatis masuk
-   * antrean pending_review via resolvePublication. Status dipaksa
-   * 'published' (= "kirim untuk direview") karena draft milik anonim
-   * tidak bermakna (tidak bisa kembali melanjutkannya).
+   * Submit kata via endpoint publik /api/v1/contributions/words.
+   * - Tanpa Bearer → user sistem Anonim (legacy anonim).
+   * - Dengan Bearer valid (optionalAuth) → atribusi ke user login
+   *   (role dari JWT). Status tetap dipaksa 'published' (= kirim review);
+   *   contributor/role non-verifier → pending_review via resolvePublication.
    */
   async createAnon(c: Context, body: Omit<CreateWordBody, 'status'>) {
-    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    const ctx = c as Context<{ Variables: AppVariables }>;
+    const requestId = ctx.get('requestId');
+    const authUser = ctx.get('user');
+    const actor = authUser
+      ? { userId: authUser.user_id, role: authUser.role, requestId }
+      : { userId: ANONIM_USER_ID, role: 'contributor' as const, requestId };
+
     const { word, warnings, inlineCreatedWords, inlineWarnings, searchMissId } = await this.deps.create.execute(
       toCreateWordDto({ ...body, status: 'published' }, this.deps.imageProviderName),
-      { userId: ANONIM_USER_ID, role: 'contributor', requestId },
+      actor,
     );
 
     return c.json(

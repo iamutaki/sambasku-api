@@ -202,6 +202,34 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
       url: 'https://ik.imagekit.io/test/words/makatn.jpg',
       is_primary: true,
     });
+    expect(body.data.is_verified).toBe(true);
+    expect(body.data.verified_by).toMatchObject({
+      username: expect.stringMatching(/^adm/),
+      role: 'admin',
+    });
+    expect(typeof body.data.verified_at).toBe('string');
+  });
+
+  it('GET detail setelah unverify → verified_by dan verified_at null', async () => {
+    const create = await post(
+      '/api/v1/admin/words',
+      validBody({ lemma: 'unverifyatribusi' }),
+      adminToken,
+    );
+    const { data } = await create.json();
+
+    const unverify = await request(`/api/v1/admin/words/${data.word_id}/unverify`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(unverify.status).toBe(200);
+
+    const res = await request(`/api/v1/words/${data.word_id}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.is_verified).toBe(false);
+    expect(body.data.verified_by).toBeNull();
+    expect(body.data.verified_at).toBeNull();
   });
 
   it('GET detail kata draft → 404 WORD_NOT_FOUND (draft tidak tayang)', async () => {

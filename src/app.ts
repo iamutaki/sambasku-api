@@ -8,7 +8,10 @@ import { db } from '@/shared/database/drizzle/client';
 import { errorHandler } from '@/shared/middlewares/error-handler.middleware';
 import { requestIdMiddleware } from '@/shared/middlewares/request-id.middleware';
 import { requestDb } from '@/shared/middlewares/request-db.middleware';
-import { createAuthenticateMiddleware } from '@/shared/middlewares/authenticate.middleware';
+import {
+  createAuthenticateMiddleware,
+  createOptionalAuthenticateMiddleware,
+} from '@/shared/middlewares/authenticate.middleware';
 import { createOpenApiApp } from '@/shared/openapi/openapi-app';
 import { UserRepositoryImpl } from '@/modules/auth/infrastructure/user.repository.impl';
 import { RefreshTokenRepositoryImpl } from '@/modules/auth/infrastructure/refresh-token.repository.impl';
@@ -129,6 +132,10 @@ import { ToggleBookmarkUseCase } from '@/modules/bookmark/application/use-cases/
 import { GetMyBookmarksUseCase } from '@/modules/bookmark/application/use-cases/get-my-bookmarks.use-case';
 import { BookmarkController } from '@/modules/bookmark/presentation/v1/bookmark.controller';
 import { createBookmarkRoutes } from '@/modules/bookmark/presentation/v1/bookmark.routes';
+import { PublicUserRepositoryImpl } from '@/modules/user/infrastructure/public-user.repository.impl';
+import { GetPublicProfileUseCase } from '@/modules/user/application/use-cases/get-public-profile.use-case';
+import { UserController } from '@/modules/user/presentation/v1/user.controller';
+import { createPublicUserRoutes } from '@/modules/user/presentation/v1/user.routes';
 import { DeviceTokenRepositoryImpl } from '@/modules/device/infrastructure/device-token.repository.impl';
 import { RegisterDeviceTokenUseCase } from '@/modules/device/application/use-cases/register-device-token.use-case';
 import { RevokeDeviceTokenUseCase } from '@/modules/device/application/use-cases/revoke-device-token.use-case';
@@ -140,6 +147,17 @@ import { createLemmaDefinitionProviderRegistry } from '@/modules/lemma-definitio
 import { LookupLemmaDefinitionUseCase } from '@/modules/lemma-definition/application/use-cases/lookup-lemma-definition.use-case';
 import { LemmaDefinitionController } from '@/modules/lemma-definition/presentation/v1/lemma-definition.controller';
 import { createLemmaDefinitionRoutes } from '@/modules/lemma-definition/presentation/v1/lemma-definition.routes';
+import { VerifierApplicationRepositoryImpl } from '@/modules/verifier-application/infrastructure/verifier-application.repository.impl';
+import { CreateVerifierApplicationUseCase } from '@/modules/verifier-application/application/use-cases/create-verifier-application.use-case';
+import { GetMyVerifierApplicationUseCase } from '@/modules/verifier-application/application/use-cases/get-my-verifier-application.use-case';
+import { ResubmitVerifierApplicationUseCase } from '@/modules/verifier-application/application/use-cases/resubmit-verifier-application.use-case';
+import { ListVerifierApplicationsUseCase } from '@/modules/verifier-application/application/use-cases/list-verifier-applications.use-case';
+import { GetVerifierApplicationDetailUseCase } from '@/modules/verifier-application/application/use-cases/get-verifier-application-detail.use-case';
+import { ApproveVerifierApplicationUseCase } from '@/modules/verifier-application/application/use-cases/approve-verifier-application.use-case';
+import { RejectVerifierApplicationUseCase } from '@/modules/verifier-application/application/use-cases/reject-verifier-application.use-case';
+import { VerifierApplicationController } from '@/modules/verifier-application/presentation/v1/verifier-application.controller';
+import { createVerifierApplicationRoutes } from '@/modules/verifier-application/presentation/v1/verifier-application.routes';
+import { createAdminVerifierApplicationRoutes } from '@/modules/verifier-application/presentation/v1/admin-verifier-application.routes';
 
 // ---- Composition root: rakit semua dependency (manual DI, api-base-stack.md Section 2) ----
 const userRepo = new UserRepositoryImpl(db);
@@ -186,6 +204,9 @@ const controller = new AuthController({
 });
 
 const authenticate = createAuthenticateMiddleware((token) => tokenService.verifyAccessToken(token));
+const optionalAuthenticate = createOptionalAuthenticateMiddleware((token) =>
+  tokenService.verifyAccessToken(token),
+);
 
 // ---- Modul word (+ language & category sebagai data referensi form admin) ----
 const wordRepo = new WordRepositoryImpl(db);
@@ -293,6 +314,11 @@ const bookmarkRepo = new BookmarkRepositoryImpl(db);
 const bookmarkController = new BookmarkController({
   toggle: new ToggleBookmarkUseCase(bookmarkRepo),
   my: new GetMyBookmarksUseCase(bookmarkRepo),
+});
+
+const publicUserRepo = new PublicUserRepositoryImpl(db);
+const userController = new UserController({
+  getPublicProfile: new GetPublicProfileUseCase(publicUserRepo),
 });
 
 // ---- Modul device (FCM token register/revoke, multi-device) ----
@@ -431,6 +457,10 @@ app.route('/api/v1/comments', createCommentRoutes({ controller: commentControlle
 // Bookmark kata per user (16-api-bookmark.md) - toggle + my (login, semua
 // role). Tanpa prefix bentrok, urutan mount bebas.
 app.route('/api/v1/bookmarks', createBookmarkRoutes({ controller: bookmarkController, authenticate }));
+
+// Profil publik by username (19-api-profil-publik.md) - tanpa auth, rate
+// limit 100/menit/IP di routes factory. Tidak bentrok /admin/users.
+app.route('/api/v1/users', createPublicUserRoutes({ controller: userController }));
 app.route('/api/v1/device', createDeviceRoutes({ controller: deviceController, authenticate }));
 app.route('/api/v1/admin/comments', createAdminCommentRoutes({ controller: commentController, authenticate }));
 
@@ -443,7 +473,10 @@ app.route('/api/v1/admin/contributions', createContributionRoutes({ controller: 
 
 // Submit kata TANPA login (publik, tanpa limit) - atribusi ke user sistem
 // Anonim, otomatis pending_review (03-api-kontribusi-verifikasi.md)
-app.route('/api/v1/contributions', createAnonContributionRoutes({ controller: wordController }));
+app.route(
+  '/api/v1/contributions',
+  createAnonContributionRoutes({ controller: wordController, optionalAuthenticate }),
+);
 
 // Search miss - beranda publik (peluang kontribusi) + panel admin
 app.route('/api/v1/search-misses', createSearchMissRoutes({ controller: searchMissController, authenticate }));
@@ -477,6 +510,30 @@ const adminUsersController = new AdminUsersController({
   updateRole: new UpdateUserRoleUseCase(userRepo, refreshTokenRepo, auditRepo),
 });
 app.route('/api/v1/admin/users', createAdminUserRoutes({ controller: adminUsersController, authenticate }));
+
+const verifierApplicationRepo = new VerifierApplicationRepositoryImpl(db);
+const verifierApplicationController = new VerifierApplicationController({
+  create: new CreateVerifierApplicationUseCase(verifierApplicationRepo, userRepo),
+  getMine: new GetMyVerifierApplicationUseCase(verifierApplicationRepo),
+  resubmit: new ResubmitVerifierApplicationUseCase(verifierApplicationRepo, userRepo),
+  list: new ListVerifierApplicationsUseCase(verifierApplicationRepo),
+  getDetail: new GetVerifierApplicationDetailUseCase(verifierApplicationRepo),
+  approve: new ApproveVerifierApplicationUseCase(
+    verifierApplicationRepo,
+    refreshTokenRepo,
+    auditRepo,
+    notifyUser,
+  ),
+  reject: new RejectVerifierApplicationUseCase(verifierApplicationRepo, auditRepo, notifyUser),
+});
+app.route(
+  '/api/v1/verifier-applications',
+  createVerifierApplicationRoutes({ controller: verifierApplicationController, authenticate }),
+);
+app.route(
+  '/api/v1/admin/verifier-applications',
+  createAdminVerifierApplicationRoutes({ controller: verifierApplicationController, authenticate }),
+);
 
 // Lookup definisi lemma (KBBI via port) - prefill field definition di form
 // mobile/admin. Tidak menulis DB. docs/api/13-api-kbbi-lemma-definition.md

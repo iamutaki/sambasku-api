@@ -26,3 +26,4 @@ export * from './votes.schema';
 export * from './comments.schema';
 export * from './bookmarks.schema';
 export * from './device-tokens.schema';
+export * from './verifier-applications.schema';

@@ -83,6 +83,8 @@ export interface WordDetail extends Word {
   /** relasi masuk (mis. komponen → "muncul dalam" peribahasa) - derived, tak disimpan */
   appearsIn: RelatedWordRef[];
   variants: WordVariantRef[];
+  /** JOIN users pada words.verified_by; tetap ada meski user soft-deleted */
+  verifier: { username: string; role: string } | null;
 }
 
 export interface WordClassSummary {

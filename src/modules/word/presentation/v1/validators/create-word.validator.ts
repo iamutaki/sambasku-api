@@ -450,6 +450,13 @@ export const wordDetailResponseSchema = z.object({
     status: wordStatusSchema,
     is_verified: z.boolean(),
     is_corrected: z.boolean(),
+    verified_by: z
+      .object({
+        username: z.string(),
+        role: z.string(),
+      })
+      .nullable(),
+    verified_at: z.string().nullable(),
     meanings: z.array(
       z.object({
         id: z.string(),

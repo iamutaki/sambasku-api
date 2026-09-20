@@ -22,6 +22,11 @@ export interface Contribution {
   searchMissId: string | null;
   searchMissTerm: string | null;
   searchMissDirection: 'lemma' | 'translation' | null;
+  /**
+   * Lemma kata terkait (untuk antrean review).
+   * word → lemma entity; anak (pronunciation/image/example/meaning) → lemma parent.
+   */
+  wordLemma: string | null;
 }
 
 export interface ContributionReview {

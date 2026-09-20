@@ -113,4 +113,16 @@ export class UserRepositoryImpl implements UserRepository {
       throw new NotFoundError('USER_NOT_FOUND', `User ${id} tidak ditemukan`);
     }
   }
+
+  async updatePhone(id: string, phone: string): Promise<void> {
+    const [updated] = await this.db
+      .update(users)
+      .set({ phone, updatedAt: new Date() })
+      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .returning({ id: users.id });
+
+    if (!updated) {
+      throw new NotFoundError('USER_NOT_FOUND', `User ${id} tidak ditemukan`);
+    }
+  }
 }

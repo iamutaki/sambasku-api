@@ -55,6 +55,7 @@ function toContribution(row: {
   searchMissId: string | null;
   searchMissTerm: string | null;
   searchMissDirection: string | null;
+  wordLemma?: string | null;
 }): Contribution {
   return {
     id: row.id,
@@ -72,6 +73,7 @@ function toContribution(row: {
       row.searchMissDirection === 'lemma' || row.searchMissDirection === 'translation'
         ? row.searchMissDirection
         : null,
+    wordLemma: row.wordLemma ?? null,
   };
 }
 
@@ -112,7 +114,14 @@ export class ContributionRepositoryImpl implements ContributionRepository {
       .limit(filter.limit + 1);
 
     const hasMore = rows.length > filter.limit;
-    const items = (hasMore ? rows.slice(0, filter.limit) : rows).map(toContribution);
+    const sliced = hasMore ? rows.slice(0, filter.limit) : rows;
+    const lemmaByKey = await this.resolveWordLemmas(sliced);
+    const items = sliced.map((row) =>
+      toContribution({
+        ...row,
+        wordLemma: lemmaByKey.get(`${row.entityType}:${row.entityId}`) ?? null,
+      }),
+    );
     return {
       items,
       nextCursor: hasMore && items.length > 0 ? items[items.length - 1].id : null,
@@ -128,7 +137,78 @@ export class ContributionRepositoryImpl implements ContributionRepository {
       .leftJoin(searchMisses, eq(searchMisses.id, contributions.searchMissId))
       .where(and(eq(contributions.id, id), isNull(contributions.deletedAt)))
       .limit(1);
-    return row ? toContribution(row) : null;
+    if (!row) return null;
+    const lemmaByKey = await this.resolveWordLemmas([row]);
+    return toContribution({
+      ...row,
+      wordLemma: lemmaByKey.get(`${row.entityType}:${row.entityId}`) ?? null,
+    });
+  }
+
+  /**
+   * Batch-resolve lemma untuk antrean: word = lemma sendiri;
+   * entity anak = lemma parent (satu query per jenis yang ada di page).
+   */
+  private async resolveWordLemmas(
+    items: Array<{ entityType: string; entityId: string }>,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (items.length === 0) return out;
+
+    const idsOf = (type: string) =>
+      items.filter((i) => i.entityType === type).map((i) => i.entityId);
+
+    const wordIds = idsOf('word');
+    if (wordIds.length > 0) {
+      const rows = await this.db
+        .select({ id: words.id, lemma: words.lemma })
+        .from(words)
+        .where(inArray(words.id, wordIds));
+      for (const r of rows) out.set(`word:${r.id}`, r.lemma);
+    }
+
+    const pronunciationIds = idsOf('pronunciation');
+    if (pronunciationIds.length > 0) {
+      const rows = await this.db
+        .select({ id: pronunciations.id, lemma: words.lemma })
+        .from(pronunciations)
+        .innerJoin(words, eq(words.id, pronunciations.wordId))
+        .where(inArray(pronunciations.id, pronunciationIds));
+      for (const r of rows) out.set(`pronunciation:${r.id}`, r.lemma);
+    }
+
+    const imageIds = idsOf('word_image');
+    if (imageIds.length > 0) {
+      const rows = await this.db
+        .select({ id: wordImages.id, lemma: words.lemma })
+        .from(wordImages)
+        .innerJoin(words, eq(words.id, wordImages.wordId))
+        .where(inArray(wordImages.id, imageIds));
+      for (const r of rows) out.set(`word_image:${r.id}`, r.lemma);
+    }
+
+    const meaningIds = idsOf('meaning');
+    if (meaningIds.length > 0) {
+      const rows = await this.db
+        .select({ id: meanings.id, lemma: words.lemma })
+        .from(meanings)
+        .innerJoin(words, eq(words.id, meanings.wordId))
+        .where(inArray(meanings.id, meaningIds));
+      for (const r of rows) out.set(`meaning:${r.id}`, r.lemma);
+    }
+
+    const exampleIds = idsOf('example');
+    if (exampleIds.length > 0) {
+      const rows = await this.db
+        .select({ id: examples.id, lemma: words.lemma })
+        .from(examples)
+        .innerJoin(meanings, eq(meanings.id, examples.meaningId))
+        .innerJoin(words, eq(words.id, meanings.wordId))
+        .where(inArray(examples.id, exampleIds));
+      for (const r of rows) out.set(`example:${r.id}`, r.lemma);
+    }
+
+    return out;
   }
 
   async findReview(contributionId: string): Promise<ContributionReview | null> {

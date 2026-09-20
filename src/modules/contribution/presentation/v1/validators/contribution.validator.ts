@@ -79,6 +79,10 @@ const contributionItemSchema = z.object({
   action: z.string(),
   status: contributionStatusSchema,
   created_at: z.string(),
+  word_lemma: z.string().nullable().optional(),
+  search_miss_id: z.string().nullable().optional(),
+  search_miss_term: z.string().nullable().optional(),
+  search_miss_direction: z.enum(['lemma', 'translation']).nullable().optional(),
 });
 
 export const listContributionsResponseSchema = z.object({
