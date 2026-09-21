@@ -13,17 +13,15 @@ function escapeHtml(value: string): string {
     .replaceAll('"', '&quot;');
 }
 
-export function resetPasswordEmailText(resetUrl: string, displayCode: string): string {
+export function resetPasswordEmailText(displayCode: string): string {
   return (
     `Kode reset password SambasKu (berlaku 10 menit): ${displayCode}\n\n` +
-    `Atau tautan cadangan (berlaku 1 jam):\n${resetUrl}\n\n` +
-    'Abaikan email ini jika Anda tidak meminta reset password.'
+    'Masukkan kode ini di aplikasi. Abaikan email ini jika Anda tidak meminta reset password.'
   );
 }
 
-export function resetPasswordEmailHtml(resetUrl: string, displayCode: string): string {
+export function resetPasswordEmailHtml(displayCode: string): string {
   const code = escapeHtml(displayCode);
-  const href = escapeHtml(resetUrl);
   return `<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -68,24 +66,6 @@ export function resetPasswordEmailHtml(resetUrl: string, displayCode: string): s
           <tr>
             <td align="center" style="padding:0 32px 8px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:${NAVY};">
               Berlaku 10 menit. Format tampilan XXXX-XXXX.
-            </td>
-          </tr>
-          <tr>
-            <td align="center" style="padding:16px 32px 8px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:${MUTED};">
-              Cadangan: ketuk tautan jika lebih nyaman di browser.
-            </td>
-          </tr>
-          <tr>
-            <td align="center" style="padding:4px 32px 20px;">
-              <table role="presentation" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td align="center" bgcolor="${NAVY}" style="border-radius:12px;border:1px solid ${GOLD};">
-                    <a href="${href}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:14px 28px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">
-                      Atur password baru
-                    </a>
-                  </td>
-                </tr>
-              </table>
             </td>
           </tr>
           <tr>

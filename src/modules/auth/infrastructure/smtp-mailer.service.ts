@@ -33,8 +33,8 @@ export class SmtpMailerService implements MailerPort {
       from: env.SMTP_USER,
       to,
       subject: 'Reset password - SambasKu',
-      text: resetPasswordEmailText(resetUrl, displayCode),
-      html: resetPasswordEmailHtml(resetUrl, displayCode),
+      text: resetPasswordEmailText(displayCode),
+      html: resetPasswordEmailHtml(displayCode),
       attachments: [
         {
           filename: OTP_EMAIL_LOGO_FILENAME,

@@ -16,12 +16,12 @@ import {
 // MailerPort (Section 8): ganti provider email HTTP lain = satu file ini.
 // Best-effort: kegagalan kirim di-log, TIDAK dilempar.
 export class ResendMailerService implements MailerPort {
-  async sendResetPasswordEmail(to: string, resetUrl: string, displayCode: string): Promise<void> {
+  async sendResetPasswordEmail(to: string, _resetUrl: string, displayCode: string): Promise<void> {
     await this.send({
       to,
       subject: 'Reset password - SambasKu',
-      text: resetPasswordEmailText(resetUrl, displayCode),
-      html: resetPasswordEmailHtml(resetUrl, displayCode),
+      text: resetPasswordEmailText(displayCode),
+      html: resetPasswordEmailHtml(displayCode),
       inlineLogo: true,
     });
   }
