@@ -1,6 +1,6 @@
 import 'dotenv/config'; // script CLI jalan di Node - env.ts tidak lagi memuat dotenv
 import { count, lt } from 'drizzle-orm';
-import { db, pool } from '@/shared/database/drizzle/client';
+import { closeDb, db } from '@/shared/database/drizzle/client';
 import { passwordResetTokens, refreshTokens } from '@/shared/database/drizzle/schema';
 import { logger } from '@/shared/logging/logger';
 
@@ -30,10 +30,10 @@ async function main() {
 }
 
 main()
-  .then(() => pool.end())
+  .then(() => closeDb())
   .then(() => process.exit(0))
   .catch(async (err) => {
     logger.error({ err }, 'Cleanup gagal');
-    await pool.end().catch(() => {});
+    await closeDb().catch(() => {});
     process.exit(1);
   });

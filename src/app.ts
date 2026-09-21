@@ -443,7 +443,7 @@ app.get('/', (c) =>
 // Health check - dipakai orchestrator (Docker/K8s/Railway) untuk liveness
 app.get('/health', async (c) => {
   try {
-    await db.execute(sql`SELECT 1`);
+    await db.run(sql`SELECT 1`);
     return c.json({ status: 'ok', database: 'up', timestamp: new Date().toISOString() });
   } catch {
     return c.json({ status: 'error', database: 'down', timestamp: new Date().toISOString() }, 503);

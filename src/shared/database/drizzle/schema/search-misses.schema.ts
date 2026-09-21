@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, unique } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
@@ -7,23 +7,23 @@ import { users } from './users.schema';
 // Tayang di beranda hanya jika is_visible=true (default false; admin gate).
 // Fulfilment TIDAK disimpan kolom - derived lewat JOIN words saat dibaca
 // (kata published dengan lemma = term → miss terjawab).
-export const searchMisses = pgTable(
+export const searchMisses = sqliteTable(
   'search_misses',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
     // kata yang dicari - normalized lower(trim), jadi unik per istilah
     // (boleh dikoreksi admin via PATCH - 14-api)
-    term: varchar('term', { length: 255 }).notNull(),
+    term: text('term').notNull(),
     // lemma = Sambas→Indonesia (kata tidak ada); translation = Indonesia→Sambas
-    direction: varchar('direction', { length: 20 }).notNull().default('lemma'),
+    direction: text('direction').notNull().default('lemma'),
     hitCount: integer('hit_count').notNull().default(1),
-    lastSearchedAt: timestamp('last_searched_at').notNull().defaultNow(),
+    lastSearchedAt: integer('last_searched_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
     // Gate beranda: false = panel admin saja (14-api-search-miss-moderation.md)
-    isVisible: boolean('is_visible').notNull().default(false),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at'),
-    deletedAt: timestamp('deleted_at'),
-    deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
+    isVisible: integer('is_visible', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+    deletedBy: text('deleted_by').references(() => users.id),
   },
   (t) => [unique('search_misses_term_direction_unique').on(t.term, t.direction)],
 );

@@ -1,7 +1,6 @@
 import { and, desc, eq, isNull, lt } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { bugReports, users } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type { BugReportImageRow } from '@/shared/database/drizzle/schema/bug-reports.schema';
 import type { CursorPage } from '@/modules/word/domain/repositories/word.repository';
 import type {
@@ -59,7 +58,7 @@ function toImageRows(images: BugReportImage[]): BugReportImageRow[] {
 }
 
 export class BugReportRepositoryImpl implements BugReportRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async create(input: NewBugReport): Promise<BugReport> {
     const [row] = await this.db

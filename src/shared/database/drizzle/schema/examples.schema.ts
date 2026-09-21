@@ -1,33 +1,33 @@
-import { boolean, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { meanings } from './meanings.schema';
 import { languages } from './languages.schema';
 import { users } from './users.schema';
 
-export const examples = pgTable('examples', {
-  id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-  meaningId: varchar('meaning_id', { length: 26 })
+export const examples = sqliteTable('examples', {
+  id: text('id').primaryKey().$defaultFn(() => generateId()),
+  meaningId: text('meaning_id')
     .notNull()
     .references(() => meanings.id),
-  sourceLanguageId: varchar('source_language_id', { length: 26 })
+  sourceLanguageId: text('source_language_id')
     .notNull()
     .references(() => languages.id),
   sourceSentence: text('source_sentence').notNull(),
-  targetLanguageId: varchar('target_language_id', { length: 26 }).references(() => languages.id),
+  targetLanguageId: text('target_language_id').references(() => languages.id),
   targetSentence: text('target_sentence'),
   // native_speaker | book | corpus | interview | other
-  sourceType: varchar('source_type', { length: 50 }),
+  sourceType: text('source_type'),
   sourceReference: text('source_reference'),
   notes: text('notes'),
   // Approval gate (Section 22) - kontribusi mandiri: pending sampai
   // disetujui verifikator; identitas reviewer ada di contribution_reviews
-  status: varchar('status', { length: 30 }).notNull().default('published'),
-  isVerified: boolean('is_verified').notNull().default(false),
-  isCorrected: boolean('is_corrected').notNull().default(false),
-  createdBy: varchar('created_by', { length: 26 }).references(() => users.id),
-  updatedBy: varchar('updated_by', { length: 26 }).references(() => users.id),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at'),
-  deletedAt: timestamp('deleted_at'),
-  deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
+  status: text('status').notNull().default('published'),
+  isVerified: integer('is_verified', { mode: 'boolean' }).notNull().default(false),
+  isCorrected: integer('is_corrected', { mode: 'boolean' }).notNull().default(false),
+  createdBy: text('created_by').references(() => users.id),
+  updatedBy: text('updated_by').references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }),
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  deletedBy: text('deleted_by').references(() => users.id),
 });

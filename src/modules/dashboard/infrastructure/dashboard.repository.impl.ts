@@ -1,7 +1,6 @@
 import { and, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { auditLogs, contributions, users, words } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type {
   AppRoleKey,
   ContributionStatusKey,
@@ -27,7 +26,7 @@ const APP_ROLES = ['root', 'admin', 'editor', 'reviewer', 'contributor'] as cons
 // Agregasi ringan lintas tabel untuk halaman dashboard. Semua query jalan
 // paralel (satu Promise.all) - dashboard tampil cepat tanpa beban kunci.
 export class DashboardRepositoryImpl implements DashboardRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async getStats(): Promise<DashboardStats> {
     const now = Date.now();

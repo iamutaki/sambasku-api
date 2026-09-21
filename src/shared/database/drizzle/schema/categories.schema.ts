@@ -1,19 +1,19 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, timestamp, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
-export const categories = pgTable(
+export const categories = sqliteTable(
   'categories',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    parentId: varchar('parent_id', { length: 26 }),
-    name: varchar('name', { length: 100 }).notNull(),
-    description: varchar('description', { length: 500 }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at'),
-    deletedAt: timestamp('deleted_at'),
-    deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    parentId: text('parent_id'),
+    name: text('name').notNull(),
+    description: text('description'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+    deletedBy: text('deleted_by').references(() => users.id),
   },
   (t) => [
     // Nama kategori unik di antara baris aktif - cegah duplikat seed/form.

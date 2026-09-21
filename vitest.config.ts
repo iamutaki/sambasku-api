@@ -9,10 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    // Integration/e2e berbagi satu database test - jalankan file test
-    // berurutan supaya cleanup beforeEach antar file tidak saling serobot.
-    // maxWorkers:1 eksplisit - fileParallelism:false harus set ini, tapi
-    // race FK di truncateAll pernah muncul saat worker > 1.
+    // Integration/e2e berbagi satu file SQLite — wajib serial (SQLITE_BUSY).
     fileParallelism: false,
     maxWorkers: 1,
   },

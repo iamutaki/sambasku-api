@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, pgTable, text, timestamp, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
@@ -7,20 +7,20 @@ import { users } from './users.schema';
 // keputusan review (unique user + target). Bukan push FCM: device_tokens
 // tetap jalur push terpisah. read_at menandai sudah dibaca. Tidak diaudit
 // (baris user-state, preseden bookmark).
-export const notifications = pgTable(
+export const notifications = sqliteTable(
   'notifications',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    userId: varchar('user_id', { length: 26 })
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    userId: text('user_id')
       .notNull()
       .references(() => users.id),
-    type: varchar('type', { length: 50 }).notNull(),
+    type: text('type').notNull(),
     title: text('title').notNull(),
     body: text('body').notNull(),
-    targetKind: varchar('target_kind', { length: 20 }).notNull(),
-    targetId: varchar('target_id', { length: 26 }).notNull(),
-    readAt: timestamp('read_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    targetKind: text('target_kind').notNull(),
+    targetId: text('target_id').notNull(),
+    readAt: integer('read_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   },
   (t) => [
     uniqueIndex('notifications_user_target_unique').on(t.userId, t.targetKind, t.targetId),

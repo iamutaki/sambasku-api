@@ -1,19 +1,19 @@
-import { index, integer, pgTable, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, index, unique } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
 // OTP verifikasi email (AUTH_EMAIL_OTP.md). Satu baris aktif per user.
-export const emailVerificationOtps = pgTable(
+export const emailVerificationOtps = sqliteTable(
   'email_verification_otps',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    userId: varchar('user_id', { length: 26 })
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    userId: text('user_id')
       .notNull()
       .references(() => users.id),
-    codeHash: varchar('code_hash', { length: 128 }).notNull(),
-    expiresAt: timestamp('expires_at').notNull(),
+    codeHash: text('code_hash').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
     attemptCount: integer('attempt_count').notNull().default(0),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   },
   (t) => [
     unique('email_verification_otps_user_unique').on(t.userId),

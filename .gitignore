@@ -7,3 +7,8 @@ dist/
 *.log
 .DS_Store
 .dev.vars
+*.db
+*.db-wal
+*.db-shm
+local.db
+test.db

@@ -1,5 +1,4 @@
 import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   meaningTranslations,
   meanings,
@@ -7,7 +6,8 @@ import {
   wordVariants,
   words,
 } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
+import { isUniqueViolation } from '@/shared/database/drizzle/sqlite-errors';
 import { ConflictError } from '@/shared/errors/app-error';
 import type { CursorPage } from '@/modules/word/domain/repositories/word.repository';
 import type { SearchMiss, SearchMissDirection } from '../domain/entities/search-miss.entity';
@@ -20,8 +20,6 @@ import type {
 
 // Re-export supaya caller lama (SearchWordsUseCase) tetap bisa import dari sini
 export const normalizeTerm = normalizeSearchMissTerm;
-
-const UNIQUE_VIOLATION = '23505';
 
 // Miss 'lemma' terjawab kalau ada kata published dengan lemma sama
 // ATAU variasi penulisan (resolve-as-variant) yang form-nya = term
@@ -61,7 +59,7 @@ const isFulfilledSql = sql`(
 )`;
 
 export class SearchMissRepositoryImpl implements SearchMissRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async record(input: { term: string; direction: SearchMissDirection }): Promise<void> {
     const term = normalizeTerm(input.term);
@@ -175,8 +173,7 @@ export class SearchMissRepositoryImpl implements SearchMissRepository {
         .where(and(eq(searchMisses.id, id), isNull(searchMisses.deletedAt)))
         .returning();
     } catch (err) {
-      const code = (err as { cause?: { code?: string } }).cause?.code;
-      if (code === UNIQUE_VIOLATION) {
+      if (isUniqueViolation(err)) {
         throw new ConflictError(
           'SEARCH_MISS_TERM_CONFLICT',
           'Term yang dikoreksi sudah dipakai miss lain dengan arah yang sama',

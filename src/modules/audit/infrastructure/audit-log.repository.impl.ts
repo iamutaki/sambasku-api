@@ -1,7 +1,7 @@
-import { and, desc, eq, gte, ilike, lt, lte } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { and, desc, eq, gte, lt, lte } from 'drizzle-orm';
+import { ilikeCompat } from '@/shared/database/drizzle/ilike-compat';
 import { auditLogs, users } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import { logger } from '@/shared/logging/logger';
 import type { AuditLog, AuditLogFilter, AuditLogPage, NewAuditLog } from '../domain/entities/audit-log.entity';
 import type { AuditLogRepository } from '../domain/repositories/audit-log.repository';
@@ -22,7 +22,7 @@ function toEntity(row: typeof auditLogs.$inferSelect, userName: string | null): 
 }
 
 export class AuditLogRepositoryImpl implements AuditLogRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   // Best-effort - kontrak Section 21: gagal insert tidak boleh
   // meruntuhkan request utama, cukup tercatat di log aplikasi.
@@ -41,7 +41,7 @@ export class AuditLogRepositoryImpl implements AuditLogRepository {
     const term = filter.userName?.replace(/[\\%_]/g, '\\$&');
     const where = and(
       filter.userId ? eq(auditLogs.userId, filter.userId) : undefined,
-      term ? ilike(users.username, `%${term}%`) : undefined,
+      term ? ilikeCompat(users.username, `%${term}%`) : undefined,
       filter.action ? eq(auditLogs.action, filter.action) : undefined,
       filter.entityType ? eq(auditLogs.entityType, filter.entityType) : undefined,
       filter.entityId ? eq(auditLogs.entityId, filter.entityId) : undefined,

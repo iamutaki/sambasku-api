@@ -1,4 +1,4 @@
-import { index, json, pgTable, timestamp, varchar, text } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 import { words } from './words.schema';
@@ -10,30 +10,30 @@ import { words } from './words.schema';
  *  proposed_changes: JSON sesuai struktur di doc 17.
  *  status: 'pending' | 'approved' | 'rejected' | 'corrected'
  */
-export const wordEditSuggestions = pgTable(
+export const wordEditSuggestions = sqliteTable(
   'word_edit_suggestions',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    userId: varchar('user_id', { length: 26 })
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    userId: text('user_id')
       .notNull()
       .references(() => users.id),
-    wordId: varchar('word_id', { length: 26 })
+    wordId: text('word_id')
       .notNull()
       .references(() => words.id),
-    proposedChanges: json('proposed_changes').notNull(),
+    proposedChanges: text('proposed_changes', { mode: 'json' }).notNull(),
     reason: text('reason').notNull(),
     // typo | inaccurate_definition | missing_example | missing_relation | image_issue | other
-    reasonCode: varchar('reason_code', { length: 40 }).notNull().default('other'),
-    status: varchar('status', { length: 30 })
+    reasonCode: text('reason_code').notNull().default('other'),
+    status: text('status')
       .notNull()
       .default('pending'),
-    reviewedBy: varchar('reviewed_by', { length: 26 }).references(() => users.id),
-    reviewedAt: timestamp('reviewed_at'),
+    reviewedBy: text('reviewed_by').references(() => users.id),
+    reviewedAt: integer('reviewed_at', { mode: 'timestamp' }),
     reviewComment: text('review_comment'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at'),
-    deletedAt: timestamp('deleted_at'),
-    deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+    deletedBy: text('deleted_by').references(() => users.id),
   },
   (t) => [
     index('suggestions_word_status_idx').on(t.wordId, t.status),

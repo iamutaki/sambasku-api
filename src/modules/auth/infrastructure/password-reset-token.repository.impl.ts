@@ -1,7 +1,6 @@
 import { and, eq, gt } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { passwordResetTokens } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type {
   NewPasswordResetToken,
   PasswordResetTokenRecord,
@@ -9,7 +8,7 @@ import type {
 } from '../domain/repositories/password-reset-token.repository';
 
 export class PasswordResetTokenRepositoryImpl implements PasswordResetTokenRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async create(token: NewPasswordResetToken): Promise<PasswordResetTokenRecord> {
     const [row] = await this.db.insert(passwordResetTokens).values(token).returning();

@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
@@ -9,22 +9,22 @@ export type VerifierApplicationSocialLink = {
 };
 
 /** Pengajuan contributor menjadi reviewer (20-api-verifier-application.md). */
-export const verifierApplications = pgTable(
+export const verifierApplications = sqliteTable(
   'verifier_applications',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    userId: varchar('user_id', { length: 26 })
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    userId: text('user_id')
       .notNull()
       .references(() => users.id),
-    phone: varchar('phone', { length: 20 }).notNull(),
+    phone: text('phone').notNull(),
     address: text('address').notNull(),
-    socialLinks: jsonb('social_links').$type<VerifierApplicationSocialLink[]>().notNull(),
-    status: varchar('status', { length: 30 }).notNull().default('pending'),
+    socialLinks: text('social_links', { mode: 'json' }).$type<VerifierApplicationSocialLink[]>().notNull(),
+    status: text('status').notNull().default('pending'),
     adminComment: text('admin_comment'),
-    reviewedBy: varchar('reviewed_by', { length: 26 }).references(() => users.id),
-    reviewedAt: timestamp('reviewed_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at'),
+    reviewedBy: text('reviewed_by').references(() => users.id),
+    reviewedAt: integer('reviewed_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
   },
   (t) => [
     uniqueIndex('verifier_applications_user_id_unique').on(t.userId),

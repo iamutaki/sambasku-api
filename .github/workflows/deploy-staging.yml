@@ -1,19 +1,15 @@
 name: Deploy Staging (Cloudflare Workers)
 
-# Push ke branch `staging` di repo ini → test penuh → migrate Neon → deploy Workers.
-# Deploy manual (`pnpm deploy:staging`) tetap tersedia sebagai fallback.
+# Push ke branch `staging` → test (file SQLite) → migrate Turso → deploy Workers.
 #
-# Secrets GitHub yang DIBUTUHKAN (Settings → Secrets → Actions):
-#   CLOUDFLARE_API_TOKEN      - dashboard CF → My Profile → API Tokens →
-#                               template "Edit Cloudflare Workers"
-#   CLOUDFLARE_ACCOUNT_ID     - 547e27ab971bbd809dfd57626049a131
-#   STAGING_DATABASE_URL_DIRECT - Neon DIRECT URL (?sslmode=require, tanpa -pooler)
+# Secrets GitHub:
+#   CLOUDFLARE_API_TOKEN
+#   CLOUDFLARE_ACCOUNT_ID
+#   TURSO_STAGING_DATABASE_URL   - libsql://…
+#   TURSO_STAGING_AUTH_TOKEN
 #
-# Secret Worker (DATABASE_URL pooled, JWT keypair, dst.) TIDAK perlu di CI -
-# `wrangler deploy` mempertahankan secret yang sudah terpasang; [vars]
-# non-secret datang dari wrangler.toml.
-# Catatan keamanan: workflow ini TIDAK memakai konten event GitHub di run: -
-# hanya secrets lewat env: (pola aman anti command-injection).
+# Secret Worker (DATABASE_URL + DATABASE_AUTH_TOKEN + JWT …) TIDAK perlu di CI -
+# `wrangler deploy` mempertahankan secret yang sudah terpasang.
 
 on:
   push:
@@ -23,18 +19,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: db_sambasku_test
-        ports: ['5433:5432']
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -45,13 +29,14 @@ jobs:
           node-version: 22
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - name: Siapkan .env.test (DB service + keypair JWT dummy per-run)
+      - name: Siapkan .env.test (file SQLite + JWT dummy)
         run: |
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out jwt_private.pem
           openssl pkey -in jwt_private.pem -pubout -out jwt_public.pem
           {
             echo "NODE_ENV=test"
-            echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5433/db_sambasku_test"
+            echo "DATABASE_URL=file:./test.db"
+            echo "DATABASE_AUTH_TOKEN="
             echo "JWT_PRIVATE_KEY=\"$(cat jwt_private.pem)\""
             echo "JWT_PUBLIC_KEY=\"$(cat jwt_public.pem)\""
             echo "CORS_ALLOWED_ORIGINS=http://localhost:5173"
@@ -59,7 +44,7 @@ jobs:
           rm jwt_private.pem jwt_public.pem
       - run: pnpm drizzle-kit migrate
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/db_sambasku_test
+          DATABASE_URL: file:./test.db
       - run: pnpm typecheck
       - run: pnpm test
 
@@ -76,11 +61,10 @@ jobs:
           node-version: 22
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      # Urutan aman (Section 16): skema sinkron SEBELUM app versi baru tayang.
-      # Neon DIRECT URL - DDL tidak lewat pooler.
       - run: pnpm drizzle-kit migrate
         env:
-          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL_DIRECT }}
+          DATABASE_URL: ${{ secrets.TURSO_STAGING_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_STAGING_AUTH_TOKEN }}
 
   deploy:
     needs: migrate-staging

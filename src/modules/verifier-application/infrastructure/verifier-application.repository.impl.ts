@@ -1,8 +1,8 @@
 import { and, desc, eq, isNull, lt } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { users, verifierApplications } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
+import { isUniqueViolation } from '@/shared/database/drizzle/sqlite-errors';
 import { ConflictError, ForbiddenError, NotFoundError } from '@/shared/errors/app-error';
 import type { CursorPage } from '@/modules/word/domain/repositories/word.repository';
 import type {
@@ -19,8 +19,6 @@ import type {
 } from '../domain/repositories/verifier-application.repository';
 
 type Row = typeof verifierApplications.$inferSelect;
-
-const UNIQUE_VIOLATION = '23505';
 
 function asStatus(value: string): VerifierApplicationStatus {
   return value as VerifierApplicationStatus;
@@ -54,38 +52,20 @@ function toEntity(
 
 const reviewers = alias(users, 'reviewers');
 
-function pgMeta(err: unknown): { code?: string; constraint: string; detail: string } {
-  const e = err as {
-    code?: string;
-    constraint?: string;
-    detail?: string;
-    cause?: { code?: string; constraint?: string; detail?: string };
-  };
-  return {
-    code: e.cause?.code ?? e.code,
-    constraint: e.cause?.constraint ?? e.constraint ?? '',
-    detail: e.cause?.detail ?? e.detail ?? '',
-  };
-}
-
 function throwMappedUnique(err: unknown): never | void {
-  const { code, constraint, detail } = pgMeta(err);
-  if (code !== UNIQUE_VIOLATION) return;
-  const haystack = `${constraint} ${detail}`;
-  if (haystack.includes('verifier_applications_user_id') || haystack.includes('(user_id)')) {
+  if (!isUniqueViolation(err)) return;
+  const haystack = err instanceof Error ? err.message : String(err);
+  if (haystack.includes('verifier_applications_user_id') || haystack.includes('user_id')) {
     throw new ConflictError(
       'APPLICATION_ALREADY_EXISTS',
       'Pengajuan verifikator sudah ada. Perbaiki lewat formulir jika ditolak.',
     );
   }
-  if (haystack.includes('users_phone') || haystack.includes('(phone)')) {
-    throw new ConflictError('PHONE_ALREADY_EXISTS', 'Nomor HP sudah terdaftar');
-  }
   throw new ConflictError('PHONE_ALREADY_EXISTS', 'Nomor HP sudah terdaftar');
 }
 
 export class VerifierApplicationRepositoryImpl implements VerifierApplicationRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async create(input: NewVerifierApplication): Promise<VerifierApplication> {
     const [row] = await this.db.insert(verifierApplications).values(input).returning();
@@ -240,8 +220,7 @@ export class VerifierApplicationRepositoryImpl implements VerifierApplicationRep
         .select()
         .from(verifierApplications)
         .where(eq(verifierApplications.id, id))
-        .limit(1)
-        .for('update');
+        .limit(1);
       if (!app) {
         throw new NotFoundError(
           'VERIFIER_APPLICATION_NOT_FOUND',
@@ -259,8 +238,7 @@ export class VerifierApplicationRepositoryImpl implements VerifierApplicationRep
         .select()
         .from(users)
         .where(and(eq(users.id, app.userId), isNull(users.deletedAt)))
-        .limit(1)
-        .for('update');
+        .limit(1);
       if (!user || user.role !== 'contributor') {
         throw new ForbiddenError('ALREADY_VERIFIER', 'Pemohon bukan lagi kontributor');
       }

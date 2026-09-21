@@ -1,5 +1,5 @@
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type * as schema from './schema';
+import type { AppDatabase } from './client';
+import { ensureTestDbReady } from './test-client';
 import {
   auditLogs,
   authIdentities,
@@ -35,7 +35,8 @@ import {
 
 // Hapus semua tabel dalam urutan aman FK (anak dulu) - pakai ini di
 // beforeEach/beforeAll integration & e2e test, jangan delete per tabel.
-export async function truncateAll(db: NodePgDatabase<typeof schema>): Promise<void> {
+export async function truncateAll(db: AppDatabase): Promise<void> {
+  await ensureTestDbReady();
   for (const table of [
     auditLogs,
     bugReports,

@@ -1,5 +1,4 @@
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   comments,
   examples,
@@ -10,7 +9,7 @@ import {
   wordImages,
   words,
 } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import { NotFoundError } from '@/shared/errors/app-error';
 import type {
   AdminVoteCursor,
@@ -37,7 +36,7 @@ function clipPreview(s: string): string {
 }
 
 export class VoteRepositoryImpl implements VoteRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async targetExists(target: VoteTarget): Promise<boolean> {
     // Lima blok serupa, bukan satu helper generik: akses kolom per tabel
@@ -125,8 +124,8 @@ export class VoteRepositoryImpl implements VoteRepository {
 
       const [row] = await tx
         .select({
-          upvotes: sql<number>`count(*) filter (where ${votes.value} = 1)`.mapWith(Number),
-          downvotes: sql<number>`count(*) filter (where ${votes.value} = -1)`.mapWith(Number),
+          upvotes: sql<number>`sum(case when ${votes.value} = 1 then 1 else 0 end)`.mapWith(Number),
+          downvotes: sql<number>`sum(case when ${votes.value} = -1 then 1 else 0 end)`.mapWith(Number),
         })
         .from(votes)
         .where(and(eq(votes.entityType, target.entityType), eq(votes.entityId, target.entityId)));
@@ -143,8 +142,8 @@ export class VoteRepositoryImpl implements VoteRepository {
       .select({
         entityType: votes.entityType,
         entityId: votes.entityId,
-        upvotes: sql<number>`count(*) filter (where ${votes.value} = 1)`.mapWith(Number),
-        downvotes: sql<number>`count(*) filter (where ${votes.value} = -1)`.mapWith(Number),
+        upvotes: sql<number>`sum(case when ${votes.value} = 1 then 1 else 0 end)`.mapWith(Number),
+        downvotes: sql<number>`sum(case when ${votes.value} = -1 then 1 else 0 end)`.mapWith(Number),
       })
       .from(votes)
       .where(
@@ -261,7 +260,7 @@ export class VoteRepositoryImpl implements VoteRepository {
 
   async deleteById(id: string): Promise<void> {
     const result = await this.db.delete(votes).where(eq(votes.id, id));
-    const affected = Number(result.rowCount ?? 0);
+    const affected = Number(result.rowsAffected ?? 0);
     if (affected === 0) {
       throw new NotFoundError('VOTE_NOT_FOUND', 'Vote tidak ditemukan');
     }
@@ -271,7 +270,7 @@ export class VoteRepositoryImpl implements VoteRepository {
     const result = await this.db
       .delete(votes)
       .where(and(eq(votes.entityType, target.entityType), eq(votes.entityId, target.entityId)));
-    return Number(result.rowCount ?? 0);
+    return Number(result.rowsAffected ?? 0);
   }
 
   async getTopTargets(entityType: VoteTargetType, limit: number): Promise<AdminTopVoteTarget[]> {
@@ -281,8 +280,8 @@ export class VoteRepositoryImpl implements VoteRepository {
       .select({
         entityType: votes.entityType,
         entityId: votes.entityId,
-        upvotes: sql<number>`count(*) filter (where ${votes.value} = 1)`.mapWith(Number),
-        downvotes: sql<number>`count(*) filter (where ${votes.value} = -1)`.mapWith(Number),
+        upvotes: sql<number>`sum(case when ${votes.value} = 1 then 1 else 0 end)`.mapWith(Number),
+        downvotes: sql<number>`sum(case when ${votes.value} = -1 then 1 else 0 end)`.mapWith(Number),
         net: netExpr,
       })
       .from(votes)

@@ -1,7 +1,6 @@
 import { and, count, desc, eq, isNull, lt, sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { notifications } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type {
   InboxNotification,
   InboxNotificationType,
@@ -29,7 +28,7 @@ function toEntity(row: typeof notifications.$inferSelect): InboxNotification {
 }
 
 export class NotificationRepositoryImpl implements NotificationRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async create(input: CreateInboxNotificationInput): Promise<void> {
     await this.db

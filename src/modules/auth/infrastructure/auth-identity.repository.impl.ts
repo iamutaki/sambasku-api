@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { authIdentities, users } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
+import { isUniqueViolation } from '@/shared/database/drizzle/sqlite-errors';
 import { ConflictError } from '@/shared/errors/app-error';
 import type { NewUser, User } from '../domain/entities/user.entity';
 import type { AuthIdentity, NewAuthIdentity } from '../domain/entities/auth-identity.entity';
@@ -14,20 +14,9 @@ import type {
 type IdentityRow = typeof authIdentities.$inferSelect;
 type UserRow = typeof users.$inferSelect;
 
-const UNIQUE_VIOLATION = '23505';
-
-function pgMeta(err: unknown): { code?: string; constraint: string; detail: string } {
-  const e = err as {
-    code?: string;
-    constraint?: string;
-    detail?: string;
-    cause?: { code?: string; constraint?: string; detail?: string };
-  };
-  return {
-    code: e.cause?.code ?? e.code,
-    constraint: e.cause?.constraint ?? e.constraint ?? '',
-    detail: e.cause?.detail ?? e.detail ?? '',
-  };
+function errHaystack(err: unknown): string {
+  const e = err as { message?: string; cause?: { message?: string } };
+  return `${e.message ?? ''} ${e.cause?.message ?? ''}`;
 }
 
 function toUserEntity(row: UserRow): User {
@@ -60,7 +49,7 @@ function toIdentityEntity(row: IdentityRow): AuthIdentity {
 }
 
 export class AuthIdentityRepositoryImpl implements AuthIdentityRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async findByProvider(provider: string, providerUserId: string): Promise<AuthIdentity | null> {
     const [row] = await this.db
@@ -101,11 +90,10 @@ export class AuthIdentityRepositoryImpl implements AuthIdentityRepository {
         };
       });
     } catch (err) {
-      const { code, constraint, detail } = pgMeta(err);
-      if (code !== UNIQUE_VIOLATION) throw err;
+      if (!isUniqueViolation(err)) throw err;
 
-      const haystack = `${constraint} ${detail}`;
-      if (haystack.includes('auth_identities_provider_uid_unique')) {
+      const haystack = errHaystack(err);
+      if (haystack.includes('auth_identities_provider_uid_unique') || haystack.includes('provider_user_id')) {
         const existing = await this.findByProvider(identity.provider, identity.providerUserId);
         if (!existing) throw err;
         const [userRow] = await this.db
@@ -116,7 +104,7 @@ export class AuthIdentityRepositoryImpl implements AuthIdentityRepository {
         if (!userRow) throw err;
         return { user: toUserEntity(userRow), identity: existing, created: false };
       }
-      if (haystack.includes('users_email_unique') || haystack.includes('(email)')) {
+      if (haystack.includes('users_email_unique') || haystack.includes('email')) {
         throw new ConflictError(
           'EMAIL_ALREADY_EXISTS',
           'Email sudah terdaftar. Masuk dengan password atau gunakan lupa password.',

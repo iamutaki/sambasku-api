@@ -1,6 +1,6 @@
 import 'dotenv/config'; // script CLI jalan di Node - env.ts tidak lagi memuat dotenv
 import { isNull } from 'drizzle-orm';
-import { db, pool } from '@/shared/database/drizzle/client';
+import { closeDb, db } from '@/shared/database/drizzle/client';
 import {
   categories,
   dialects,
@@ -166,10 +166,10 @@ async function main() {
 }
 
 main()
-  .then(() => pool.end())
+  .then(() => closeDb())
   .then(() => process.exit(0))
   .catch(async (err) => {
     logger.error(err, 'Seed gagal - pastikan database up dan sudah dimigrate (pnpm drizzle-kit migrate)');
-    await pool.end().catch(() => {});
+    await closeDb().catch(() => {});
     process.exit(1);
   });
