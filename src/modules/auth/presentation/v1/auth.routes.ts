@@ -37,6 +37,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   authRoutes.use('/verify-email', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
   authRoutes.use('/resend-otp', rateLimit({ points: 1, duration: 120 })); // 1/2 menit per IP
   authRoutes.use('/forgot-password', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
+  authRoutes.use('/reset-password', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
   authRoutes.use('/logout-all-devices', deps.authenticate);
   // authenticate HARUS duluan supaya c.get('user') terisi untuk keyFn
   // rate limit (10-api-ubah-password.md): 5/15 menit per user_id
@@ -82,7 +83,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     method: 'post',
     path: '/verify-email',
     tags: ['Auth'],
-    summary: 'Verifikasi email dengan OTP 6 digit, lalu terbitkan JWT seperti login',
+    summary: 'Verifikasi email dengan OTP 8 karakter 0-9A-Z, lalu terbitkan JWT seperti login',
     request: { body: { content: json(verifyEmailSchema) } },
     responses: {
       200: { description: 'Email terverifikasi + token', content: json(verifyEmailResponseSchema) },

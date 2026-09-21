@@ -8,7 +8,7 @@ import type { User } from '../../domain/entities/user.entity';
 import type { RegisterDto } from '../dto/register.dto';
 import type { PasswordHasherPort } from '../ports/password-hasher.port';
 import type { MailerPort } from '../ports/mailer.port';
-import { formatOtpDisplay, generateOtpDigits, hashOtp, OTP_TTL_MS } from '../utils/otp';
+import { formatOtpDisplay, generateOtpCode, hashOtp, OTP_TTL_MS } from '../utils/otp';
 
 export class RegisterUserUseCase {
   constructor(
@@ -42,13 +42,13 @@ export class RegisterUserUseCase {
       emailVerified: false,
     });
 
-    const digits = generateOtpDigits();
+    const code = generateOtpCode();
     await this.otpRepo.replaceForUser({
       userId: user.id,
-      codeHash: hashOtp(user.id, digits),
+      codeHash: hashOtp(user.id, code),
       expiresAt: new Date(Date.now() + OTP_TTL_MS),
     });
-    await this.mailer.sendVerificationOtpEmail(user.email, formatOtpDisplay(digits));
+    await this.mailer.sendVerificationOtpEmail(user.email, formatOtpDisplay(code));
 
     await this.auditRepo.record({
       userId: user.id,

@@ -48,6 +48,7 @@ function makeDeps(overrides: {
     findByUserId: vi.fn(),
     incrementAttempts: vi.fn(),
     deleteByUserId: vi.fn(),
+    consumeIfMatch: vi.fn(),
   } as unknown as EmailVerificationOtpRepository;
   const mailer = {
     sendResetPasswordEmail: vi.fn(),
@@ -70,7 +71,7 @@ function makeDeps(overrides: {
 }
 
 describe('RegisterUserUseCase', () => {
-  it('menyimpan user belum verified, kirim OTP tampilan XXX-XYZ, tanpa JWT', async () => {
+  it('menyimpan user belum verified, kirim OTP tampilan XXXX-XXXX, tanpa JWT', async () => {
     const { useCase, userRepo, hasher, otpRepo, mailer } = makeDeps();
 
     const user = await useCase.execute({
@@ -98,7 +99,7 @@ describe('RegisterUserUseCase', () => {
     );
     expect(mailer.sendVerificationOtpEmail).toHaveBeenCalledWith(
       'budi@test.com',
-      expect.stringMatching(/^\d{3}-\d{3}$/),
+      expect.stringMatching(/^[0-9A-Z]{4}-[0-9A-Z]{4}$/),
     );
   });
 

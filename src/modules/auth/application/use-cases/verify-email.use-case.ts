@@ -56,8 +56,10 @@ export class VerifyEmailUseCase {
       throw invalid;
     }
 
+    const consumed = await this.otpRepo.consumeIfMatch(user.id, otp.codeHash);
+    if (!consumed) throw invalid;
+
     await this.userRepo.markEmailVerified(user.id);
-    await this.otpRepo.deleteByUserId(user.id);
 
     const accessToken = await this.tokenService.generateAccessToken({
       user_id: user.id,

@@ -7,6 +7,7 @@ import type { PasswordResetTokenRepository } from '../../domain/repositories/pas
 import type { ResetPasswordDto } from '../dto/reset-password.dto';
 import type { PasswordHasherPort } from '../ports/password-hasher.port';
 import { hashToken } from '../utils/token';
+import { hashOtp, normalizeOtpCode } from '../utils/otp';
 
 export class ResetPasswordUseCase {
   constructor(
@@ -18,30 +19,24 @@ export class ResetPasswordUseCase {
   ) {}
 
   async execute(dto: ResetPasswordDto, requestId?: string | null): Promise<void> {
-    Password.create(dto.newPassword); // invariant kekuatan password tetap dijaga domain
+    Password.create(dto.newPassword);
 
-    const tokenHash = hashToken(dto.token);
+    const tokenHash = await this.resolveTokenHash(dto);
     const record = await this.resetTokenRepo.findByHash(tokenHash);
     if (!record || record.isUsed || record.expiresAt.getTime() < Date.now()) {
       throw new UnauthorizedError('RESET_TOKEN_INVALID', 'Token reset tidak valid atau kadaluarsa');
     }
 
-    // Konsumsi token secara atomik DULU - dua request konkuren dengan
-    // token sama: hanya satu yang lolos, satunya dapat false → ditolak.
     const consumed = await this.resetTokenRepo.consume(tokenHash);
     if (!consumed) {
       throw new UnauthorizedError('RESET_TOKEN_INVALID', 'Token reset tidak valid atau kadaluarsa');
     }
 
-    // Kalau gagal di sini, token sudah terbakar dan user minta link baru -
-    // failure mode aman (lebih baik token hangus daripada terpakai dua kali)
-    await this.userRepo.updatePassword(record.userId, await this.hasher.hash(dto.newPassword));
+    await this.resetTokenRepo.invalidateUnusedForUser(record.userId);
 
-    // EDGE CASE: logout paksa semua perangkat - reset password biasanya
-    // berarti akun tercompromi; session (refresh token) lama harus mati
+    await this.userRepo.updatePassword(record.userId, await this.hasher.hash(dto.newPassword));
     await this.refreshTokenRepo.revokeAllForUser(record.userId);
 
-    // Audit trail (Section 21) - new_data TIDAK memuat hash password
     await this.auditRepo.record({
       userId: record.userId,
       action: 'password_change',
@@ -50,5 +45,20 @@ export class ResetPasswordUseCase {
       newData: { changed: true },
       requestId: requestId ?? null,
     });
+  }
+
+  private async resolveTokenHash(dto: ResetPasswordDto): Promise<string> {
+    const digits = dto.code ? normalizeOtpCode(dto.code) : null;
+    if (dto.email && digits) {
+      const user = await this.userRepo.findByEmail(dto.email);
+      if (!user || user.deletedAt) {
+        throw new UnauthorizedError('RESET_TOKEN_INVALID', 'Token reset tidak valid atau kadaluarsa');
+      }
+      return hashOtp(user.id, digits);
+    }
+    if (dto.token && dto.token.trim()) {
+      return hashToken(dto.token.trim());
+    }
+    throw new UnauthorizedError('RESET_TOKEN_INVALID', 'Token reset tidak valid atau kadaluarsa');
   }
 }

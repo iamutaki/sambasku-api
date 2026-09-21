@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gt } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { passwordResetTokens } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
@@ -40,12 +40,25 @@ export class PasswordResetTokenRepositoryImpl implements PasswordResetTokenRepos
   }
 
   async consume(tokenHash: string): Promise<boolean> {
-    // Atomic check-and-set: hanya berhasil kalau token belum pernah dipakai
+    // Atomic check-and-set: hanya berhasil kalau belum dipakai dan belum kadaluarsa
     const consumed = await this.db
       .update(passwordResetTokens)
       .set({ isUsed: true })
-      .where(and(eq(passwordResetTokens.tokenHash, tokenHash), eq(passwordResetTokens.isUsed, false)))
+      .where(
+        and(
+          eq(passwordResetTokens.tokenHash, tokenHash),
+          eq(passwordResetTokens.isUsed, false),
+          gt(passwordResetTokens.expiresAt, new Date()),
+        ),
+      )
       .returning({ id: passwordResetTokens.id });
     return consumed.length > 0;
+  }
+
+  async invalidateUnusedForUser(userId: string): Promise<void> {
+    await this.db
+      .update(passwordResetTokens)
+      .set({ isUsed: true })
+      .where(and(eq(passwordResetTokens.userId, userId), eq(passwordResetTokens.isUsed, false)));
   }
 }

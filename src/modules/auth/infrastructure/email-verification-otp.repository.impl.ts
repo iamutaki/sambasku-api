@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, gt, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { emailVerificationOtps } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
@@ -48,5 +48,19 @@ export class EmailVerificationOtpRepositoryImpl implements EmailVerificationOtpR
 
   async deleteByUserId(userId: string): Promise<void> {
     await this.db.delete(emailVerificationOtps).where(eq(emailVerificationOtps.userId, userId));
+  }
+
+  async consumeIfMatch(userId: string, codeHash: string): Promise<boolean> {
+    const rows = await this.db
+      .delete(emailVerificationOtps)
+      .where(
+        and(
+          eq(emailVerificationOtps.userId, userId),
+          eq(emailVerificationOtps.codeHash, codeHash),
+          gt(emailVerificationOtps.expiresAt, new Date()),
+        ),
+      )
+      .returning({ id: emailVerificationOtps.id });
+    return rows.length > 0;
   }
 }

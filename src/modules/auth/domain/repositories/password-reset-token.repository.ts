@@ -21,4 +21,6 @@ export interface PasswordResetTokenRepository {
    * token hanya bisa dipakai sekali, bahkan oleh request konkuren.
    */
   consume(tokenHash: string): Promise<boolean>;
+  /** Hanguskan token reset yang belum dipakai (link lama mati saat minta yang baru). */
+  invalidateUnusedForUser(userId: string): Promise<void>;
 }

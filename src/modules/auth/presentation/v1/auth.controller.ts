@@ -132,13 +132,21 @@ export class AuthController {
     // Response SAMA persis baik email terdaftar atau tidak - cegah enumeration
     return c.json({
       success: true as const,
-      data: { message: 'Jika email terdaftar, link reset telah dikirim' },
+      data: { message: 'Jika email terdaftar, kode reset telah dikirim' },
     });
   }
 
   async reset(c: Context, body: ResetPasswordBody) {
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
-    await this.deps.reset.execute({ token: body.token, newPassword: body.new_password }, requestId);
+    await this.deps.reset.execute(
+      {
+        token: body.token,
+        email: body.email,
+        code: body.code,
+        newPassword: body.new_password,
+      },
+      requestId,
+    );
     return c.json({ success: true as const, data: { message: 'Password berhasil direset' } });
   }
 

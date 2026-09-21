@@ -5,7 +5,7 @@ import type { EmailVerificationOtpRepository } from '../../domain/repositories/e
 import type { MailerPort } from '../ports/mailer.port';
 import {
   formatOtpDisplay,
-  generateOtpDigits,
+  generateOtpCode,
   hashOtp,
   OTP_RESEND_COOLDOWN_MS,
   OTP_TTL_MS,
@@ -44,12 +44,12 @@ export class ResendOtpUseCase {
       }
     }
 
-    const digits = generateOtpDigits();
+    const code = generateOtpCode();
     await this.otpRepo.replaceForUser({
       userId: user.id,
-      codeHash: hashOtp(user.id, digits),
+      codeHash: hashOtp(user.id, code),
       expiresAt: new Date(Date.now() + OTP_TTL_MS),
     });
-    await this.mailer.sendVerificationOtpEmail(user.email, formatOtpDisplay(digits));
+    await this.mailer.sendVerificationOtpEmail(user.email, formatOtpDisplay(code));
   }
 }

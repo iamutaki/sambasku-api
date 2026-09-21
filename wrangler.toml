@@ -33,7 +33,8 @@ APP_URL = "https://api.kamus-sambas.app"
 CORS_ALLOWED_ORIGINS = "https://kamus-sambas.app"
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
-MAIL_FROM = "Kamus Sambas <no-reply@kamus-sambas.app>"
+# Domain iamutaki.com sudah verified di Resend. OTP: no-reply (jangan dibalas).
+MAIL_FROM = "SambasKu <no-reply@iamutaki.com>"
 # MAIL_PROVIDER = "resend" | "smtp" (kosong: Resend jika secret RESEND_API_KEY)
 # Provider gambar: default "imagekit" (tanpa var ini) - kredensial via
 # secret: IMAGEKIT_PRIVATE_KEY / IMAGEKIT_PUBLIC_KEY / IMAGEKIT_URL_ENDPOINT.
@@ -76,7 +77,8 @@ APP_URL = "https://sambasku-staging.iamutaki.com"
 CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://console-sambasku-staging.iamutaki.com"
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
-MAIL_FROM = "Kamus Sambas Staging <no-reply@iamutaki.com>"
+# Domain iamutaki.com verified di Resend. OTP pakai no-reply, bukan sandbox.
+MAIL_FROM = "SambasKu <no-reply@iamutaki.com>"
 # Provider gambar: default "imagekit" - kredensial via
 # `wrangler secret put --env staging IMAGEKIT_PRIVATE_KEY` dst.
 KBBI_PROVIDER = "raf555"

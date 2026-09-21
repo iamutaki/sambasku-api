@@ -29,7 +29,7 @@ function makeOtp(overrides: Partial<EmailVerificationOtp> = {}): EmailVerificati
   return {
     id: '01TESTOTPID00000000000000',
     userId: '01TESTULIDUSERID00000000',
-    codeHash: hashOtp('01TESTULIDUSERID00000000', '482917'),
+    codeHash: hashOtp('01TESTULIDUSERID00000000', 'A4K9M2XP'),
     expiresAt: new Date(Date.now() + 600_000),
     attemptCount: 0,
     createdAt: new Date(),
@@ -46,6 +46,7 @@ function makeDeps(user: User | null, otp: EmailVerificationOtp | null) {
     findByUserId: vi.fn().mockResolvedValue(otp),
     incrementAttempts: vi.fn().mockImplementation(async () => (otp?.attemptCount ?? 0) + 1),
     deleteByUserId: vi.fn().mockResolvedValue(undefined),
+    consumeIfMatch: vi.fn().mockResolvedValue(true),
   } as unknown as EmailVerificationOtpRepository;
   const tokenService = {
     generateAccessToken: vi.fn().mockResolvedValue('jwt-token'),
@@ -71,14 +72,17 @@ function makeDeps(user: User | null, otp: EmailVerificationOtp | null) {
 }
 
 describe('VerifyEmailUseCase', () => {
-  it('sukses: terima 482-917, set verified, hapus OTP, terbitkan JWT', async () => {
+  it('sukses: terima A4K9-M2XP, set verified, hapus OTP, terbitkan JWT', async () => {
     const { useCase, userRepo, otpRepo, refreshTokenRepo } = makeDeps(makeUser(), makeOtp());
 
-    const result = await useCase.execute({ email: 'budi@test.com', code: '482-917' });
+    const result = await useCase.execute({ email: 'budi@test.com', code: 'A4K9-M2XP' });
 
     expect(result.accessToken).toBe('jwt-token');
     expect(userRepo.markEmailVerified).toHaveBeenCalledWith('01TESTULIDUSERID00000000');
-    expect(otpRepo.deleteByUserId).toHaveBeenCalledWith('01TESTULIDUSERID00000000');
+    expect(otpRepo.consumeIfMatch).toHaveBeenCalledWith(
+      '01TESTULIDUSERID00000000',
+      hashOtp('01TESTULIDUSERID00000000', 'A4K9M2XP'),
+    );
     expect(refreshTokenRepo.create).toHaveBeenCalled();
   });
 
@@ -86,7 +90,7 @@ describe('VerifyEmailUseCase', () => {
     const { useCase, otpRepo, userRepo } = makeDeps(makeUser(), makeOtp());
 
     await expect(
-      useCase.execute({ email: 'budi@test.com', code: '000000' }),
+      useCase.execute({ email: 'budi@test.com', code: '00000000' }),
     ).rejects.toMatchObject({ errorCode: 'INVALID_OTP', statusCode: 401 });
     expect(otpRepo.incrementAttempts).toHaveBeenCalled();
     expect(userRepo.markEmailVerified).not.toHaveBeenCalled();
@@ -99,7 +103,7 @@ describe('VerifyEmailUseCase', () => {
     );
 
     await expect(
-      useCase.execute({ email: 'budi@test.com', code: '482917' }),
+      useCase.execute({ email: 'budi@test.com', code: 'A4K9M2XP' }),
     ).rejects.toMatchObject({ errorCode: 'OTP_EXPIRED', statusCode: 401 });
     expect(otpRepo.deleteByUserId).toHaveBeenCalled();
   });
@@ -108,8 +112,18 @@ describe('VerifyEmailUseCase', () => {
     const { useCase, otpRepo } = makeDeps(makeUser({ emailVerified: true }), makeOtp());
 
     await expect(
-      useCase.execute({ email: 'budi@test.com', code: '482917' }),
+      useCase.execute({ email: 'budi@test.com', code: 'A4K9M2XP' }),
     ).rejects.toMatchObject({ errorCode: 'INVALID_OTP' });
     expect(otpRepo.findByUserId).not.toHaveBeenCalled();
+  });
+
+  it('OTP sudah terpakai (consume false) → INVALID_OTP, tidak set verified', async () => {
+    const { useCase, userRepo, otpRepo } = makeDeps(makeUser(), makeOtp());
+    vi.mocked(otpRepo.consumeIfMatch).mockResolvedValue(false);
+
+    await expect(
+      useCase.execute({ email: 'budi@test.com', code: 'A4K9M2XP' }),
+    ).rejects.toMatchObject({ errorCode: 'INVALID_OTP' });
+    expect(userRepo.markEmailVerified).not.toHaveBeenCalled();
   });
 });
