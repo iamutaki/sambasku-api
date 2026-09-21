@@ -4,14 +4,9 @@ import type { RefreshTokenRepository } from '../../domain/repositories/refresh-t
 import type { LoginDto, LoginMeta } from '../dto/login.dto';
 import type { PasswordHasherPort } from '../ports/password-hasher.port';
 import type { TokenServicePort } from '../ports/token-service.port';
-import { generateToken } from '../utils/token';
+import { issueLoginSession, type LoginResult } from '../utils/issue-login-session';
 
-export interface LoginResult {
-  accessToken: string;
-  expiresIn: number;
-  refreshToken: string; // plain - di-hash hanya saat disimpan
-  user: { id: string; username: string; role: string };
-}
+export type { LoginResult };
 
 export class LoginUserUseCase {
   constructor(
@@ -45,26 +40,15 @@ export class LoginUserUseCase {
       );
     }
 
-    const accessToken = await this.tokenService.generateAccessToken({
-      user_id: user.id,
-      role: user.role,
-      username: user.username,
-    });
-
-    const { token, tokenHash } = generateToken();
-    await this.refreshTokenRepo.create({
-      userId: user.id,
-      tokenHash,
-      deviceInfo: meta.deviceInfo ?? null,
-      ipAddress: meta.ipAddress ?? null,
-      expiresAt: new Date(Date.now() + this.refreshTokenTtlSeconds * 1000),
-    });
-
-    return {
-      accessToken,
-      expiresIn: this.accessTokenTtlSeconds,
-      refreshToken: token,
-      user: { id: user.id, username: user.username, role: user.role },
-    };
+    return issueLoginSession(
+      { id: user.id, username: user.username, role: user.role },
+      {
+        tokenService: this.tokenService,
+        refreshTokenRepo: this.refreshTokenRepo,
+        accessTokenTtlSeconds: this.accessTokenTtlSeconds,
+        refreshTokenTtlSeconds: this.refreshTokenTtlSeconds,
+      },
+      meta,
+    );
   }
 }

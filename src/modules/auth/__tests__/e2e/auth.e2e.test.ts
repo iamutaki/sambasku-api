@@ -350,4 +350,119 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     });
     expect(res.status).toBe(401);
   });
+
+  // ---- POST /api/v1/auth/google (AUTH_GOOGLE.md) — mock verifier, jangan hit Google ----
+  const postGoogle = (body: unknown, headers: Record<string, string> = {}) =>
+    app.request('/api/v1/auth/google', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'content-type': 'application/json', ...xff(), ...headers },
+    }) as Promise<Response>;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jsonBody = (res: Response): Promise<any> => res.json();
+
+  async function withGoogleVerifier<T>(
+    mock: { verify: (idToken: string) => Promise<{ sub: string; email: string; emailVerified: boolean; name: string | null }> },
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const { googleTokenVerifierHolder } = await import(
+      '@/modules/auth/infrastructure/google-token-verifier.holder'
+    );
+    const original = googleTokenVerifierHolder.current;
+    googleTokenVerifierHolder.current = mock;
+    try {
+      return await fn();
+    } finally {
+      googleTokenVerifierHolder.current = original;
+    }
+  }
+
+  it('POST /google mobile → 200 + refresh_token di body', async () => {
+    const email = unique();
+    const res = await withGoogleVerifier(
+      {
+        verify: async () => ({
+          sub: `sub-${email}`,
+          email,
+          emailVerified: true,
+          name: 'Google User',
+        }),
+      },
+      () => postGoogle({ id_token: 'fake-id-token', client_type: 'mobile' }),
+    );
+    expect(res.status).toBe(200);
+    const body = await jsonBody(res);
+    expect(body.success).toBe(true);
+    expect(body.data.access_token).toEqual(expect.any(String));
+    expect(body.data.refresh_token).toEqual(expect.any(String));
+    expect(body.data.user.role).toBe('contributor');
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('POST /google token invalid → 401 INVALID_GOOGLE_TOKEN', async () => {
+    const { UnauthorizedError } = await import('@/shared/errors/app-error');
+    const res = await withGoogleVerifier(
+      {
+        verify: async () => {
+          throw new UnauthorizedError('INVALID_GOOGLE_TOKEN', 'Tidak bisa masuk dengan Google.');
+        },
+      },
+      () => postGoogle({ id_token: 'bad-token', client_type: 'mobile' }),
+    );
+    expect(res.status).toBe(401);
+    expect(await jsonBody(res)).toMatchObject({
+      success: false,
+      error_code: 'INVALID_GOOGLE_TOKEN',
+      message: 'Tidak bisa masuk dengan Google.',
+    });
+  });
+
+  it('POST /google email existing tanpa identity Google → 409 EMAIL_ALREADY_EXISTS', async () => {
+    const email = unique();
+    await registerAndVerify(email);
+    const res = await withGoogleVerifier(
+      {
+        verify: async () => ({
+          sub: `sub-new-${email}`,
+          email,
+          emailVerified: true,
+          name: 'Budi',
+        }),
+      },
+      () => postGoogle({ id_token: 'fake-id-token', client_type: 'mobile' }),
+    );
+    expect(res.status).toBe(409);
+    expect(await jsonBody(res)).toMatchObject({
+      error_code: 'EMAIL_ALREADY_EXISTS',
+      message: 'Email sudah terdaftar. Masuk dengan password atau gunakan lupa password.',
+    });
+  });
+
+  it('POST /google verifier 503 → GOOGLE_AUTH_UNAVAILABLE', async () => {
+    const { ServiceUnavailableError } = await import('@/shared/errors/app-error');
+    const res = await withGoogleVerifier(
+      {
+        verify: async () => {
+          throw new ServiceUnavailableError(
+            'GOOGLE_AUTH_UNAVAILABLE',
+            'Masuk dengan Google sedang tidak tersedia.',
+          );
+        },
+      },
+      () => postGoogle({ id_token: 'fake-id-token', client_type: 'mobile' }),
+    );
+    expect(res.status).toBe(503);
+    expect(await jsonBody(res)).toMatchObject({
+      error_code: 'GOOGLE_AUTH_UNAVAILABLE',
+      message: 'Masuk dengan Google sedang tidak tersedia.',
+    });
+  });
+
+  it('POST /google id_token kosong → 400 VALIDATION_ERROR', async () => {
+    const res = await postGoogle({ id_token: '', client_type: 'mobile' });
+    expect(res.status).toBe(400);
+    const body = await jsonBody(res);
+    expect(body.error_code).toBe('VALIDATION_ERROR');
+  });
 });

@@ -65,6 +65,11 @@ const envSchema = z.object({
   FIREBASE_PRIVATE_KEY: z.string().optional(),
 
   APP_URL: z.url().default('http://localhost:5173'), // basis link reset password
+
+  // Web OAuth client ID (publik, bukan secret). Flutter serverClientId harus
+  // SAMA supaya klaim `aud` ID token cocok. Kosong = fitur mati (503
+  // GOOGLE_AUTH_UNAVAILABLE), API tidak crash.
+  GOOGLE_CLIENT_ID: z.string().optional(),
 });
 
 const parsed = envSchema.parse(process.env);

@@ -13,8 +13,10 @@ import type { ResetPasswordUseCase } from '../../application/use-cases/reset-pas
 import type { ChangePasswordUseCase } from '../../application/use-cases/change-password.use-case';
 import type { VerifyEmailUseCase } from '../../application/use-cases/verify-email.use-case';
 import type { ResendOtpUseCase } from '../../application/use-cases/resend-otp.use-case';
+import type { LoginWithGoogleUseCase } from '../../application/use-cases/login-with-google.use-case';
 import type { RegisterBody } from './validators/register.validator';
 import type { LoginBody } from './validators/login.validator';
+import type { GoogleLoginBody } from './validators/google-login.validator';
 import type { ForgotPasswordBody } from './validators/forgot-password.validator';
 import type { ResetPasswordBody } from './validators/reset-password.validator';
 import type { ChangePasswordBody } from './validators/change-password.validator';
@@ -36,6 +38,7 @@ export class AuthController {
       changePassword: ChangePasswordUseCase;
       verifyEmail: VerifyEmailUseCase;
       resendOtp: ResendOtpUseCase;
+      google: LoginWithGoogleUseCase;
     },
   ) {}
 
@@ -67,6 +70,16 @@ export class AuthController {
 
   async login(c: Context, body: LoginBody) {
     const result = await this.deps.login.execute(body, this.loginMeta(c));
+    return this.loginJson(c, body.client_type, result);
+  }
+
+  async google(c: Context, body: GoogleLoginBody) {
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    const result = await this.deps.google.execute(
+      { idToken: body.id_token },
+      this.loginMeta(c),
+      requestId,
+    );
     return this.loginJson(c, body.client_type, result);
   }
 

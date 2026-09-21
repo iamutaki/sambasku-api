@@ -5,8 +5,7 @@ import type { EmailVerificationOtpRepository } from '../../domain/repositories/e
 import type { RefreshTokenRepository } from '../../domain/repositories/refresh-token.repository';
 import type { TokenServicePort } from '../ports/token-service.port';
 import type { LoginMeta } from '../dto/login.dto';
-import type { LoginResult } from './login-user.use-case';
-import { generateToken } from '../utils/token';
+import { issueLoginSession, type LoginResult } from '../utils/issue-login-session';
 import { hashOtp, normalizeOtpCode, OTP_MAX_ATTEMPTS } from '../utils/otp';
 
 export class VerifyEmailUseCase {
@@ -61,25 +60,15 @@ export class VerifyEmailUseCase {
 
     await this.userRepo.markEmailVerified(user.id);
 
-    const accessToken = await this.tokenService.generateAccessToken({
-      user_id: user.id,
-      role: user.role,
-      username: user.username,
-    });
-    const { token, tokenHash } = generateToken();
-    await this.refreshTokenRepo.create({
-      userId: user.id,
-      tokenHash,
-      deviceInfo: meta.deviceInfo ?? null,
-      ipAddress: meta.ipAddress ?? null,
-      expiresAt: new Date(Date.now() + this.refreshTokenTtlSeconds * 1000),
-    });
-
-    return {
-      accessToken,
-      expiresIn: this.accessTokenTtlSeconds,
-      refreshToken: token,
-      user: { id: user.id, username: user.username, role: user.role },
-    };
+    return issueLoginSession(
+      { id: user.id, username: user.username, role: user.role },
+      {
+        tokenService: this.tokenService,
+        refreshTokenRepo: this.refreshTokenRepo,
+        accessTokenTtlSeconds: this.accessTokenTtlSeconds,
+        refreshTokenTtlSeconds: this.refreshTokenTtlSeconds,
+      },
+      meta,
+    );
   }
 }

@@ -22,6 +22,7 @@ import {
 import { forgotPasswordSchema, forgotPasswordResponseSchema } from './validators/forgot-password.validator';
 import { resetPasswordSchema, resetPasswordResponseSchema } from './validators/reset-password.validator';
 import { changePasswordSchema, changePasswordResponseSchema } from './validators/change-password.validator';
+import { googleLoginSchema, googleLoginResponseSchema } from './validators/google-login.validator';
 
 export interface AuthRoutesDeps {
   controller: AuthController;
@@ -34,6 +35,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   // Rate limiting per kategori (api-base-stack.md Section 15)
   authRoutes.use('/register', rateLimit({ points: 5, duration: 3600 })); // 5/jam per IP
   authRoutes.use('/login', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
+  authRoutes.use('/google', rateLimit({ points: 5, duration: 900 })); // 5/15 menit per IP
   authRoutes.use('/verify-email', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
   authRoutes.use('/resend-otp', rateLimit({ points: 1, duration: 120 })); // 1/2 menit per IP
   authRoutes.use('/forgot-password', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
@@ -76,6 +78,22 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
       400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
       401: { description: 'Email atau password salah', content: json(errorResponseSchema) },
       403: { description: 'Email belum diverifikasi OTP', content: json(errorResponseSchema) },
+    },
+  });
+
+  const googleLoginRoute = createRoute({
+    method: 'post',
+    path: '/google',
+    tags: ['Auth'],
+    summary: 'Masuk dengan Google (ID token)',
+    request: { body: { content: json(googleLoginSchema) } },
+    responses: {
+      200: { description: 'Login berhasil', content: json(googleLoginResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'ID token Google tidak valid', content: json(errorResponseSchema) },
+      409: { description: 'Email sudah terdaftar tanpa identitas Google', content: json(errorResponseSchema) },
+      429: { description: 'Terlalu banyak percobaan (5/15 menit per IP)', content: json(errorResponseSchema) },
+      503: { description: 'GOOGLE_CLIENT_ID belum di-set', content: json(errorResponseSchema) },
     },
   });
 
@@ -186,6 +204,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   // jadi status literal tidak ter-infer; bentuk response dicek e2e test + schema validator
   authRoutes.openapi(registerRoute, (c) => deps.controller.register(c, c.req.valid('json')) as never);
   authRoutes.openapi(loginRoute, (c) => deps.controller.login(c, c.req.valid('json')) as never);
+  authRoutes.openapi(googleLoginRoute, (c) => deps.controller.google(c, c.req.valid('json')) as never);
   authRoutes.openapi(verifyEmailRoute, (c) => deps.controller.verifyEmail(c, c.req.valid('json')) as never);
   authRoutes.openapi(resendOtpRoute, (c) => deps.controller.resendOtp(c, c.req.valid('json')) as never);
   authRoutes.openapi(refreshRoute, (c) => deps.controller.refresh(c, c.req.valid('json')) as never);

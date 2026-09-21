@@ -32,6 +32,9 @@ import { ResetPasswordUseCase } from '@/modules/auth/application/use-cases/reset
 import { ChangePasswordUseCase } from '@/modules/auth/application/use-cases/change-password.use-case';
 import { AuthController } from '@/modules/auth/presentation/v1/auth.controller';
 import { createAuthRoutes } from '@/modules/auth/presentation/v1/auth.routes';
+import { AuthIdentityRepositoryImpl } from '@/modules/auth/infrastructure/auth-identity.repository.impl';
+import { googleTokenVerifier } from '@/modules/auth/infrastructure/google-token-verifier.holder';
+import { LoginWithGoogleUseCase } from '@/modules/auth/application/use-cases/login-with-google.use-case';
 import { ListAdminUsersUseCase } from '@/modules/auth/application/use-cases/list-admin-users.use-case';
 import { UpdateUserRoleUseCase } from '@/modules/auth/application/use-cases/update-user-role.use-case';
 import { AdminUsersController } from '@/modules/auth/presentation/v1/admin-user.controller';
@@ -198,6 +201,7 @@ const hasher = new Pbkdf2PasswordService();
 // Email: Resend (HTTP) kalau RESEND_API_KEY ter-set - jalur Cloudflare
 // Workers; selain itu SMTP (Node). Keduanya implements MailerPort.
 const mailer = createMailer();
+const identityRepo = new AuthIdentityRepositoryImpl(db);
 
 // ---- Modul audit (Section 21) - direkspos ke use case modul lain ----
 const auditRepo = new AuditLogRepositoryImpl(db);
@@ -233,6 +237,16 @@ const controller = new AuthController({
   forgot: new ForgotPasswordUseCase(userRepo, resetTokenRepo, mailer, `${env.APP_URL}/reset-password`),
   reset: new ResetPasswordUseCase(resetTokenRepo, userRepo, hasher, auditRepo, refreshTokenRepo),
   changePassword: new ChangePasswordUseCase(userRepo, hasher, auditRepo, refreshTokenRepo),
+  google: new LoginWithGoogleUseCase(
+    userRepo,
+    identityRepo,
+    googleTokenVerifier,
+    tokenService,
+    refreshTokenRepo,
+    auditRepo,
+    env.JWT_ACCESS_TOKEN_TTL,
+    env.JWT_REFRESH_TOKEN_TTL,
+  ),
 });
 
 const authenticate = createAuthenticateMiddleware((token) => tokenService.verifyAccessToken(token));

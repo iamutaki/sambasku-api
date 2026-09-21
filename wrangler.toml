@@ -48,6 +48,8 @@ LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
 # Pixabay — secret: PIXABAY_API_KEY (foto + video share)
 # Openverse — anonim (foto). Wikimedia — User-Agent (foto + video), bukan secret.
 SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
+# Google Sign-In — Web client ID (publik, bukan secret). Kosong = 503.
+# GOOGLE_CLIENT_ID = "....apps.googleusercontent.com"
 
 # Observability: Workers Logs (console.* dari logger JSON langsung terekap)
 [observability]
@@ -89,7 +91,8 @@ SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
 # Pexels — `wrangler secret put --env staging PEXELS_API_KEY`
 # Pixabay — `wrangler secret put --env staging PIXABAY_API_KEY`
 # Openverse anonim. Wikimedia User-Agent opsional via vars WIKIMEDIA_USER_AGENT.
-# Openverse anonim. Wikimedia User-Agent opsional via vars WIKIMEDIA_USER_AGENT.
+# Google Sign-In — Web client ID (publik, bukan secret).
+# GOOGLE_CLIENT_ID = "....apps.googleusercontent.com"
 # FCM — pola jnn_api: project id + client email di vars (bukan rahasia);
 # hanya FIREBASE_PRIVATE_KEY lewat wrangler secret.
 # Samakan dengan mobile flavorizr/firebase/staging → project_id.
