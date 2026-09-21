@@ -24,7 +24,7 @@ export class PublicUserRepositoryImpl implements PublicUserRepository {
 
   async countApprovedContributions(userId: string): Promise<number> {
     const [row] = await this.db
-      .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(contributions)
       .where(
         and(
@@ -38,7 +38,7 @@ export class PublicUserRepositoryImpl implements PublicUserRepository {
 
   async countVerificationsDone(userId: string): Promise<number> {
     const [row] = await this.db
-      .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(contributionReviews)
       .where(
         and(
