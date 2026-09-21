@@ -17,6 +17,7 @@ function toEntity(row: UserRow): User {
     passwordHash: row.passwordHash,
     role: row.role as User['role'],
     isActive: row.isActive,
+    emailVerified: row.emailVerified,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     deletedAt: row.deletedAt,
@@ -59,6 +60,13 @@ export class UserRepositoryImpl implements UserRepository {
       .where(eq(users.id, id));
   }
 
+  async markEmailVerified(id: string): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ emailVerified: true, updatedAt: new Date() })
+      .where(eq(users.id, id));
+  }
+
   async list(filter: UserListFilter): Promise<{ items: User[]; nextCursor: string | null; hasMore: boolean }> {
     const q = filter.q?.trim();
     const rows = await this.db
@@ -69,6 +77,7 @@ export class UserRepositoryImpl implements UserRepository {
         phone: users.phone,
         role: users.role,
         isActive: users.isActive,
+        emailVerified: users.emailVerified,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
         // Di-select juga untuk cursor comparison walau tidak di-return ke user (deletedAt

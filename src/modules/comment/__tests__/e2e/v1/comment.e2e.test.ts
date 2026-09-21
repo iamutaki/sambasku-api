@@ -69,6 +69,7 @@ describe.skipIf(!hasTestDb)('Comment E2E v1 - komentar + moderasi (09 doc)', () 
         confirm_password: 'Password123',
       });
     }
+    await db.update(users).set({ emailVerified: true });
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, `adm${stamp}@test.com`));
 
     const login = async (email: string) => {

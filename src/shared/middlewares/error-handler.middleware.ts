@@ -1,6 +1,6 @@
 import type { ErrorHandler } from 'hono';
 import type { z } from 'zod';
-import { AppError, BadRequestError, ValidationError } from '@/shared/errors/app-error';
+import { AppError, BadRequestError, ForbiddenError, ValidationError } from '@/shared/errors/app-error';
 import { logger } from '@/shared/logging/logger';
 
 // Dipasang sekali di main.ts via app.onError(errorHandler) -
@@ -17,7 +17,9 @@ export const errorHandler: ErrorHandler = (err, c) => {
             ? err.details
             : err instanceof BadRequestError
               ? err.details
-              : null,
+              : err instanceof ForbiddenError
+                ? err.details
+                : null,
       },
       err.statusCode as 400 | 401 | 403 | 404 | 409,
     );

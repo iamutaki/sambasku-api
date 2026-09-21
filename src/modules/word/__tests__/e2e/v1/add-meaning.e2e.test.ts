@@ -67,6 +67,7 @@ describe.skipIf(!hasTestDb)('Add Meaning E2E v1 - kontribusi definisi (17 doc)',
         await db.update(users).set({ role }).where(eq(users.email, email));
       }
     }
+    await db.update(users).set({ emailVerified: true });
     const login = async (email: string) =>
       (await (await post('/api/v1/auth/login', { email, password: 'Password123' })).json()).data.access_token;
     adminToken = await login(`adm${stamp}@test.com`);

@@ -93,6 +93,7 @@ describe.skipIf(!hasTestDb)('Word E2E v1 - Soft-delete kata (07 doc)', () => {
       password: 'Password123',
       confirm_password: 'Password123',
     });
+    await db.update(users).set({ emailVerified: true });
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, `adm${stamp}@test.com`));
 
     const login = async (email: string) => {

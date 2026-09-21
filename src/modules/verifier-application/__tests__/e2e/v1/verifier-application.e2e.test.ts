@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
+import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
 import { eq } from 'drizzle-orm';
 
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -71,12 +72,14 @@ describe.skipIf(!hasTestDb)('Verifier application E2E v1 (20 doc)', () => {
       password: 'Password123',
       confirm_password: 'Password123',
     });
+    await post('/api/v1/auth/verify-email', { email: adminEmail, code: capturedOtpDisplayCode() });
     await post('/api/v1/auth/register', {
       name: `konva${stamp}`,
       email: contributorEmail,
       password: 'Password123',
       confirm_password: 'Password123',
     });
+    await post('/api/v1/auth/verify-email', { email: contributorEmail, code: capturedOtpDisplayCode() });
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, adminEmail));
 
     const login = async (email: string) => {

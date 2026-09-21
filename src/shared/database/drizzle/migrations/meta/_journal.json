@@ -204,6 +204,13 @@
       "when": 1789922000000,
       "tag": "0028_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789923000000,
+      "tag": "0029_email-verification-otp",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
+import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
 import { eq } from 'drizzle-orm';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
@@ -59,6 +60,7 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 - kontribusi pronounce/gambar/con
         password: 'Password123',
         confirm_password: 'Password123',
       });
+      await post('/api/v1/auth/verify-email', { email, code: capturedOtpDisplayCode() });
       if (role !== 'contributor') {
         await db.update(users).set({ role }).where(eq(users.email, email));
       }

@@ -24,6 +24,8 @@ const envSchema = z.object({
   // tidak tersedia). Kalau di-set, dipakai LEBIH DULU daripada SMTP
   RESEND_API_KEY: z.string().optional(),
   MAIL_FROM: z.string().optional(),
+  // resend | smtp. Kosong: Resend jika RESEND_API_KEY, else SMTP/log.
+  MAIL_PROVIDER: z.string().optional(),
 
   CORS_ALLOWED_ORIGINS: z.string(), // comma-separated
 

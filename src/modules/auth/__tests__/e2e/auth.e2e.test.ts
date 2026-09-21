@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
+import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import -
 // .env dev tidak boleh pernah tersentuh dari test (api-base-stack.md Section 10)
@@ -60,13 +61,29 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
       { headers: xff() },
     );
 
+  const verifyEmail = (email: string, code?: string) =>
+    client.api.v1.auth['verify-email'].$post(
+      { json: { email, code: code ?? capturedOtpDisplayCode() } },
+      { headers: xff() },
+    );
+
+  const registerAndVerify = async (email: string) => {
+    const res = await register(email);
+    expect(res.status).toBe(201);
+    const verifyRes = await verifyEmail(email);
+    expect(verifyRes.status).toBe(200);
+    return res;
+  };
+
   it('POST /api/v1/auth/register → 201 + envelope standar', async () => {
     const res = await register(unique());
     expect([201, 409]).toContain(res.status);
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.data.user_id).toBeDefined();
+    expect(body.data.verification_required).toBe(true);
     expect(body.data.password_hash).toBeUndefined(); // tidak boleh bocor
+    expect(body.data.access_token).toBeUndefined();
   });
 
   it('POST /api/v1/auth/register body tidak valid → 400 VALIDATION_ERROR + details', async () => {
@@ -79,9 +96,53 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(Array.isArray(body.details)).toBe(true);
   });
 
-  it('POST /api/v1/auth/login → 200 access_token + cookie httpOnly', async () => {
+  it('POST /api/v1/auth/login sebelum verify → 403 EMAIL_NOT_VERIFIED', async () => {
     const email = unique();
     await register(email);
+
+    const res = await client.api.v1.auth.login.$post({ json: { email, password: 'Password123' } }, { headers: xff() });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error_code).toBe('EMAIL_NOT_VERIFIED');
+    expect(body.details).toEqual([{ field: 'email', message: email }]);
+    expect(body.data).toBeUndefined();
+  });
+
+  it('POST /api/v1/auth/verify-email kode benar → 200 JWT', async () => {
+    const email = unique();
+    await register(email);
+    const res = await client.api.v1.auth['verify-email'].$post(
+      { json: { email, code: capturedOtpDisplayCode(), client_type: 'mobile' } },
+      { headers: xff() },
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.access_token).toBeDefined();
+    expect(body.data.refresh_token).toBeDefined();
+  });
+
+  it('POST /api/v1/auth/verify-email kode salah → 401 INVALID_OTP', async () => {
+    const email = unique();
+    await register(email);
+    const res = await verifyEmail(email, '000000');
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error_code).toBe('INVALID_OTP');
+  });
+
+  it('POST /api/v1/auth/resend-otp selalu 200 (anti-enumeration)', async () => {
+    const res = await client.api.v1.auth['resend-otp'].$post(
+      { json: { email: unique() } },
+      { headers: xff() },
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  it('POST /api/v1/auth/login → 200 access_token + cookie httpOnly', async () => {
+    const email = unique();
+    await registerAndVerify(email);
 
     const res = await client.api.v1.auth.login.$post({ json: { email, password: 'Password123' } }, { headers: xff() });
     expect(res.status).toBe(200);
@@ -107,7 +168,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
 
   it('POST /api/v1/auth/refresh → token dirotasi (cookie baru + token lama mati)', async () => {
     const email = unique();
-    await register(email);
+    await registerAndVerify(email);
     const loginRes = await client.api.v1.auth.login.$post({ json: { email, password: 'Password123' } }, { headers: xff() });
     const cookie = loginRes.headers
       .getSetCookie()
@@ -137,7 +198,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
 
   it('MOBILE: login client_type mobile → refresh_token di body (tanpa cookie)', async () => {
     const email = unique();
-    await register(email);
+    await registerAndVerify(email);
     const res = await client.api.v1.auth.login.$post(
       { json: { email, password: 'Password123', client_type: 'mobile' } },
       { headers: xff() },
@@ -151,7 +212,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
 
   it('MOBILE: refresh via body → token rotasi di body, token lama mati', async () => {
     const email = unique();
-    await register(email);
+    await registerAndVerify(email);
     const loginRes = await client.api.v1.auth.login.$post(
       { json: { email, password: 'Password123', client_type: 'mobile' } },
       { headers: xff() },
@@ -197,7 +258,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
 
   it('change-password: sukses → refresh lama mati, login password baru sukses', async () => {
     const email = unique();
-    await register(email);
+    await registerAndVerify(email);
     const login = await loginMobile(email, 'Password123');
     expect(login.status).toBe(200);
     const { access_token: token, refresh_token: oldRefresh } = login.body.data;
@@ -227,7 +288,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
 
   it('change-password: password lama salah → 401 INVALID_CREDENTIALS', async () => {
     const email = unique();
-    await register(email);
+    await registerAndVerify(email);
     const login = await loginMobile(email, 'Password123');
 
     const res = await changePassword(
@@ -244,7 +305,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
 
   it('change-password: validasi (lemah / confirm beda / sama dengan lama) → 400', async () => {
     const email = unique();
-    await register(email);
+    await registerAndVerify(email);
     const login = await loginMobile(email, 'Password123');
     const token = login.body.data.access_token;
 

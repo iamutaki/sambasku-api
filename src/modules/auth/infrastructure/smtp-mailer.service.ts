@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import { env } from '@/shared/config/env';
 import { logger } from '@/shared/logging/logger';
 import type { MailerPort } from '../application/ports/mailer.port';
+import { rememberOtp } from './otp-capture';
 
 // Kalau SMTP belum dikonfigurasi (dev lokal), link reset hanya di-log -
 // email asli tidak pernah dikirim diam-diam dari environment sandbox.
@@ -25,6 +26,23 @@ export class SmtpMailerService implements MailerPort {
       to,
       subject: 'Reset Password - Kamus Digital Sambas-Indonesia',
       text: `Link reset password Anda (berlaku 1 jam):\n${resetUrl}\n\nAbaikan email ini jika Anda tidak meminta reset password.`,
+    });
+  }
+
+  async sendVerificationOtpEmail(to: string, displayCode: string): Promise<void> {
+    rememberOtp(to, displayCode);
+    const text =
+      `Kode verifikasi SambasKu (berlaku 10 menit): ${displayCode}\n\n` +
+      'Jangan bagikan kode ini. Abaikan email ini jika Anda tidak mendaftar.';
+    if (!this.transporter) {
+      logger.info({ to, displayCode }, 'DEV: OTP tidak dikirim, SMTP belum di-set');
+      return;
+    }
+    await this.transporter.sendMail({
+      from: env.SMTP_USER,
+      to,
+      subject: 'Kode verifikasi - SambasKu',
+      text,
     });
   }
 }

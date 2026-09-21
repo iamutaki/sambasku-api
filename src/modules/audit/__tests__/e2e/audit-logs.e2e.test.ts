@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
+import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
 import { eq } from 'drizzle-orm';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
@@ -42,6 +43,10 @@ describe.skipIf(!hasTestDb)('Audit Logs E2E', () => {
           password: 'Password123',
           confirm_password: 'Password123',
         }),
+      });
+      await request('/api/v1/auth/verify-email', {
+        method: 'POST',
+        body: JSON.stringify({ email, code: capturedOtpDisplayCode() }),
       });
     }
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, `audadm${stamp}@test.com`));

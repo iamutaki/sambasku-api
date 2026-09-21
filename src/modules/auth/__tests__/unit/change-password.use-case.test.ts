@@ -17,6 +17,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     passwordHash: 'pbkdf2-sha256$lama',
     role: 'contributor',
     isActive: true,
+    emailVerified: true,
     createdAt: new Date(),
     updatedAt: null,
     deletedAt: null,

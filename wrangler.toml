@@ -34,6 +34,7 @@ CORS_ALLOWED_ORIGINS = "https://kamus-sambas.app"
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
 MAIL_FROM = "Kamus Sambas <no-reply@kamus-sambas.app>"
+# MAIL_PROVIDER = "resend" | "smtp" (kosong: Resend jika secret RESEND_API_KEY)
 # Provider gambar: default "imagekit" (tanpa var ini) - kredensial via
 # secret: IMAGEKIT_PRIVATE_KEY / IMAGEKIT_PUBLIC_KEY / IMAGEKIT_URL_ENDPOINT.
 # Provider lain kelak: IMAGE_PROVIDER="..." + impl baru (image-storage.factory)

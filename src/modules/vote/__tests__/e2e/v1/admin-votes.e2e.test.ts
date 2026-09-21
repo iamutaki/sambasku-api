@@ -103,6 +103,7 @@ describe.skipIf(!hasTestDb)('Admin Votes E2E v1 - moderasi vote (root/admin/revi
     await register(voter1Name);
     await register(voter2Name);
 
+    await db.update(users).set({ emailVerified: true });
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, `adm${stamp}@test.com`));
     await db.update(users).set({ role: 'reviewer' }).where(eq(users.email, `rev${stamp}@test.com`));
     await db.update(users).set({ role: 'editor' }).where(eq(users.email, `edt${stamp}@test.com`));

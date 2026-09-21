@@ -3,23 +3,26 @@ import type { AuditLogRepository } from '@/modules/audit/domain/repositories/aud
 import { Email } from '../../domain/value-objects/email.vo';
 import { Password } from '../../domain/value-objects/password.vo';
 import type { UserRepository } from '../../domain/repositories/user.repository';
+import type { EmailVerificationOtpRepository } from '../../domain/repositories/email-verification-otp.repository';
 import type { User } from '../../domain/entities/user.entity';
 import type { RegisterDto } from '../dto/register.dto';
 import type { PasswordHasherPort } from '../ports/password-hasher.port';
+import type { MailerPort } from '../ports/mailer.port';
+import { formatOtpDisplay, generateOtpDigits, hashOtp, OTP_TTL_MS } from '../utils/otp';
 
 export class RegisterUserUseCase {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly hasher: PasswordHasherPort,
     private readonly auditRepo: AuditLogRepository,
+    private readonly otpRepo: EmailVerificationOtpRepository,
+    private readonly mailer: MailerPort,
   ) {}
 
   async execute(dto: RegisterDto, requestId?: string | null): Promise<User> {
-    // VO jadi lapis kedua setelah Zod di presentation - domain tetap menjaga invariant-nya sendiri
     const email = Email.create(dto.email);
     Password.create(dto.password);
 
-    // name → username (login tetap by email; nama dipakai tampilan)
     if (await this.userRepo.findByUsername(dto.name)) {
       throw new ConflictError('USERNAME_ALREADY_EXISTS', 'Nama sudah dipakai');
     }
@@ -31,15 +34,22 @@ export class RegisterUserUseCase {
     }
 
     const passwordHash = await this.hasher.hash(dto.password);
-    // role default 'contributor', is_active true → auto-verify (tanpa OTP)
     const user = await this.userRepo.save({
       username: dto.name,
       email: email.value,
       phone: dto.phone,
       passwordHash,
+      emailVerified: false,
     });
 
-    // Audit trail (Section 21) - tanpa password/hash di new_data
+    const digits = generateOtpDigits();
+    await this.otpRepo.replaceForUser({
+      userId: user.id,
+      codeHash: hashOtp(user.id, digits),
+      expiresAt: new Date(Date.now() + OTP_TTL_MS),
+    });
+    await this.mailer.sendVerificationOtpEmail(user.email, formatOtpDisplay(digits));
+
     await this.auditRepo.record({
       userId: user.id,
       action: 'create',

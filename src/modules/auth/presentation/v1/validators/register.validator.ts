@@ -68,5 +68,6 @@ export const registerResponseSchema = z.object({
     username: z.string(),
     email: z.string(),
     phone: z.string().nullable(),
+    verification_required: z.literal(true),
   }),
 });

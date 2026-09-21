@@ -91,10 +91,10 @@ async function main() {
     // Idempoten: kalau email sudah ada, update password/role - seeder aman dijalankan berulang
     await db
       .insert(users)
-      .values({ ...user, passwordHash })
+      .values({ ...user, passwordHash, emailVerified: true })
       .onConflictDoUpdate({
         target: users.email,
-        set: { passwordHash, role: user.role, updatedAt: new Date() },
+        set: { passwordHash, role: user.role, emailVerified: true, updatedAt: new Date() },
       });
     logger.info(`Seeded user ${user.email} (role: ${user.role})`);
   }
@@ -110,6 +110,7 @@ async function main() {
       email: ANONIM_EMAIL,
       passwordHash: await hasher.hash(crypto.randomUUID()),
       role: 'contributor', // non-verifikator: submit selalu pending_review
+      emailVerified: true,
     })
     .onConflictDoUpdate({
       target: users.id,

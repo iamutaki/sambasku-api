@@ -22,6 +22,13 @@ describe.skipIf(!hasTestDb)('UserRepositoryImpl', () => {
     const found = await repo.findByEmail('budi@test.com');
     expect(found?.username).toBe('budi');
     expect(found?.role).toBe('contributor'); // default dari skema DB
+    expect(found?.emailVerified).toBe(false);
+  });
+
+  it('markEmailVerified mengubah email_verified jadi true', async () => {
+    const saved = await repo.save({ username: 'siti', email: 'siti@test.com', phone: null, passwordHash: 'hash' });
+    await repo.markEmailVerified(saved.id);
+    expect((await repo.findById(saved.id))?.emailVerified).toBe(true);
   });
 
   it('findByUsername dan findById mengembalikan user yang sama', async () => {

@@ -19,8 +19,11 @@ import { PasswordResetTokenRepositoryImpl } from '@/modules/auth/infrastructure/
 import { JwtTokenService } from '@/modules/auth/infrastructure/jwt-token.service';
 import { Pbkdf2PasswordService } from '@/modules/auth/infrastructure/pbkdf2-password.service';
 import { createMailer } from '@/modules/auth/infrastructure/mailer.factory';
+import { EmailVerificationOtpRepositoryImpl } from '@/modules/auth/infrastructure/email-verification-otp.repository.impl';
 import { RegisterUserUseCase } from '@/modules/auth/application/use-cases/register-user.use-case';
 import { LoginUserUseCase } from '@/modules/auth/application/use-cases/login-user.use-case';
+import { VerifyEmailUseCase } from '@/modules/auth/application/use-cases/verify-email.use-case';
+import { ResendOtpUseCase } from '@/modules/auth/application/use-cases/resend-otp.use-case';
 import { RefreshTokenUseCase } from '@/modules/auth/application/use-cases/refresh-token.use-case';
 import { LogoutUserUseCase } from '@/modules/auth/application/use-cases/logout-user.use-case';
 import { LogoutAllDevicesUseCase } from '@/modules/auth/application/use-cases/logout-all-devices.use-case';
@@ -179,6 +182,7 @@ import { createAdminVerifierApplicationRoutes } from '@/modules/verifier-applica
 // ---- Composition root: rakit semua dependency (manual DI, api-base-stack.md Section 2) ----
 const userRepo = new UserRepositoryImpl(db);
 const refreshTokenRepo = new RefreshTokenRepositoryImpl(db);
+const otpRepo = new EmailVerificationOtpRepositoryImpl(db);
 const resetTokenRepo = new PasswordResetTokenRepositoryImpl(db);
 const deviceTokenRepo = new DeviceTokenRepositoryImpl(db);
 const pushSender = createPushSender();
@@ -199,7 +203,7 @@ const mailer = createMailer();
 const auditRepo = new AuditLogRepositoryImpl(db);
 
 const controller = new AuthController({
-  register: new RegisterUserUseCase(userRepo, hasher, auditRepo),
+  register: new RegisterUserUseCase(userRepo, hasher, auditRepo, otpRepo, mailer),
   login: new LoginUserUseCase(
     userRepo,
     hasher,
@@ -208,6 +212,15 @@ const controller = new AuthController({
     env.JWT_ACCESS_TOKEN_TTL,
     env.JWT_REFRESH_TOKEN_TTL,
   ),
+  verifyEmail: new VerifyEmailUseCase(
+    userRepo,
+    otpRepo,
+    tokenService,
+    refreshTokenRepo,
+    env.JWT_ACCESS_TOKEN_TTL,
+    env.JWT_REFRESH_TOKEN_TTL,
+  ),
+  resendOtp: new ResendOtpUseCase(userRepo, otpRepo, mailer),
   refresh: new RefreshTokenUseCase(
     refreshTokenRepo,
     userRepo,

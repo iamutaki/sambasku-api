@@ -15,6 +15,8 @@ export const users = pgTable('users', {
   // administrator | editor | reviewer | contributor
   role: varchar('role', { length: 50 }).notNull().default('contributor'),
   isActive: boolean('is_active').notNull().default(true),
+  // Password register: false sampai OTP. User lama di-backfill true. Google nanti true.
+  emailVerified: boolean('email_verified').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at'),
   deletedAt: timestamp('deleted_at'), // soft delete - tidak boleh bisa login lagi

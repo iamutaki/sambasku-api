@@ -13,6 +13,12 @@ import {
   refreshResponseSchema,
 } from './validators/login.validator';
 import { registerSchema, registerResponseSchema } from './validators/register.validator';
+import {
+  verifyEmailSchema,
+  verifyEmailResponseSchema,
+  resendOtpSchema,
+  resendOtpResponseSchema,
+} from './validators/verify-email.validator';
 import { forgotPasswordSchema, forgotPasswordResponseSchema } from './validators/forgot-password.validator';
 import { resetPasswordSchema, resetPasswordResponseSchema } from './validators/reset-password.validator';
 import { changePasswordSchema, changePasswordResponseSchema } from './validators/change-password.validator';
@@ -28,6 +34,8 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   // Rate limiting per kategori (api-base-stack.md Section 15)
   authRoutes.use('/register', rateLimit({ points: 5, duration: 3600 })); // 5/jam per IP
   authRoutes.use('/login', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
+  authRoutes.use('/verify-email', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
+  authRoutes.use('/resend-otp', rateLimit({ points: 3, duration: 900 })); // 3/15 menit
   authRoutes.use('/forgot-password', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
   authRoutes.use('/logout-all-devices', deps.authenticate);
   // authenticate HARUS duluan supaya c.get('user') terisi untuk keyFn
@@ -66,6 +74,34 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
       200: { description: 'Login berhasil', content: json(loginResponseSchema) },
       400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
       401: { description: 'Email atau password salah', content: json(errorResponseSchema) },
+      403: { description: 'Email belum diverifikasi OTP', content: json(errorResponseSchema) },
+    },
+  });
+
+  const verifyEmailRoute = createRoute({
+    method: 'post',
+    path: '/verify-email',
+    tags: ['Auth'],
+    summary: 'Verifikasi email dengan OTP 6 digit, lalu terbitkan JWT seperti login',
+    request: { body: { content: json(verifyEmailSchema) } },
+    responses: {
+      200: { description: 'Email terverifikasi + token', content: json(verifyEmailResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'OTP salah atau kadaluarsa', content: json(errorResponseSchema) },
+      429: { description: 'Terlalu banyak percobaan (5/15 menit per IP)', content: json(errorResponseSchema) },
+    },
+  });
+
+  const resendOtpRoute = createRoute({
+    method: 'post',
+    path: '/resend-otp',
+    tags: ['Auth'],
+    summary: 'Kirim ulang OTP (response selalu 200, anti-enumeration)',
+    request: { body: { content: json(resendOtpSchema) } },
+    responses: {
+      200: { description: 'Kode baru dikirim jika email belum diverifikasi', content: json(resendOtpResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      429: { description: 'Terlalu banyak percobaan (3/15 menit per IP)', content: json(errorResponseSchema) },
     },
   });
 
@@ -149,6 +185,8 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   // jadi status literal tidak ter-infer; bentuk response dicek e2e test + schema validator
   authRoutes.openapi(registerRoute, (c) => deps.controller.register(c, c.req.valid('json')) as never);
   authRoutes.openapi(loginRoute, (c) => deps.controller.login(c, c.req.valid('json')) as never);
+  authRoutes.openapi(verifyEmailRoute, (c) => deps.controller.verifyEmail(c, c.req.valid('json')) as never);
+  authRoutes.openapi(resendOtpRoute, (c) => deps.controller.resendOtp(c, c.req.valid('json')) as never);
   authRoutes.openapi(refreshRoute, (c) => deps.controller.refresh(c, c.req.valid('json')) as never);
   authRoutes.openapi(logoutRoute, (c) => deps.controller.logout(c, c.req.valid('json')) as never);
   authRoutes.openapi(logoutAllRoute, (c) => deps.controller.logoutAll(c) as never);

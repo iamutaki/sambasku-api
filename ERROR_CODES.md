@@ -7,6 +7,9 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 |---|---|---|
 | `VALIDATION_ERROR` | 400 | Body request tidak lolos Zod schema |
 | `INVALID_CREDENTIALS` | 401 | Login gagal (email tidak ada / password salah) |
+| `EMAIL_NOT_VERIFIED` | 403 | Login password benar, email belum diverifikasi OTP |
+| `INVALID_OTP` | 401 | Kode OTP salah / user tidak cocok |
+| `OTP_EXPIRED` | 401 | OTP kadaluarsa atau percobaan habis |
 | `UNAUTHORIZED` | 401 | Token tidak ada/invalid, atau refresh token tidak valid |
 | `TOKEN_EXPIRED` | 401 | Access token kadaluarsa |
 | `RESET_TOKEN_INVALID` | 401 | Token reset password tidak valid, kadaluarsa, atau sudah dipakai |

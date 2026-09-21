@@ -1,4 +1,4 @@
-import { UnauthorizedError } from '@/shared/errors/app-error';
+import { ForbiddenError, UnauthorizedError } from '@/shared/errors/app-error';
 import type { UserRepository } from '../../domain/repositories/user.repository';
 import type { RefreshTokenRepository } from '../../domain/repositories/refresh-token.repository';
 import type { LoginDto, LoginMeta } from '../dto/login.dto';
@@ -36,6 +36,13 @@ export class LoginUserUseCase {
     // Soft-deleted ATAU dinonaktifkan (is_active=false) → pesan generik yang sama
     if (user.deletedAt || !user.isActive) {
       throw invalid;
+    }
+    if (!user.emailVerified) {
+      throw new ForbiddenError(
+        'EMAIL_NOT_VERIFIED',
+        'Email belum diverifikasi. Cek kotak masuk untuk kode OTP.',
+        [{ field: 'email', message: user.email }],
+      );
     }
 
     const accessToken = await this.tokenService.generateAccessToken({

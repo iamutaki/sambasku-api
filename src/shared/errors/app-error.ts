@@ -37,10 +37,15 @@ export class UnauthorizedError extends AppError {
 export class ForbiddenError extends AppError {
   statusCode = 403;
   errorCode: string;
-  // errorCode bisa dioverride: CANNOT_CHANGE_ROOT, CANNOT_CHANGE_SELF_ROLE, dll
-  constructor(errorCode = 'FORBIDDEN', message = 'Tidak diizinkan') {
+  details: { field: string; message: string }[] | null;
+  constructor(
+    errorCode = 'FORBIDDEN',
+    message = 'Tidak diizinkan',
+    details: { field: string; message: string }[] | null = null,
+  ) {
     super(message);
     this.errorCode = errorCode;
+    this.details = details;
   }
 }
 

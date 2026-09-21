@@ -15,6 +15,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     passwordHash: 'argon2id$hash',
     role: 'contributor',
     isActive: true,
+    emailVerified: true,
     createdAt: new Date(),
     updatedAt: null,
     deletedAt: null,
@@ -82,6 +83,18 @@ describe('LoginUserUseCase', () => {
     await expect(
       useCase.execute({ email: 'budi@test.com', password: 'Password123' }),
     ).rejects.toMatchObject(GENERIC_ERROR);
+  });
+
+  it('password benar + email belum verified → 403 EMAIL_NOT_VERIFIED, tanpa token', async () => {
+    const { useCase, refreshTokenRepo } = makeDeps(makeUser({ emailVerified: false }));
+
+    await expect(
+      useCase.execute({ email: 'budi@test.com', password: 'Password123' }),
+    ).rejects.toMatchObject({
+      errorCode: 'EMAIL_NOT_VERIFIED',
+      statusCode: 403,
+    });
+    expect(refreshTokenRepo.create).not.toHaveBeenCalled();
   });
 
   it('sukses: simpan refresh token dalam bentuk HASH, bukan plain', async () => {

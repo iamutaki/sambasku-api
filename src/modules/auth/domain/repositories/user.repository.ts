@@ -7,6 +7,7 @@ export interface UserRepository {
   findByPhone(phone: string): Promise<User | null>;
   save(user: NewUser): Promise<User>;
   updatePassword(id: string, passwordHash: string): Promise<void>;
+  markEmailVerified(id: string): Promise<void>;
   list(filter: UserListFilter): Promise<UserListResult>;
   updateRole(id: string, role: UserRole): Promise<void>;
   updatePhone(id: string, phone: string): Promise<void>;

@@ -4,18 +4,21 @@ import { env } from '@/shared/config/env';
 import { UnauthorizedError } from '@/shared/errors/app-error';
 import type { AppVariables } from '@/shared/types';
 import type { RegisterUserUseCase } from '../../application/use-cases/register-user.use-case';
-import type { LoginUserUseCase } from '../../application/use-cases/login-user.use-case';
+import type { LoginUserUseCase, LoginResult } from '../../application/use-cases/login-user.use-case';
 import type { RefreshTokenUseCase } from '../../application/use-cases/refresh-token.use-case';
 import type { LogoutUserUseCase } from '../../application/use-cases/logout-user.use-case';
 import type { LogoutAllDevicesUseCase } from '../../application/use-cases/logout-all-devices.use-case';
 import type { ForgotPasswordUseCase } from '../../application/use-cases/forgot-password.use-case';
 import type { ResetPasswordUseCase } from '../../application/use-cases/reset-password.use-case';
 import type { ChangePasswordUseCase } from '../../application/use-cases/change-password.use-case';
+import type { VerifyEmailUseCase } from '../../application/use-cases/verify-email.use-case';
+import type { ResendOtpUseCase } from '../../application/use-cases/resend-otp.use-case';
 import type { RegisterBody } from './validators/register.validator';
 import type { LoginBody } from './validators/login.validator';
 import type { ForgotPasswordBody } from './validators/forgot-password.validator';
 import type { ResetPasswordBody } from './validators/reset-password.validator';
 import type { ChangePasswordBody } from './validators/change-password.validator';
+import type { VerifyEmailBody, ResendOtpBody } from './validators/verify-email.validator';
 
 const REFRESH_TOKEN_COOKIE = 'refresh_token';
 const COOKIE_PATH = '/api/v1/auth'; // cookie hanya dikirim ke endpoint auth
@@ -31,6 +34,8 @@ export class AuthController {
       forgot: ForgotPasswordUseCase;
       reset: ResetPasswordUseCase;
       changePassword: ChangePasswordUseCase;
+      verifyEmail: VerifyEmailUseCase;
+      resendOtp: ResendOtpUseCase;
     },
   ) {}
 
@@ -53,6 +58,7 @@ export class AuthController {
           username: user.username,
           email: user.email,
           phone: user.phone,
+          verification_required: true as const,
         },
       },
       201,
@@ -60,32 +66,24 @@ export class AuthController {
   }
 
   async login(c: Context, body: LoginBody) {
-    const result = await this.deps.login.execute(body, {
-      deviceInfo: c.req.header('User-Agent'),
-      ipAddress: c.req.header('x-forwarded-for') ?? null,
-    });
+    const result = await this.deps.login.execute(body, this.loginMeta(c));
+    return this.loginJson(c, body.client_type, result);
+  }
 
-    // Dua kanal refresh token: web via httpOnly cookie (XSS-safe),
-    // mobile via response body (client simpan di Keychain/Keystore)
-    if (body.client_type === 'mobile') {
-      return c.json({
-        success: true as const,
-        data: {
-          access_token: result.accessToken,
-          expires_in: result.expiresIn,
-          refresh_token: result.refreshToken,
-          user: result.user,
-        },
-      });
-    }
+  async verifyEmail(c: Context, body: VerifyEmailBody) {
+    const result = await this.deps.verifyEmail.execute(
+      { email: body.email, code: body.code },
+      this.loginMeta(c),
+    );
+    return this.loginJson(c, body.client_type, result);
+  }
 
-    this.setRefreshCookie(c, result.refreshToken);
+  async resendOtp(c: Context, body: ResendOtpBody) {
+    await this.deps.resendOtp.execute(body.email);
     return c.json({
       success: true as const,
       data: {
-        access_token: result.accessToken,
-        expires_in: result.expiresIn,
-        user: result.user,
+        message: 'Jika email terdaftar dan belum diverifikasi, kode baru sudah dikirim.',
       },
     });
   }
@@ -161,6 +159,39 @@ export class AuthController {
     return c.json({
       success: true as const,
       data: { message: 'Password berhasil diubah. Silakan login kembali.' },
+    });
+  }
+
+  private loginMeta(c: Context) {
+    return {
+      deviceInfo: c.req.header('User-Agent'),
+      ipAddress: c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? null,
+    };
+  }
+
+  // Dua kanal refresh token: web via httpOnly cookie (XSS-safe),
+  // mobile via response body (client simpan di Keychain/Keystore)
+  private loginJson(c: Context, clientType: 'web' | 'mobile', result: LoginResult) {
+    if (clientType === 'mobile') {
+      return c.json({
+        success: true as const,
+        data: {
+          access_token: result.accessToken,
+          expires_in: result.expiresIn,
+          refresh_token: result.refreshToken,
+          user: result.user,
+        },
+      });
+    }
+
+    this.setRefreshCookie(c, result.refreshToken);
+    return c.json({
+      success: true as const,
+      data: {
+        access_token: result.accessToken,
+        expires_in: result.expiresIn,
+        user: result.user,
+      },
     });
   }
 

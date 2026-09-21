@@ -11,12 +11,15 @@ export interface User {
   passwordHash: string | null;
   role: UserRole;
   isActive: boolean;
+  emailVerified: boolean;
   createdAt: Date;
   updatedAt: Date | null;
   deletedAt: Date | null; // soft delete - tidak boleh bisa login lagi
 }
 
-export type NewUser = Pick<User, 'username' | 'email' | 'passwordHash' | 'phone'>;
+export type NewUser = Pick<User, 'username' | 'email' | 'passwordHash' | 'phone'> & {
+  emailVerified?: boolean;
+};
 
 export interface UserListFilter {
   q?: string;

@@ -63,7 +63,7 @@ describe.skipIf(!hasTestDb)('List Words A-Z E2E v1 (18 doc) - GET /api/v1/words'
       password: 'Password123',
       confirm_password: 'Password123',
     });
-    await db.update(users).set({ role: 'admin' }).where(eq(users.email, email));
+    await db.update(users).set({ role: 'admin', emailVerified: true }).where(eq(users.email, email));
     const login = await post('/api/v1/auth/login', { email, password: 'Password123' });
     adminToken = ((await login.json()) as { data: { access_token: string } }).data.access_token;
 

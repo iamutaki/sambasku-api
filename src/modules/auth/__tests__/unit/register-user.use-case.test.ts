@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { RegisterUserUseCase } from '../../application/use-cases/register-user.use-case';
 import type { UserRepository } from '../../domain/repositories/user.repository';
+import type { EmailVerificationOtpRepository } from '../../domain/repositories/email-verification-otp.repository';
 import type { PasswordHasherPort } from '../../application/ports/password-hasher.port';
+import type { MailerPort } from '../../application/ports/mailer.port';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 
 function makeDeps(overrides: {
@@ -15,35 +17,61 @@ function makeDeps(overrides: {
     findByUsername: vi.fn().mockResolvedValue(overrides.findByUsername ?? null),
     findByPhone: vi.fn().mockResolvedValue(overrides.findByPhone ?? null),
     save: vi.fn().mockImplementation(
-      (user: { username: string; email: string; phone: string | null; passwordHash: string }) =>
+      (user: {
+        username: string;
+        email: string;
+        phone: string | null;
+        passwordHash: string;
+        emailVerified?: boolean;
+      }) =>
         Promise.resolve({
           id: '01TESTULIDUSERID00000000',
           ...user,
           role: 'contributor',
           isActive: true,
+          emailVerified: user.emailVerified ?? false,
           createdAt: new Date(),
           updatedAt: null,
           deletedAt: null,
         }),
     ),
     updatePassword: vi.fn(),
+    markEmailVerified: vi.fn(),
   } as unknown as UserRepository;
   const hasher = {
     hash: vi.fn().mockResolvedValue('argon2id$hash'),
     compare: vi.fn(),
   } as unknown as PasswordHasherPort;
   const auditRepo = { record: vi.fn().mockResolvedValue(undefined), list: vi.fn() };
+  const otpRepo = {
+    replaceForUser: vi.fn().mockResolvedValue({}),
+    findByUserId: vi.fn(),
+    incrementAttempts: vi.fn(),
+    deleteByUserId: vi.fn(),
+  } as unknown as EmailVerificationOtpRepository;
+  const mailer = {
+    sendResetPasswordEmail: vi.fn(),
+    sendVerificationOtpEmail: vi.fn().mockResolvedValue(undefined),
+  } as unknown as MailerPort;
   return {
     userRepo,
     hasher,
     auditRepo,
-    useCase: new RegisterUserUseCase(userRepo, hasher, auditRepo as unknown as AuditLogRepository),
+    otpRepo,
+    mailer,
+    useCase: new RegisterUserUseCase(
+      userRepo,
+      hasher,
+      auditRepo as unknown as AuditLogRepository,
+      otpRepo,
+      mailer,
+    ),
   };
 }
 
 describe('RegisterUserUseCase', () => {
-  it('menyimpan user baru (name→username) + phone opsional, auto-active tanpa OTP', async () => {
-    const { useCase, userRepo, hasher } = makeDeps();
+  it('menyimpan user belum verified, kirim OTP tampilan XXX-XYZ, tanpa JWT', async () => {
+    const { useCase, userRepo, hasher, otpRepo, mailer } = makeDeps();
 
     const user = await useCase.execute({
       name: 'Budi Santoso',
@@ -55,13 +83,23 @@ describe('RegisterUserUseCase', () => {
     expect(hasher.hash).toHaveBeenCalledWith('Password123');
     expect(userRepo.save).toHaveBeenCalledWith({
       username: 'Budi Santoso',
-      email: 'budi@test.com', // dinormalisasi lowercase oleh Email VO
+      email: 'budi@test.com',
       phone: '6281234567890',
       passwordHash: 'argon2id$hash',
+      emailVerified: false,
     });
-    expect(user.role).toBe('contributor');
-    expect(user.isActive).toBe(true);
-    expect(user.passwordHash).toBe('argon2id$hash'); // internal saja - presentation hanya mapping field aman
+    expect(user.emailVerified).toBe(false);
+    expect(otpRepo.replaceForUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: user.id,
+        codeHash: expect.any(String),
+        expiresAt: expect.any(Date),
+      }),
+    );
+    expect(mailer.sendVerificationOtpEmail).toHaveBeenCalledWith(
+      'budi@test.com',
+      expect.stringMatching(/^\d{3}-\d{3}$/),
+    );
   });
 
   it('menerima phone null (opsional)', async () => {

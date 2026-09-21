@@ -11,6 +11,9 @@ import type {
 const PIXABAY_PHOTO_URL = 'https://pixabay.com/api/';
 const PIXABAY_VIDEO_URL = 'https://pixabay.com/api/videos/';
 const FETCH_TIMEOUT_MS = 8_000;
+/** Pixabay menolak fetch Workers tanpa UA deskriptif (WAF / 403). */
+const PIXABAY_USER_AGENT =
+  'SambasKu/1.0 (https://kamus-sambas.app; share-backgrounds)';
 const MIN_VIDEO_SECONDS = 3;
 const MAX_VIDEO_SECONDS = 20;
 
@@ -48,7 +51,10 @@ export class PixabayBackgroundProvider implements ShareBackgroundProviderPort {
     try {
       res = await fetch(url.toString(), {
         method: 'GET',
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': PIXABAY_USER_AGENT,
+        },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
     } catch {

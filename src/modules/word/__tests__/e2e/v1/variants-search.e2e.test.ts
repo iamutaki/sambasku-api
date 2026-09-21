@@ -62,7 +62,7 @@ describe.skipIf(!hasTestDb)('Variasi Penulisan E2E v1 (11 doc) - search + valida
       password: 'Password123',
       confirm_password: 'Password123',
     });
-    await db.update(users).set({ role: 'admin' }).where(eq(users.email, email));
+    await db.update(users).set({ role: 'admin', emailVerified: true }).where(eq(users.email, email));
 
     // User sistem Anonim - penampung kontribusi tanpa login (03 doc)
     await db.insert(users).values({

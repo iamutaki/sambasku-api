@@ -90,6 +90,7 @@ describe.skipIf(!hasTestDb)('Dashboard Stats E2E', () => {
       password: 'Password123',
       confirm_password: 'Password123',
     });
+    await db.update(users).set({ emailVerified: true });
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, `dshadm${stamp}@test.com`));
 
     adminToken = await login(`dshadm${stamp}@test.com`);
