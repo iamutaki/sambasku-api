@@ -1,21 +1,21 @@
-import { boolean, index, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
 // Khusus modul auth - lihat 00-api-auth.md
-export const refreshTokens = pgTable(
+export const refreshTokens = sqliteTable(
   'refresh_tokens',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    userId: varchar('user_id', { length: 26 })
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    userId: text('user_id')
       .notNull()
       .references(() => users.id),
-    tokenHash: varchar('token_hash', { length: 128 }).notNull().unique(), // sha256 hex
-    deviceInfo: varchar('device_info', { length: 255 }),
-    ipAddress: varchar('ip_address', { length: 45 }),
-    isRevoked: boolean('is_revoked').notNull().default(false),
-    expiresAt: timestamp('expires_at').notNull(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    tokenHash: text('token_hash').notNull().unique(), // sha256 hex
+    deviceInfo: text('device_info'),
+    ipAddress: text('ip_address'),
+    isRevoked: integer('is_revoked', { mode: 'boolean' }).notNull().default(false),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   },
   (t) => [index('refresh_tokens_user_id_idx').on(t.userId)],
 );

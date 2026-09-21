@@ -1,22 +1,22 @@
 import { sql } from 'drizzle-orm';
-import { index, pgTable, text, timestamp, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
 // FCM device tokens (multi-device per user). Satu baris = satu perangkat
 // fisik (`udid` unique). Soft-delete via deleted_at saat revoke/logout.
-export const deviceTokens = pgTable(
+export const deviceTokens = sqliteTable(
   'device_tokens',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    userId: varchar('user_id', { length: 26 })
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    userId: text('user_id')
       .notNull()
       .references(() => users.id),
     udid: text('udid').notNull(),
     fcmToken: text('fcm_token').notNull(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at'),
-    deletedAt: timestamp('deleted_at'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
   },
   (t) => [
     uniqueIndex('device_tokens_udid_unique').on(t.udid),

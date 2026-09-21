@@ -1,16 +1,16 @@
-import { boolean, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
-export const languages = pgTable('languages', {
-  id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-  code: varchar('code', { length: 20 }).notNull().unique(),
-  name: varchar('name', { length: 100 }).notNull(),
-  nativeName: varchar('native_name', { length: 100 }),
-  description: varchar('description', { length: 500 }),
-  isActive: boolean('is_active').notNull().default(true),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at'),
-    deletedAt: timestamp('deleted_at'),
-    deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
+export const languages = sqliteTable('languages', {
+  id: text('id').primaryKey().$defaultFn(() => generateId()),
+  code: text('code').notNull().unique(),
+  name: text('name').notNull(),
+  nativeName: text('native_name'),
+  description: text('description'),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+    deletedBy: text('deleted_by').references(() => users.id),
 });

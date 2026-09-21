@@ -1,4 +1,4 @@
-import { index, pgTable, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, index, unique } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
@@ -7,21 +7,21 @@ import { users } from './users.schema';
 // Identitas stabil = provider_user_id (Google `sub`) - email provider bisa
 // berubah, kolom email_at_provider hanyalah snapshot saat penautan.
 // User OAuth-only tidak punya password (users.password_hash nullable).
-export const authIdentities = pgTable(
+export const authIdentities = sqliteTable(
   'auth_identities',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    userId: varchar('user_id', { length: 26 })
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    userId: text('user_id')
       .notNull()
       .references(() => users.id),
     // google | github | apple | dst
-    provider: varchar('provider', { length: 30 }).notNull(),
+    provider: text('provider').notNull(),
     // ID stabil dari provider (Google `sub`) - BUKAN email
-    providerUserId: varchar('provider_user_id', { length: 255 }).notNull(),
-    emailAtProvider: varchar('email_at_provider', { length: 255 }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    deletedAt: timestamp('deleted_at'),
-    deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
+    providerUserId: text('provider_user_id').notNull(),
+    emailAtProvider: text('email_at_provider'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+    deletedBy: text('deleted_by').references(() => users.id),
   },
   (t) => [
     unique('auth_identities_provider_uid_unique').on(t.provider, t.providerUserId),

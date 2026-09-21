@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 
@@ -8,26 +8,26 @@ export type BugReportImageRow = {
 };
 
 /** Laporan masalah tamu + login (30-api-bug-reports.md). */
-export const bugReports = pgTable(
+export const bugReports = sqliteTable(
   'bug_reports',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    userId: varchar('user_id', { length: 26 }).references(() => users.id),
-    deviceId: varchar('device_id', { length: 64 }),
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    userId: text('user_id').references(() => users.id),
+    deviceId: text('device_id'),
     description: text('description').notNull(),
-    images: jsonb('images').$type<BugReportImageRow[]>().notNull(),
-    appVersion: varchar('app_version', { length: 20 }),
-    platform: varchar('platform', { length: 10 }),
-    status: varchar('status', { length: 20 }).notNull().default('open'),
+    images: text('images', { mode: 'json' }).$type<BugReportImageRow[]>().notNull(),
+    appVersion: text('app_version'),
+    platform: text('platform'),
+    status: text('status').notNull().default('open'),
     resolutionNote: text('resolution_note'),
-    resolvedBy: varchar('resolved_by', { length: 26 }).references(() => users.id),
-    resolvedAt: timestamp('resolved_at'),
-    createdBy: varchar('created_by', { length: 26 }).references(() => users.id),
-    updatedBy: varchar('updated_by', { length: 26 }).references(() => users.id),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at'),
-    deletedAt: timestamp('deleted_at'),
-    deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
+    resolvedBy: text('resolved_by').references(() => users.id),
+    resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+    createdBy: text('created_by').references(() => users.id),
+    updatedBy: text('updated_by').references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+    deletedBy: text('deleted_by').references(() => users.id),
   },
   (t) => [
     index('bug_reports_status_id_idx').on(t.status, t.id),

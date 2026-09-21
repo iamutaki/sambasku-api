@@ -1,7 +1,4 @@
 import { and, desc, eq, inArray, isNull, lt, ne } from 'drizzle-orm';
-import type { ExtractTablesWithRelations } from 'drizzle-orm';
-import type { PgTransaction } from 'drizzle-orm/pg-core';
-import type { NodePgDatabase, NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';
 import {
   contributionReviews,
   contributions,
@@ -14,7 +11,7 @@ import {
   wordImages,
   words,
 } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase, AppTransaction } from '@/shared/database/drizzle/client';
 import { ConflictError, NotFoundError } from '@/shared/errors/app-error';
 import { publishOrMergeMeaningsInTx } from '@/modules/word/infrastructure/publish-or-merge-meanings';
 import type { CursorPage } from '@/modules/word/domain/repositories/word.repository';
@@ -36,7 +33,7 @@ import type {
 } from '../domain/repositories/contribution.repository';
 
 // Tipe transaction Drizzle (pg) - sama dengan word.repository.impl.ts
-type Tx = PgTransaction<NodePgQueryResultHKT, typeof schema, ExtractTablesWithRelations<typeof schema>>;
+type Tx = AppTransaction;
 
 function decisionToStatus(decision: ReviewCommand['decision']): ContributionStatus {
   if (decision === 'approve') return 'approved';
@@ -95,7 +92,7 @@ const contributionColumns = {
 };
 
 export class ContributionRepositoryImpl implements ContributionRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async list(filter: ContributionListFilter): Promise<CursorPage<Contribution>> {
     const rows = await this.db
@@ -494,8 +491,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
         .select()
         .from(contributions)
         .where(and(eq(contributions.id, cmd.contributionId), isNull(contributions.deletedAt)))
-        .limit(1)
-        .for('update');
+        .limit(1);
       if (!contrib) {
         throw new NotFoundError('CONTRIBUTION_NOT_FOUND', 'Kontribusi dengan id tersebut tidak ditemukan');
       }

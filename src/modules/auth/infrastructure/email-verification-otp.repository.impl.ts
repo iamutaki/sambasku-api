@@ -1,7 +1,6 @@
 import { and, eq, gt, sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { emailVerificationOtps } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type { EmailVerificationOtp } from '../domain/entities/email-verification-otp.entity';
 import type {
   EmailVerificationOtpRepository,
@@ -20,7 +19,7 @@ function toEntity(row: typeof emailVerificationOtps.$inferSelect): EmailVerifica
 }
 
 export class EmailVerificationOtpRepositoryImpl implements EmailVerificationOtpRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async replaceForUser(input: NewEmailVerificationOtp): Promise<EmailVerificationOtp> {
     await this.db.delete(emailVerificationOtps).where(eq(emailVerificationOtps.userId, input.userId));

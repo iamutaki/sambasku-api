@@ -1,7 +1,6 @@
 import { and, desc, eq, isNull, like, or, lt, sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { users } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import { NotFoundError } from '@/shared/errors/app-error';
 import type { UserRepository } from '../domain/repositories/user.repository';
 import type { NewUser, User, UserListFilter, UserRole } from '../domain/entities/user.entity';
@@ -26,7 +25,7 @@ function toEntity(row: UserRow): User {
 
 // Instance db di-inject lewat constructor - test bisa pakai testDb (Section 10)
 export class UserRepositoryImpl implements UserRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async findById(id: string): Promise<User | null> {
     const [row] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);

@@ -1,7 +1,6 @@
 import { and, eq, isNull, ne } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { deviceTokens } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type {
   DeviceTokenRecord,
   DeviceTokenRepository,
@@ -22,7 +21,7 @@ function toRecord(row: {
 }
 
 export class DeviceTokenRepositoryImpl implements DeviceTokenRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async register(userId: string, udid: string, fcmToken: string): Promise<DeviceTokenRecord> {
     return this.db.transaction(async (tx) => {

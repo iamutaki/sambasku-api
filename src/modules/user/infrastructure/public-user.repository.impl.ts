@@ -1,12 +1,11 @@
 import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { contributionReviews, contributions, users } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type { PublicProfileStats, PublicUserRow } from '../domain/entities/public-profile.entity';
 import type { PublicUserRepository } from '../domain/repositories/public-user.repository';
 
 export class PublicUserRepositoryImpl implements PublicUserRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async findPublicByUsername(username: string): Promise<PublicUserRow | null> {
     const [row] = await this.db

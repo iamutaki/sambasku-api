@@ -437,10 +437,9 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
   });
 
   it('search: ilike + cursor-based pagination (Section 13)', async () => {
-    const [w1, w2] = await Promise.all([
-      repo.saveWithRelations(baseWord({ lemma: 'makatn' }), ACTOR),
-      repo.saveWithRelations(baseWord({ lemma: 'makanan' }), ACTOR),
-    ]);
+    // Sequential: SQLite single-writer — Promise.all dua transaksi tulis = SQLITE_BUSY
+    const w1 = await repo.saveWithRelations(baseWord({ lemma: 'makatn' }), ACTOR);
+    const w2 = await repo.saveWithRelations(baseWord({ lemma: 'makanan' }), ACTOR);
 
     const hal1 = await repo.search({ q: 'maka', limit: 1, published: true });
     expect(hal1.items).toHaveLength(1);

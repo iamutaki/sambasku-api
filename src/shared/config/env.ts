@@ -8,7 +8,20 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']),
   PORT: z.coerce.number().default(3000),
 
-  DATABASE_URL: z.url(),
+  // file:./local.db | libsql://… | https://… — bukan selalu URL HTTP (Zod url).
+  DATABASE_URL: z
+    .string()
+    .min(1)
+    .refine(
+      (v) =>
+        v.startsWith('file:') ||
+        v.startsWith('libsql:') ||
+        v.startsWith('http:') ||
+        v.startsWith('https:'),
+      { message: 'DATABASE_URL harus file:, libsql:, http:, atau https:' },
+    ),
+  // Wajib untuk Turso remote; kosong untuk file: lokal/test.
+  DATABASE_AUTH_TOKEN: z.string().optional(),
 
   JWT_PRIVATE_KEY: z.string().min(1),
   JWT_PUBLIC_KEY: z.string().min(1),

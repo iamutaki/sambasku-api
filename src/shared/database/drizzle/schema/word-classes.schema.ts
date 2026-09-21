@@ -1,4 +1,4 @@
-import { pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 import { relations } from 'drizzle-orm';
@@ -7,17 +7,17 @@ import { relations } from 'drizzle-orm';
 // alias = nama lain yang lebih dikenal user (Verba → "Kata Kerja");
 // description = keterangan singkat + istilah asing (verb) - keduanya
 // ditampilkan dropdown supaya user tak perlu hafal istilah teknis.
-export const wordClasses = pgTable('word_classes', {
-  id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-  parentId: varchar('parent_id', { length: 26 }),
-  code: varchar('code', { length: 50 }).notNull().unique(),
-  name: varchar('name', { length: 100 }).notNull(),
-  alias: varchar('alias', { length: 100 }),
-  description: varchar('description', { length: 500 }),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  deletedAt: timestamp('deleted_at'),
-  deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
-  updatedAt: timestamp('updated_at'),
+export const wordClasses = sqliteTable('word_classes', {
+  id: text('id').primaryKey().$defaultFn(() => generateId()),
+  parentId: text('parent_id'),
+  code: text('code').notNull().unique(),
+  name: text('name').notNull(),
+  alias: text('alias'),
+  description: text('description'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  deletedBy: text('deleted_by').references(() => users.id),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }),
 });
 
 // Self-reference dideklarasikan lewat relasi Drizzle (bukan FK constraint

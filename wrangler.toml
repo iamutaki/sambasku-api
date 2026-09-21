@@ -2,31 +2,25 @@
 #
 # Setup awal (sekali):
 #   1. npx wrangler login
-#   2. npx wrangler hyperdrive create sambasku-db --connection-string="<Neon pooled URL>"
-#      → salin `id` hasilnya ke bawah
-#   3. Secrets (JANGAN di file ini):
-#        npx wrangler secret put JWT_PRIVATE_KEY     # PEM
-#        npx wrangler secret put JWT_PUBLIC_KEY      # PEM
-#        npx wrangler secret put RESEND_API_KEY      # opsional (email HTTP)
-#        npx wrangler secret put IMAGEKIT_PRIVATE_KEY # opsional
-#        npx wrangler secret put FACEBOOK_APP_SECRET  # opsional (login Facebook)
-#   4. npx wrangler deploy
+#   2. Secrets (JANGAN di file ini):
+#        npx wrangler secret put DATABASE_URL          # libsql://…
+#        npx wrangler secret put DATABASE_AUTH_TOKEN   # token Turso
+#        npx wrangler secret put JWT_PRIVATE_KEY       # PEM
+#        npx wrangler secret put JWT_PUBLIC_KEY        # PEM
+#        npx wrangler secret put RESEND_API_KEY        # opsional
+#        …
+#   3. npx wrangler deploy
 #
 # Migration TIDAK lewat Workers - tetap `pnpm drizzle-kit migrate` dari CI
-# Node dengan Neon direct URL (Hyperdrive hanya untuk runtime app).
+# Node dengan TURSO_* URL + auth token.
 #
-# Dev lokal tetap pakai `pnpm dev` (Node + Docker Postgres). `npx wrangler dev`
-# bisa dipakai untuk uji paritas runtime; tanpa binding Hyperdrive yang valid,
-# worker.ts fallback ke DATABASE_URL dari .env.
+# Dev lokal: `pnpm dev` (Node + file:./local.db). `npx wrangler dev` untuk
+# uji paritas runtime; DATABASE_URL dari .env / .dev.vars.
 
 name = "sambasku-api"
 main = "src/worker.ts"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
-
-[[hyperdrive]]
-binding = "HYPERDRIVE"
-id = "GANTI_DENGAN_ID_HYPERDRIVE" # dari: wrangler hyperdrive create sambasku-db
 
 [vars]
 NODE_ENV = "production"
@@ -34,97 +28,47 @@ APP_URL = "https://api.kamus-sambas.app"
 CORS_ALLOWED_ORIGINS = "https://kamus-sambas.app"
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
-# Domain iamutaki.com sudah verified di Resend. OTP: no-reply (jangan dibalas).
 MAIL_FROM = "SambasKu <no-reply@iamutaki.com>"
-# MAIL_PROVIDER = "resend" | "smtp" (kosong: Resend jika secret RESEND_API_KEY)
-# Provider gambar: default "imagekit" (tanpa var ini) - kredensial via
-# secret: IMAGEKIT_PRIVATE_KEY / IMAGEKIT_PUBLIC_KEY / IMAGEKIT_URL_ENDPOINT.
-# Provider lain kelak: IMAGE_PROVIDER="..." + impl baru (image-storage.factory)
-# KBBI lookup - pola sama: KBBI_PROVIDER + URL per vendor (RAF555_*)
 KBBI_PROVIDER = "raf555"
 RAF555_BASE_URL = "https://kbbi.raf555.dev"
 LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
-# Unsplash — secret: UNSPLASH_ACCESS_KEY
-# Pexels — secret: PEXELS_API_KEY (foto + video share)
-# Pixabay — secret: PIXABAY_API_KEY (foto + video share)
-# Openverse — anonim (foto). Wikimedia — User-Agent (foto + video), bukan secret.
 SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
-# Google Sign-In — Web client ID publik (bukan secret). Kosong = 503.
-# Nilai production: docs/env/google_sign_in/web/production/
 GOOGLE_CLIENT_ID = "497143924506-embip2d0er5te84t6cind855tlmsm0i1.apps.googleusercontent.com"
-# Facebook Login — App ID publik (bukan secret). Secret: FACEBOOK_APP_SECRET.
-# Kosong = 503 FACEBOOK_AUTH_UNAVAILABLE.
-# FACEBOOK_APP_ID = ""
 
-# Observability: Workers Logs (console.* dari logger JSON langsung terekap)
 [observability]
 enabled = true
 
 # ============================================================
-# STAGING - deploy: pnpm deploy:staging (simulasi production)
-# vars/bindings TIDAK diwariskan dari blok atas - harus lengkap sendiri
+# STAGING - deploy: pnpm deploy:staging
 # ============================================================
 [env.staging]
 name = "sambasku-api-staging"
 
-# Custom domain staging (zone iamutaki.com harus di akun CF yang sama;
-# wrangler otomatis membuat DNS + sertifikat saat deploy pertama)
 [[env.staging.routes]]
 pattern = "sambasku-staging.iamutaki.com"
 custom_domain = true
 
 [env.staging.vars]
 NODE_ENV = "staging"
-# APP_URL = basis link reset-password; CORS = origin frontend admin/web
-# (tambahkan origin web staging di sini kalau frontend sudah deploy)
 APP_URL = "https://sambasku-staging.iamutaki.com"
-# console-sambasku-staging = admin console (Cloudflare Pages, custom domain).
-# Wajib same registrable domain (iamutaki.com) agar cookie refresh_token
-# sameSite=Strict terkirim ke API.
 CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://console-sambasku-staging.iamutaki.com"
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
-# Domain iamutaki.com verified di Resend. OTP pakai no-reply, bukan sandbox.
 MAIL_FROM = "SambasKu <no-reply@iamutaki.com>"
-# Provider gambar: default "imagekit" - kredensial via
-# `wrangler secret put --env staging IMAGEKIT_PRIVATE_KEY` dst.
 KBBI_PROVIDER = "raf555"
 RAF555_BASE_URL = "https://kbbi.raf555.dev"
 LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
 SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
-# Unsplash — `wrangler secret put --env staging UNSPLASH_ACCESS_KEY`
-# Pexels — `wrangler secret put --env staging PEXELS_API_KEY`
-# Pixabay — `wrangler secret put --env staging PIXABAY_API_KEY`
-# Openverse anonim. Wikimedia User-Agent opsional via vars WIKIMEDIA_USER_AGENT.
-# Google Sign-In — Web client ID publik (bukan secret).
-# Nilai staging: docs/env/google_sign_in/web/staging/
 GOOGLE_CLIENT_ID = "497143924506-rs7qao9as5jf95r5m1mgp51boc6rdrv7.apps.googleusercontent.com"
-# Facebook Login — App ID publik. Secret: `wrangler secret put --env staging FACEBOOK_APP_SECRET`
-# FACEBOOK_APP_ID = ""
-# FCM — pola jnn_api: project id + client email di vars (bukan rahasia);
-# hanya FIREBASE_PRIVATE_KEY lewat wrangler secret.
-# Samakan dengan mobile flavorizr/firebase/staging → project_id.
 FIREBASE_PROJECT_ID = "sambasku-staging"
 FIREBASE_CLIENT_EMAIL = "firebase-adminsdk-fbsvc@sambasku-staging.iam.gserviceaccount.com"
-
-# DB: driver Neon serverless (WebSocket) dari secret DATABASE_URL -
-# Hyperdrive TIDAK dipakai (lihat catatan Section 8 docs: pg/node:net
-# flaky di Workers; WS tidak lewat Hyperdrive).
 
 [env.staging.observability]
 enabled = true
 
-# Secrets staging (KEY PAIR BERBEDA dari production - §17: token staging
-# tidak boleh valid di production):
+# Secrets staging:
+#   npx wrangler secret put DATABASE_URL --env staging
+#   npx wrangler secret put DATABASE_AUTH_TOKEN --env staging
 #   npx wrangler secret put JWT_PRIVATE_KEY --env staging
 #   npx wrangler secret put JWT_PUBLIC_KEY --env staging
-#   npx wrangler secret put RESEND_API_KEY --env staging      # opsional (sandbox!)
-#   npx wrangler secret put IMAGEKIT_PRIVATE_KEY --env staging # opsional
-#   npx wrangler secret put UNSPLASH_ACCESS_KEY --env staging  # opsional (share card)
-#   npx wrangler secret put PEXELS_API_KEY --env staging       # opsional (share video + foto)
-#   npx wrangler secret put PIXABAY_API_KEY --env staging      # opsional (share video + foto)
-#   npx wrangler secret put FACEBOOK_APP_SECRET --env staging  # opsional (login Facebook)
-#   # FCM push (project Firebase = sambasku-staging, samakan dengan mobile):
-#   npx wrangler secret put FIREBASE_PROJECT_ID --env staging
-#   npx wrangler secret put FIREBASE_CLIENT_EMAIL --env staging
-#   npx wrangler secret put FIREBASE_PRIVATE_KEY --env staging
+#   … (Resend, ImageKit, OAuth, FCM — sama seperti sebelumnya)

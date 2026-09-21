@@ -1,7 +1,6 @@
 import { and, desc, eq, inArray, isNull, lt } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { bookmarks, words } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import { MAX_BOOKMARK_WORD_IDS } from '../domain/repositories/bookmark.repository';
 import type {
   BookmarkItem,
@@ -13,7 +12,7 @@ import type {
 } from '../domain/repositories/bookmark.repository';
 
 export class BookmarkRepositoryImpl implements BookmarkRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async wordExists(wordId: string): Promise<boolean> {
     const rows = await this.db

@@ -1,19 +1,13 @@
 name: Seed Staging (manual)
 
 # HANYA dipicu manual (workflow_dispatch) - TIDAK pernah jalan otomatis saat
-# push. Seed menimpa password admin/root jadi `pass1234`, jadi harus dipicu
-# sadar, bukan bagian dari alur deploy.
+# push. Seed menimpa password admin/root jadi `pass1234`.
 #
-# Cara pakai:
-#   UI   : Actions → "Seed Staging (manual)" → Run workflow → pilih branch
-#          `staging` + centang confirm.
-#   CLI  : gh workflow run seed-staging.yml --ref staging -f confirm=true
+# CLI: gh workflow run seed-staging.yml --ref staging -f confirm=true
 #
-# PENTING: workflow_dispatch hanya muncul/tombolnya aktif kalau file ini ADA di
-# default branch (`main`). Jadi commit/cherry-pick juga ke `main`.
-#
-# Secrets (sama seperti deploy-staging.yml):
-#   STAGING_DATABASE_URL_DIRECT - Neon DIRECT URL staging (?sslmode=require)
+# Secrets:
+#   TURSO_STAGING_DATABASE_URL
+#   TURSO_STAGING_AUTH_TOKEN
 
 on:
   workflow_dispatch:
@@ -39,13 +33,12 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
 
-      # Seed hanya butuh DATABASE_URL. env.ts mewajibkan JWT key + CORS, tapi
-      # seed tidak memakainya - nilai dummy cukup (lihat src/shared/config/env.ts).
       - name: Seed database staging
         run: pnpm seed
         env:
           NODE_ENV: staging
-          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL_DIRECT }}
+          DATABASE_URL: ${{ secrets.TURSO_STAGING_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_STAGING_AUTH_TOKEN }}
           JWT_PRIVATE_KEY: dummy
           JWT_PUBLIC_KEY: dummy
           CORS_ALLOWED_ORIGINS: https://console-sambasku-staging.iamutaki.com

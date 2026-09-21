@@ -1,7 +1,6 @@
 import { and, desc, eq, isNull, lt } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { comments, users, words } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type { Comment, CommentStatus, CursorPage } from '../domain/entities/comment.entity';
 import type {
   CommentRepository,
@@ -13,7 +12,7 @@ import type {
 const STATUS_OF = { approve: 'published', reject: 'rejected' } as const;
 
 export class CommentRepositoryImpl implements CommentRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   // Builder SEGAR setiap panggilan - builder Drizzle tidak untuk dipakai
   // ulang antar-query (state .where() bisa terbawa).

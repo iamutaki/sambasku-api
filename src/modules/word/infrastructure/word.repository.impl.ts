@@ -1,7 +1,6 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
-import type { ExtractTablesWithRelations } from 'drizzle-orm';
-import type { PgTransaction } from 'drizzle-orm/pg-core';
-import type { NodePgDatabase, NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';
+import { and, asc, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { ilikeCompat } from '@/shared/database/drizzle/ilike-compat';
+import { isForeignKeyViolation, isUniqueViolation } from '@/shared/database/drizzle/sqlite-errors';
 import {
   categories,
   contributions,
@@ -19,7 +18,7 @@ import {
   wordVariants,
   words,
 } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase, AppTransaction } from '@/shared/database/drizzle/client';
 import { ConflictError, ValidationError } from '@/shared/errors/app-error';
 import { publishOrMergeMeaningsInTx } from './publish-or-merge-meanings';
 import type { ChildStatus, Word, WordDetail, WordStatus, WordSummary } from '../domain/entities/word.entity';
@@ -42,9 +41,6 @@ import type {
 import { encodeListCursor } from '../domain/repositories/word.repository';
 import type { CreateWordRelatedDto } from '../application/dto/create-word.dto';
 
-const FOREIGN_KEY_VIOLATION = '23503';
-const UNIQUE_VIOLATION = '23505';
-
 function verificationCols(isVerified: boolean, actorId: string, at = new Date()) {
   return isVerified
     ? { verifiedBy: actorId, verifiedAt: at }
@@ -52,7 +48,7 @@ function verificationCols(isVerified: boolean, actorId: string, at = new Date())
 }
 
 // Tipe transaction Drizzle (pg) - dipakai helper yang menerima tx
-type Tx = PgTransaction<NodePgQueryResultHKT, typeof schema, ExtractTablesWithRelations<typeof schema>>;
+type Tx = AppTransaction;
 
 function toWord(row: typeof words.$inferSelect): Word {
   return {
@@ -140,19 +136,18 @@ function contributionStatusOf(entityStatus: string): 'pending' | 'approved' {
 
 // Mapping error PostgreSQL untuk insert kontribusi media - jangan bocor 500
 function mapMediaViolation(err: unknown, uniqueField: string): void {
-  const code = (err as { cause?: { code?: string } }).cause?.code;
-  if (code === FOREIGN_KEY_VIOLATION) {
+  if (isForeignKeyViolation(err)) {
     throw new ValidationError([
       { field: '', message: 'Referensi data tidak valid (data terkait mungkin sudah dihapus)' },
     ]);
   }
-  if (code === UNIQUE_VIOLATION) {
+  if (isUniqueViolation(err)) {
     throw new ValidationError([{ field: uniqueField, message: 'Data duplikat - sudah ada entri yang sama' }]);
   }
 }
 
 export class WordRepositoryImpl implements WordRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async saveWithRelations(word: WordToSave, actorId: string): Promise<Word> {
     try {
@@ -192,15 +187,14 @@ export class WordRepositoryImpl implements WordRepository {
     } catch (err) {
       // Race FK: id valid saat pre-check, tapi terhapus sebelum transaksi
       // jalan - petakan ke VALIDATION_ERROR, jangan bocor jadi 500
-      const code = (err as { cause?: { code?: string } }).cause?.code;
-      if (code === FOREIGN_KEY_VIOLATION) {
+      if (isForeignKeyViolation(err)) {
         throw new ValidationError([
           { field: '', message: 'Referensi data tidak valid (data terkait mungkin sudah dihapus)' },
         ]);
       }
       // Duplikat unik (kategori sama 2×, terjemahan identik, file gambar
       // sudah dipakai kata lain) → juga 400, bukan 500
-      if (code === UNIQUE_VIOLATION) {
+      if (isUniqueViolation(err)) {
         throw new ValidationError([
           { field: '', message: 'Data duplikat - kategori/terjemahan/gambar yang sama sudah dipakai' },
         ]);
@@ -314,13 +308,12 @@ export class WordRepositoryImpl implements WordRepository {
       });
     } catch (err) {
       // Race FK / duplikat unik - petakan ke 400, jangan bocor jadi 500
-      const code = (err as { cause?: { code?: string } }).cause?.code;
-      if (code === FOREIGN_KEY_VIOLATION) {
+      if (isForeignKeyViolation(err)) {
         throw new ValidationError([
           { field: '', message: 'Referensi data tidak valid (data terkait mungkin sudah dihapus)' },
         ]);
       }
-      if (code === UNIQUE_VIOLATION) {
+      if (isUniqueViolation(err)) {
         throw new ValidationError([
           { field: '', message: 'Data duplikat - kategori/terjemahan/gambar yang sama sudah dipakai' },
         ]);
@@ -582,17 +575,32 @@ export class WordRepositoryImpl implements WordRepository {
     };
   }
 
-  // 28-api-word-of-the-day.md: deterministik per tanggal WIB - md5(id:date)
-  // merata tiap hari, tanpa COUNT/OFFSET/tabel state. Deterministik =
-  // cache use case aman dipakai semua request di tanggal yang sama.
+  // 28-api-word-of-the-day.md: deterministik per tanggal WIB.
+  // SQLite tidak punya md5() — SHA-256 di app (Web Crypto, Workers-safe).
   async findWordOfDayId(date: string): Promise<string | null> {
-    const [row] = await this.db
+    const rows = await this.db
       .select({ id: words.id })
       .from(words)
-      .where(and(eq(words.status, 'published'), isNull(words.deletedAt)))
-      .orderBy(sql`md5(${words.id} || ':' || ${date})`)
-      .limit(1);
-    return row?.id ?? null;
+      .where(and(eq(words.status, 'published'), isNull(words.deletedAt)));
+    if (rows.length === 0) return null;
+
+    const encoder = new TextEncoder();
+    async function sha256Hex(input: string): Promise<string> {
+      const digest = await crypto.subtle.digest('SHA-256', encoder.encode(input));
+      return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    let bestId = rows[0].id;
+    let bestHash = await sha256Hex(`${bestId}:${date}`);
+    for (let i = 1; i < rows.length; i++) {
+      const id = rows[i].id;
+      const h = await sha256Hex(`${id}:${date}`);
+      if (h < bestHash) {
+        bestHash = h;
+        bestId = id;
+      }
+    }
+    return bestId;
   }
 
   // Cursor-based (Section 13): cursor = ULID id item terakhir, id DESC,
@@ -618,8 +626,8 @@ export class WordRepositoryImpl implements WordRepository {
       // supaya hasil tetap satu baris per kata (cursor words.id aman).
       params.q
         ? or(
-            ilike(words.lemma, `%${escapeLike(params.q.trim())}%`),
-            sql`EXISTS (SELECT 1 FROM ${wordVariants} v WHERE v.word_id = ${words.id} AND v.deleted_at IS NULL AND v.form ILIKE ${`%${escapeLike(params.q.trim())}%`})`,
+            ilikeCompat(words.lemma, `%${escapeLike(params.q.trim())}%`),
+            sql`EXISTS (SELECT 1 FROM ${wordVariants} v WHERE v.word_id = ${words.id} AND v.deleted_at IS NULL AND lower(v.form) LIKE ${`%${escapeLike(params.q.trim()).toLowerCase()}%`})`,
           )
         : undefined,
       params.wordType ? eq(words.wordType, params.wordType) : undefined,
@@ -669,7 +677,7 @@ export class WordRepositoryImpl implements WordRepository {
               page.map((p) => p.id),
             ),
             isNull(wordVariants.deletedAt),
-            ilike(wordVariants.form, pattern),
+            ilikeCompat(wordVariants.form, pattern),
           ),
         );
       const variantByWord = new Map<string, string>();
@@ -697,15 +705,15 @@ export class WordRepositoryImpl implements WordRepository {
   // "Zebra" < "apam" (ASCII kapital sebelum huruf kecil) → list tampak acak.
   // Index words_lemma_az_idx menopang ekspresi yang sama.
   async listAtoZ(params: ListAtoZParams): Promise<CursorPage<WordSummary>> {
-    const lemmaAz = sql`lower(${words.lemma}) COLLATE "C"`;
+    const lemmaAz = sql`lower(${words.lemma})`;
     const where = and(
       isNull(words.deletedAt),
       // Endpoint publik - selalu published (bukan opsional seperti search())
       eq(words.status, 'published'),
-      params.q ? ilike(words.lemma, `%${escapeLike(params.q.trim())}%`) : undefined,
+      params.q ? ilikeCompat(words.lemma, `%${escapeLike(params.q.trim())}%`) : undefined,
       params.wordType ? eq(words.wordType, params.wordType) : undefined,
       params.cursor
-        ? sql`(${lemmaAz}, ${words.id}) > (lower(${params.cursor.lemma}) COLLATE "C", ${params.cursor.id})`
+        ? sql`(${lemmaAz}, ${words.id}) > (lower(${params.cursor.lemma}), ${params.cursor.id})`
         : undefined,
     );
 
@@ -760,7 +768,7 @@ export class WordRepositoryImpl implements WordRepository {
       ne(meaningTranslations.translationText, '-'),
       isNull(meaningTranslations.deletedAt),
       params.q
-        ? ilike(meaningTranslations.translationText, `%${escapeLike(params.q.trim())}%`)
+        ? ilikeCompat(meaningTranslations.translationText, `%${escapeLike(params.q.trim())}%`)
         : undefined,
       params.translationLanguageId
         ? eq(meaningTranslations.languageId, params.translationLanguageId)
@@ -770,12 +778,10 @@ export class WordRepositoryImpl implements WordRepository {
       params.cursor ? lt(words.id, params.cursor) : undefined,
     );
 
-    // DISTINCT ON (words.id): satu kata bisa punya banyak makna yang cocok -
-    // ambil satu baris per kata (ORDER BY harus diawali words.id).
-    // Sort kedua: translation_text ASC → terjemahan TERPENDEK yang cocok
-    // (paling mendekati query) dipilih secara deterministik
+    // Satu kata bisa punya banyak makna yang cocok — GROUP BY words.id
+    // + min(translation_text) (setara DISTINCT ON + ORDER BY translation ASC).
     const rows = await this.db
-      .selectDistinctOn([words.id], {
+      .select({
         id: words.id,
         lemma: words.lemma,
         languageId: words.languageId,
@@ -783,14 +789,23 @@ export class WordRepositoryImpl implements WordRepository {
         wordType: words.wordType,
         isVerified: words.isVerified,
         status: words.status,
-        matchedTranslation: meaningTranslations.translationText,
+        matchedTranslation: sql<string>`min(${meaningTranslations.translationText})`,
       })
       .from(words)
       .innerJoin(meanings, eq(meanings.wordId, words.id))
       .innerJoin(meaningTranslations, eq(meaningTranslations.meaningId, meanings.id))
       .innerJoin(languages, eq(words.languageId, languages.id))
       .where(where)
-      .orderBy(desc(words.id), asc(meaningTranslations.translationText))
+      .groupBy(
+        words.id,
+        words.lemma,
+        words.languageId,
+        languages.code,
+        words.wordType,
+        words.isVerified,
+        words.status,
+      )
+      .orderBy(desc(words.id))
       .limit(params.limit + 1);
 
     const hasMore = rows.length > params.limit;
@@ -1166,8 +1181,7 @@ export class WordRepositoryImpl implements WordRepository {
         .returning();
       return { id: row.id, form: row.form, variantType: row.variantType };
     } catch (err) {
-      const code = (err as { cause?: { code?: string } }).cause?.code;
-      if (code === UNIQUE_VIOLATION) {
+      if (isUniqueViolation(err)) {
         throw new ConflictError(
           'WORD_VARIANT_CONFLICT',
           'Variasi penulisan ini sudah ada pada kata tersebut',
@@ -1278,8 +1292,7 @@ export class WordRepositoryImpl implements WordRepository {
       });
     } catch (err) {
       if (err instanceof ConflictError || err instanceof ValidationError) throw err;
-      const code = (err as { cause?: { code?: string } }).cause?.code;
-      if (code === UNIQUE_VIOLATION) {
+      if (isUniqueViolation(err)) {
         throw new ConflictError(
           'WORD_LEMMA_CONFLICT',
           'Lemma ini sudah dipakai kata lain di bahasa yang sama',
@@ -1332,8 +1345,7 @@ export class WordRepositoryImpl implements WordRepository {
         translationText: data.translationText.trim(),
       };
     } catch (err) {
-      const code = (err as { cause?: { code?: string } }).cause?.code;
-      if (code === UNIQUE_VIOLATION) {
+      if (isUniqueViolation(err)) {
         throw new ConflictError(
           'TRANSLATION_CONFLICT',
           'Terjemahan ini sudah ada pada makna tersebut',
@@ -1407,13 +1419,12 @@ export class WordRepositoryImpl implements WordRepository {
         return toWord(wordRow);
       });
     } catch (err) {
-      const code = (err as { cause?: { code?: string } }).cause?.code;
-      if (code === FOREIGN_KEY_VIOLATION) {
+      if (isForeignKeyViolation(err)) {
         throw new ValidationError([
           { field: '', message: 'Referensi data tidak valid (data terkait mungkin sudah dihapus)' },
         ]);
       }
-      if (code === UNIQUE_VIOLATION) {
+      if (isUniqueViolation(err)) {
         throw new ValidationError([
           { field: '', message: 'Data duplikat - kategori/terjemahan/gambar yang sama sudah dipakai' },
         ]);
