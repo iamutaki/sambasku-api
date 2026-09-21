@@ -4,6 +4,8 @@ import type {
   ShareBackgroundProviderId,
   ShareBackgroundProviderInfo,
   ShareBackgroundSort,
+  ShareMediaKind,
+  ShareOrientation,
 } from '../../application/ports/share-background-provider.port';
 
 export class ShareController {
@@ -21,6 +23,8 @@ export class ShareController {
     sort: ShareBackgroundSort,
     provider: ShareBackgroundProviderId,
     limit: number,
+    media: ShareMediaKind,
+    orientation?: ShareOrientation,
   ) {
     const result = await this.deps.listBackgrounds.execute(
       q,
@@ -28,6 +32,8 @@ export class ShareController {
       sort,
       provider,
       limit,
+      media,
+      orientation,
     );
     return c.json({
       success: true as const,
@@ -37,6 +43,7 @@ export class ShareController {
         page: result.page,
         cache_hit: result.cache_hit,
         degraded: result.degraded,
+        media: result.media,
         items: result.items,
       },
     });

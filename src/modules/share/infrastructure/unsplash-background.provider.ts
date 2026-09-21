@@ -2,6 +2,7 @@ import { BadGatewayError, ServiceUnavailableError } from '@/shared/errors/app-er
 import type {
   ShareBackgroundItem,
   ShareBackgroundProviderPort,
+  ShareBackgroundSearchOptions,
   ShareBackgroundSort,
 } from '../application/ports/share-background-provider.port';
 
@@ -16,6 +17,7 @@ const FETCH_TIMEOUT_MS = 8_000;
 export class UnsplashBackgroundProvider implements ShareBackgroundProviderPort {
   readonly providerId = 'unsplash' as const;
   readonly providerName = 'unsplash';
+  readonly supportedMedia = ['photo'] as const;
 
   constructor(private readonly accessKey: string) {}
 
@@ -24,6 +26,7 @@ export class UnsplashBackgroundProvider implements ShareBackgroundProviderPort {
     limit: number,
     page: number,
     sort: ShareBackgroundSort = 'relevant',
+    options?: ShareBackgroundSearchOptions,
   ): Promise<ShareBackgroundItem[]> {
     const key = this.accessKey.trim();
     if (!key) {
@@ -33,12 +36,13 @@ export class UnsplashBackgroundProvider implements ShareBackgroundProviderPort {
       );
     }
 
+    const orientation = options?.orientation;
     const safePage = Math.max(1, Math.floor(page));
     const perPage = String(Math.min(Math.max(limit, 1), 30));
     const url =
       sort === 'popular'
         ? buildPopularUrl(safePage, perPage)
-        : buildSearchUrl(query, safePage, perPage);
+        : buildSearchUrl(query, safePage, perPage, orientation);
 
     let res: Response;
     try {
@@ -78,12 +82,17 @@ export class UnsplashBackgroundProvider implements ShareBackgroundProviderPort {
   }
 }
 
-function buildSearchUrl(query: string, page: number, perPage: string): URL {
+function buildSearchUrl(
+  query: string,
+  page: number,
+  perPage: string,
+  orientation?: string,
+): URL {
   const url = new URL(UNSPLASH_SEARCH_URL);
   url.searchParams.set('query', query);
   url.searchParams.set('per_page', perPage);
   url.searchParams.set('page', String(page));
-  url.searchParams.set('orientation', 'portrait');
+  url.searchParams.set('orientation', orientation ?? 'portrait');
   url.searchParams.set('content_filter', 'high');
   url.searchParams.set('order_by', 'relevant');
   return url;
@@ -117,6 +126,9 @@ function mapPhoto(raw: unknown): ShareBackgroundItem | null {
 
   if (!id || !url || !photographer || !username || !attributionUrl) return null;
 
+  const width = typeof photo.width === 'number' ? photo.width : 0;
+  const height = typeof photo.height === 'number' ? photo.height : 0;
+
   return {
     id,
     url,
@@ -125,6 +137,12 @@ function mapPhoto(raw: unknown): ShareBackgroundItem | null {
     attribution_url: attributionUrl,
     unsplash_url: attributionUrl,
     provider: 'unsplash',
+    kind: 'photo',
+    preview_url: url,
+    width,
+    height,
+    duration_seconds: 0,
+    mime_type: 'image/jpeg',
   };
 }
 

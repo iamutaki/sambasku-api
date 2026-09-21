@@ -42,6 +42,7 @@ KBBI_PROVIDER = "raf555"
 RAF555_BASE_URL = "https://kbbi.raf555.dev"
 LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
 # Unsplash — secret: UNSPLASH_ACCESS_KEY
+# Pexels — secret: PEXELS_API_KEY (foto + video share)
 SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
 
 # Observability: Workers Logs (console.* dari logger JSON langsung terekap)
@@ -80,6 +81,7 @@ RAF555_BASE_URL = "https://kbbi.raf555.dev"
 LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
 SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
 # Unsplash — `wrangler secret put --env staging UNSPLASH_ACCESS_KEY`
+# Pexels — `wrangler secret put --env staging PEXELS_API_KEY`
 # FCM — pola jnn_api: project id + client email di vars (bukan rahasia);
 # hanya FIREBASE_PRIVATE_KEY lewat wrangler secret.
 # Samakan dengan mobile flavorizr/firebase/staging → project_id.
@@ -100,6 +102,7 @@ enabled = true
 #   npx wrangler secret put RESEND_API_KEY --env staging      # opsional (sandbox!)
 #   npx wrangler secret put IMAGEKIT_PRIVATE_KEY --env staging # opsional
 #   npx wrangler secret put UNSPLASH_ACCESS_KEY --env staging  # opsional (share card)
+#   npx wrangler secret put PEXELS_API_KEY --env staging       # opsional (share video + foto)
 #   # FCM push (project Firebase = sambasku-staging, samakan dengan mobile):
 #   npx wrangler secret put FIREBASE_PROJECT_ID --env staging
 #   npx wrangler secret put FIREBASE_CLIENT_EMAIL --env staging

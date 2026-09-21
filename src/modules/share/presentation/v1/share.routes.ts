@@ -14,7 +14,7 @@ const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
 });
 
-/** GET /api/v1/share/backgrounds — proxy foto latar multi-provider (sekarang Unsplash). */
+/** GET /api/v1/share/backgrounds — proxy latar multi-provider (Unsplash + Pexels). */
 export function createShareRoutes(deps: { controller: ShareController }) {
   const routes = createOpenApiApp();
   routes.use('*', rateLimit({ points: 30, duration: 60 }));
@@ -23,16 +23,16 @@ export function createShareRoutes(deps: { controller: ShareController }) {
     method: 'get',
     path: '/backgrounds',
     tags: ['Share'],
-    summary: 'Cari foto latar untuk kartu share (multi-provider)',
+    summary: 'Cari foto atau video latar untuk kartu share',
     description:
-      'Default `provider=unsplash`. `sort=relevant` butuh `q`. ' +
+      'Default `provider=unsplash`, `media=photo`. `sort=relevant` butuh `q`. ' +
       '`sort=popular` untuk Image Explorer (q opsional). ' +
-      '`limit` 1–30 (default 3). ' +
+      '`limit` 1–30 (default 3). `media=video` hanya `provider=pexels`. ' +
       'Tanpa konfigurasi / gagal upstream → items kosong + degraded:true.',
     request: { query: listShareBackgroundsQuerySchema },
     responses: {
       200: {
-        description: 'Daftar kandidat foto (boleh kosong)',
+        description: 'Daftar kandidat latar (boleh kosong)',
         content: json(listShareBackgroundsResponseSchema),
       },
       400: { description: 'Query tidak valid', content: json(errorResponseSchema) },
@@ -44,7 +44,7 @@ export function createShareRoutes(deps: { controller: ShareController }) {
     method: 'get',
     path: '/background-providers',
     tags: ['Share'],
-    summary: 'Daftar provider foto latar yang didukung',
+    summary: 'Daftar provider latar yang didukung',
     responses: {
       200: {
         description: 'Daftar provider',
@@ -55,8 +55,17 @@ export function createShareRoutes(deps: { controller: ShareController }) {
   });
 
   routes.openapi(backgroundsRoute, (c) => {
-    const { q, page, sort, provider, limit } = c.req.valid('query');
-    return deps.controller.backgrounds(c, q, page, sort, provider, limit) as never;
+    const { q, page, sort, provider, limit, media, orientation } = c.req.valid('query');
+    return deps.controller.backgrounds(
+      c,
+      q,
+      page,
+      sort,
+      provider,
+      limit,
+      media,
+      orientation,
+    ) as never;
   });
 
   routes.openapi(providersRoute, (c) => deps.controller.providers(c) as never);

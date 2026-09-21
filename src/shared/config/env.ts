@@ -49,6 +49,7 @@ const envSchema = z.object({
   // Unsplash — latar kartu share (docs/backlogs/SHARE.md). Tanpa key →
   // GET /api/v1/share/backgrounds mengembalikan items [].
   UNSPLASH_ACCESS_KEY: z.string().optional(),
+  PEXELS_API_KEY: z.string().optional(),
   SHARE_BACKGROUNDS_CACHE_TTL_SECONDS: z.coerce.number().default(86_400),
 
   // Firebase Cloud Messaging (opsional). Tanpa ketiganya → push no-op.
