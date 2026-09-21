@@ -34,7 +34,9 @@ import { AuthController } from '@/modules/auth/presentation/v1/auth.controller';
 import { createAuthRoutes } from '@/modules/auth/presentation/v1/auth.routes';
 import { AuthIdentityRepositoryImpl } from '@/modules/auth/infrastructure/auth-identity.repository.impl';
 import { googleTokenVerifier } from '@/modules/auth/infrastructure/google-token-verifier.holder';
+import { facebookTokenVerifier } from '@/modules/auth/infrastructure/facebook-token-verifier.holder';
 import { LoginWithGoogleUseCase } from '@/modules/auth/application/use-cases/login-with-google.use-case';
+import { LoginWithFacebookUseCase } from '@/modules/auth/application/use-cases/login-with-facebook.use-case';
 import { ListAdminUsersUseCase } from '@/modules/auth/application/use-cases/list-admin-users.use-case';
 import { UpdateUserRoleUseCase } from '@/modules/auth/application/use-cases/update-user-role.use-case';
 import { AdminUsersController } from '@/modules/auth/presentation/v1/admin-user.controller';
@@ -241,6 +243,16 @@ const controller = new AuthController({
     userRepo,
     identityRepo,
     googleTokenVerifier,
+    tokenService,
+    refreshTokenRepo,
+    auditRepo,
+    env.JWT_ACCESS_TOKEN_TTL,
+    env.JWT_REFRESH_TOKEN_TTL,
+  ),
+  facebook: new LoginWithFacebookUseCase(
+    userRepo,
+    identityRepo,
+    facebookTokenVerifier,
     tokenService,
     refreshTokenRepo,
     auditRepo,

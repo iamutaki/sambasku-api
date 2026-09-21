@@ -14,9 +14,11 @@ import type { ChangePasswordUseCase } from '../../application/use-cases/change-p
 import type { VerifyEmailUseCase } from '../../application/use-cases/verify-email.use-case';
 import type { ResendOtpUseCase } from '../../application/use-cases/resend-otp.use-case';
 import type { LoginWithGoogleUseCase } from '../../application/use-cases/login-with-google.use-case';
+import type { LoginWithFacebookUseCase } from '../../application/use-cases/login-with-facebook.use-case';
 import type { RegisterBody } from './validators/register.validator';
 import type { LoginBody } from './validators/login.validator';
 import type { GoogleLoginBody } from './validators/google-login.validator';
+import type { FacebookLoginBody } from './validators/facebook-login.validator';
 import type { ForgotPasswordBody } from './validators/forgot-password.validator';
 import type { ResetPasswordBody } from './validators/reset-password.validator';
 import type { ChangePasswordBody } from './validators/change-password.validator';
@@ -39,6 +41,7 @@ export class AuthController {
       verifyEmail: VerifyEmailUseCase;
       resendOtp: ResendOtpUseCase;
       google: LoginWithGoogleUseCase;
+      facebook: LoginWithFacebookUseCase;
     },
   ) {}
 
@@ -77,6 +80,16 @@ export class AuthController {
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
     const result = await this.deps.google.execute(
       { idToken: body.id_token },
+      this.loginMeta(c),
+      requestId,
+    );
+    return this.loginJson(c, body.client_type, result);
+  }
+
+  async facebook(c: Context, body: FacebookLoginBody) {
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    const result = await this.deps.facebook.execute(
+      { accessToken: body.access_token },
       this.loginMeta(c),
       requestId,
     );

@@ -15,6 +15,7 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `RESET_TOKEN_INVALID` | 401 | Token reset password tidak valid, kadaluarsa, atau sudah dipakai |
 | `OAUTH_NO_PASSWORD` | 400 | Ubah password pada akun tanpa password (OAuth-only) - arahkan ke lupa password |
 | `INVALID_GOOGLE_TOKEN` | 401 | ID token Google gagal verifikasi / akun Google tidak bisa dipakai |
+| `INVALID_FACEBOOK_TOKEN` | 401 | Access token Facebook gagal verifikasi / akun Facebook tidak bisa dipakai |
 | `FORBIDDEN` | 403 | Role tidak diizinkan akses endpoint |
 | `NOT_FOUND` | 404 | Route/endpoint tidak ditemukan (via `app.notFound`) |
 | `USER_NOT_FOUND` | 404 | User tidak ditemukan (profil publik by username; akun soft-deleted / nonaktif; update role admin; user id tidak ada) |
@@ -48,6 +49,7 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `INTERNAL_ERROR` | 500 | Error tak terduga (bug, koneksi DB putus, dst) |
 | `IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider penyimpanan gambar belum dikonfigurasi (env `IMAGEKIT_*`) |
 | `GOOGLE_AUTH_UNAVAILABLE` | 503 | `GOOGLE_CLIENT_ID` belum di-set; masuk dengan Google dimatikan |
+| `FACEBOOK_AUTH_UNAVAILABLE` | 503 | `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` belum di-set; masuk dengan Facebook dimatikan |
 | `LEMMA_DEFINITION_PROVIDER_ERROR` | 502 | Provider KBBI gagal (timeout, non-OK, payload tak terparse) |
 | `LEMMA_DEFINITION_PROVIDER_UNAVAILABLE` | 503 | Provider KBBI dinonaktifkan (`KBBI_PROVIDER=none` / `RAF555_BASE_URL=""`) |
 | `SHARE_BACKGROUND_PROVIDER_ERROR` | 502 | Unsplash gagal (timeout / non-OK / payload); endpoint share biasanya swallow → items [] |

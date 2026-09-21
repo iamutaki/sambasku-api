@@ -465,4 +465,120 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     const body = await jsonBody(res);
     expect(body.error_code).toBe('VALIDATION_ERROR');
   });
+
+  // ---- POST /api/v1/auth/facebook (AUTH_FACEBOOK.md) — mock verifier, jangan hit Graph ----
+  const postFacebook = (body: unknown, headers: Record<string, string> = {}) =>
+    app.request('/api/v1/auth/facebook', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'content-type': 'application/json', ...xff(), ...headers },
+    }) as Promise<Response>;
+
+  async function withFacebookVerifier<T>(
+    mock: {
+      verify: (accessToken: string) => Promise<{
+        facebookUserId: string;
+        email: string;
+        name: string | null;
+      }>;
+    },
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const { facebookTokenVerifierHolder } = await import(
+      '@/modules/auth/infrastructure/facebook-token-verifier.holder'
+    );
+    const original = facebookTokenVerifierHolder.current;
+    facebookTokenVerifierHolder.current = mock;
+    try {
+      return await fn();
+    } finally {
+      facebookTokenVerifierHolder.current = original;
+    }
+  }
+
+  it('POST /facebook mobile → 200 + refresh_token di body', async () => {
+    const email = unique();
+    const res = await withFacebookVerifier(
+      {
+        verify: async () => ({
+          facebookUserId: `fb-${email}`,
+          email,
+          name: 'Facebook User',
+        }),
+      },
+      () => postFacebook({ access_token: 'fake-fb-token', client_type: 'mobile' }),
+    );
+    expect(res.status).toBe(200);
+    const body = await jsonBody(res);
+    expect(body.success).toBe(true);
+    expect(body.data.access_token).toEqual(expect.any(String));
+    expect(body.data.refresh_token).toEqual(expect.any(String));
+    expect(body.data.user.role).toBe('contributor');
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('POST /facebook token invalid → 401 INVALID_FACEBOOK_TOKEN', async () => {
+    const { UnauthorizedError } = await import('@/shared/errors/app-error');
+    const res = await withFacebookVerifier(
+      {
+        verify: async () => {
+          throw new UnauthorizedError('INVALID_FACEBOOK_TOKEN', 'Tidak bisa masuk dengan Facebook.');
+        },
+      },
+      () => postFacebook({ access_token: 'bad-token', client_type: 'mobile' }),
+    );
+    expect(res.status).toBe(401);
+    expect(await jsonBody(res)).toMatchObject({
+      success: false,
+      error_code: 'INVALID_FACEBOOK_TOKEN',
+      message: 'Tidak bisa masuk dengan Facebook.',
+    });
+  });
+
+  it('POST /facebook email existing tanpa identity Facebook → 409 EMAIL_ALREADY_EXISTS', async () => {
+    const email = unique();
+    await registerAndVerify(email);
+    const res = await withFacebookVerifier(
+      {
+        verify: async () => ({
+          facebookUserId: `fb-new-${email}`,
+          email,
+          name: 'Budi',
+        }),
+      },
+      () => postFacebook({ access_token: 'fake-fb-token', client_type: 'mobile' }),
+    );
+    expect(res.status).toBe(409);
+    expect(await jsonBody(res)).toMatchObject({
+      error_code: 'EMAIL_ALREADY_EXISTS',
+      message: 'Email sudah terdaftar. Masuk dengan password atau gunakan lupa password.',
+    });
+  });
+
+  it('POST /facebook verifier 503 → FACEBOOK_AUTH_UNAVAILABLE', async () => {
+    const { ServiceUnavailableError } = await import('@/shared/errors/app-error');
+    const res = await withFacebookVerifier(
+      {
+        verify: async () => {
+          throw new ServiceUnavailableError(
+            'FACEBOOK_AUTH_UNAVAILABLE',
+            'Masuk dengan Facebook sedang tidak tersedia.',
+          );
+        },
+      },
+      () => postFacebook({ access_token: 'fake-fb-token', client_type: 'mobile' }),
+    );
+    expect(res.status).toBe(503);
+    expect(await jsonBody(res)).toMatchObject({
+      error_code: 'FACEBOOK_AUTH_UNAVAILABLE',
+      message: 'Masuk dengan Facebook sedang tidak tersedia.',
+    });
+  });
+
+  it('POST /facebook access_token kosong → 400 VALIDATION_ERROR', async () => {
+    const res = await postFacebook({ access_token: '', client_type: 'mobile' });
+    expect(res.status).toBe(400);
+    const body = await jsonBody(res);
+    expect(body.error_code).toBe('VALIDATION_ERROR');
+  });
 });

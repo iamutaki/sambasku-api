@@ -70,6 +70,12 @@ const envSchema = z.object({
   // SAMA supaya klaim `aud` ID token cocok. Kosong = fitur mati (503
   // GOOGLE_AUTH_UNAVAILABLE), API tidak crash.
   GOOGLE_CLIENT_ID: z.string().optional(),
+
+  // Facebook Login: App ID publik + App Secret (secret). Flutter
+  // FACEBOOK_APP_ID_* harus SAMA dengan App ID env matching. Salah satu
+  // kosong = POST /api/v1/auth/facebook → 503 FACEBOOK_AUTH_UNAVAILABLE.
+  FACEBOOK_APP_ID: z.string().optional(),
+  FACEBOOK_APP_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.parse(process.env);
