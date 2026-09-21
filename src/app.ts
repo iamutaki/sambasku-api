@@ -147,6 +147,14 @@ import { NotifyUserUseCase } from '@/modules/device/application/use-cases/notify
 import { createPushSender } from '@/modules/device/infrastructure/push-sender.factory';
 import { DeviceController } from '@/modules/device/presentation/v1/device.controller';
 import { createDeviceRoutes } from '@/modules/device/presentation/v1/device.routes';
+import { NotificationRepositoryImpl } from '@/modules/notification/infrastructure/notification.repository.impl';
+import { RecordInboxNotificationUseCase } from '@/modules/notification/application/use-cases/record-inbox-notification.use-case';
+import { ListMyNotificationsUseCase } from '@/modules/notification/application/use-cases/list-my-notifications.use-case';
+import { GetUnreadNotificationCountUseCase } from '@/modules/notification/application/use-cases/get-unread-notification-count.use-case';
+import { MarkNotificationReadUseCase } from '@/modules/notification/application/use-cases/mark-notification-read.use-case';
+import { MarkAllNotificationsReadUseCase } from '@/modules/notification/application/use-cases/mark-all-notifications-read.use-case';
+import { NotificationController } from '@/modules/notification/presentation/v1/notification.controller';
+import { createNotificationRoutes } from '@/modules/notification/presentation/v1/notification.routes';
 import { createLemmaDefinitionProviderRegistry } from '@/modules/lemma-definition/infrastructure/lemma-definition-provider.factory';
 import { LookupLemmaDefinitionUseCase } from '@/modules/lemma-definition/application/use-cases/lookup-lemma-definition.use-case';
 import { LemmaDefinitionController } from '@/modules/lemma-definition/presentation/v1/lemma-definition.controller';
@@ -174,6 +182,8 @@ const resetTokenRepo = new PasswordResetTokenRepositoryImpl(db);
 const deviceTokenRepo = new DeviceTokenRepositoryImpl(db);
 const pushSender = createPushSender();
 const notifyUser = new NotifyUserUseCase(deviceTokenRepo, pushSender);
+const notificationRepo = new NotificationRepositoryImpl(db);
+const recordInbox = new RecordInboxNotificationUseCase(notificationRepo);
 const tokenService = new JwtTokenService({
   privateKeyPem: env.JWT_PRIVATE_KEY,
   publicKeyPem: env.JWT_PUBLIC_KEY,
@@ -249,8 +259,8 @@ const contributionRepo = new ContributionRepositoryImpl(db);
 const contributionController = new ContributionController({
   list: new ListContributionsUseCase(contributionRepo),
   getDetail: new GetContributionDetailUseCase(contributionRepo, wordRepo),
-  review: new ReviewContributionUseCase(contributionRepo, auditRepo, notifyUser),
-  correct: new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo),
+  review: new ReviewContributionUseCase(contributionRepo, auditRepo, notifyUser, recordInbox),
+  correct: new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo, recordInbox),
   imageProviderName: imageStorage.providerName,
 });
 
@@ -337,7 +347,10 @@ const deviceController = new DeviceController({
 
 // ---- Modul word-suggestions (usul perubahan kata) ----
 const suggestionRepo = new WordSuggestionRepositoryImpl();
-const suggestionController = new WordSuggestionController({ repository: suggestionRepo });
+const suggestionController = new WordSuggestionController({
+  repository: suggestionRepo,
+  inbox: recordInbox,
+});
 const myContributionController = new MyContributionController({
   listMine: new ListMyContributionsUseCase(contributionRepo, suggestionRepo),
   getMine: new GetMyContributionDetailUseCase(contributionRepo, suggestionRepo),
@@ -474,6 +487,18 @@ app.route('/api/v1/bookmarks', createBookmarkRoutes({ controller: bookmarkContro
 // limit 100/menit/IP di routes factory. Tidak bentrok /admin/users.
 app.route('/api/v1/users', createPublicUserRoutes({ controller: userController }));
 app.route('/api/v1/device', createDeviceRoutes({ controller: deviceController, authenticate }));
+app.route(
+  '/api/v1/notifications',
+  createNotificationRoutes({
+    controller: new NotificationController({
+      list: new ListMyNotificationsUseCase(notificationRepo),
+      unreadCount: new GetUnreadNotificationCountUseCase(notificationRepo),
+      markRead: new MarkNotificationReadUseCase(notificationRepo),
+      markAllRead: new MarkAllNotificationsReadUseCase(notificationRepo),
+    }),
+    authenticate,
+  }),
+);
 app.route('/api/v1/admin/comments', createAdminCommentRoutes({ controller: commentController, authenticate }));
 
 // Moderasi vote (hapus vote spam individual + reset massal per target),

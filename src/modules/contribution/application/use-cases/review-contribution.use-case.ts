@@ -1,6 +1,7 @@
 import { ValidationError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { NotifyUserUseCase } from '@/modules/device/application/use-cases/notify-user.use-case';
+import type { RecordInboxNotificationUseCase } from '@/modules/notification/application/use-cases/record-inbox-notification.use-case';
 import type { ReviewOutcome } from '../../domain/entities/contribution.entity';
 import type { ContributionRepository } from '../../domain/repositories/contribution.repository';
 
@@ -22,6 +23,7 @@ export class ReviewContributionUseCase {
     private readonly contributionRepo: ContributionRepository,
     private readonly auditRepo: AuditLogRepository,
     private readonly notifyUser?: NotifyUserUseCase,
+    private readonly inbox?: RecordInboxNotificationUseCase,
   ) {}
 
   async execute(cmd: ReviewContributionCommand): Promise<ReviewOutcome> {
@@ -43,6 +45,13 @@ export class ReviewContributionUseCase {
       entityId: outcome.entityId,
       newData: { contribution_id: outcome.contributionId, status: outcome.status, comment: cmd.comment },
       requestId: cmd.requestId ?? null,
+    });
+
+    await this.inbox?.execute({
+      userId: outcome.contributorUserId,
+      type: cmd.decision === 'approve' ? 'contribution_approved' : 'contribution_rejected',
+      targetKind: 'contribution',
+      targetId: outcome.contributionId,
     });
 
     if (cmd.decision === 'approve' && this.notifyUser) {

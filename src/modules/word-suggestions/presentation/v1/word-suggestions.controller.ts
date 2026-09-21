@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import type { WordSuggestionRepositoryImpl } from '../../infrastructure/word-suggestion.repository.impl';
+import type { RecordInboxNotificationUseCase } from '@/modules/notification/application/use-cases/record-inbox-notification.use-case';
 import type { CreateSuggestionRequest } from './validators/suggestion.validator';
 import {
   mapProposedChanges,
@@ -14,6 +15,7 @@ import {
 
 export interface WordSuggestionControllerDeps {
   repository: WordSuggestionRepositoryImpl;
+  inbox?: RecordInboxNotificationUseCase;
 }
 
 export class WordSuggestionController {
@@ -192,7 +194,16 @@ export class WordSuggestionController {
     userId: string,
     comment?: string,
   ): Promise<Response> {
+    const existing = await this.deps.repository.findById(id);
     const result = await this.deps.repository.approveSuggestion(id, userId, comment);
+    if (existing) {
+      await this.deps.inbox?.execute({
+        userId: existing.userId,
+        type: 'suggestion_approved',
+        targetKind: 'suggestion',
+        targetId: id,
+      });
+    }
     return c.json(
       approveResponseSchema.parse({
         success: true,
@@ -214,7 +225,16 @@ export class WordSuggestionController {
     userId: string,
     comment: string,
   ): Promise<Response> {
+    const existing = await this.deps.repository.findById(id);
     await this.deps.repository.rejectSuggestion(id, userId, comment);
+    if (existing) {
+      await this.deps.inbox?.execute({
+        userId: existing.userId,
+        type: 'suggestion_rejected',
+        targetKind: 'suggestion',
+        targetId: id,
+      });
+    }
     return c.json(
       rejectResponseSchema.parse({
         success: true,
@@ -231,6 +251,7 @@ export class WordSuggestionController {
     publish: boolean,
     comment?: string,
   ) {
+    const existing = await this.deps.repository.findById(id);
     const corrected = mapProposedChanges(correctedChangesRaw);
     const result = await this.deps.repository.correctSuggestion(
       id,
@@ -239,6 +260,14 @@ export class WordSuggestionController {
       publish,
       comment,
     );
+    if (existing && result.status === 'corrected') {
+      await this.deps.inbox?.execute({
+        userId: existing.userId,
+        type: 'suggestion_corrected',
+        targetKind: 'suggestion',
+        targetId: id,
+      });
+    }
     return c.json({
       success: true,
       data: {

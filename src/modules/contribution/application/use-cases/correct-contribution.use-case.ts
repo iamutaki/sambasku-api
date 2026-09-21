@@ -1,5 +1,6 @@
 import { ConflictError, NotFoundError, ValidationError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
+import type { RecordInboxNotificationUseCase } from '@/modules/notification/application/use-cases/record-inbox-notification.use-case';
 import type { WordRepository } from '@/modules/word/domain/repositories/word.repository';
 import type { CreateWordDto } from '@/modules/word/application/dto/create-word.dto';
 import {
@@ -53,6 +54,7 @@ export class CorrectContributionUseCase {
     private readonly contributionRepo: ContributionRepository,
     private readonly wordRepo: WordRepository,
     private readonly auditRepo: AuditLogRepository,
+    private readonly inbox?: RecordInboxNotificationUseCase,
   ) {}
 
   async execute(cmd: CorrectContributionCommand): Promise<ReviewOutcome> {
@@ -135,6 +137,15 @@ export class CorrectContributionUseCase {
       },
       requestId: cmd.requestId ?? null,
     });
+
+    if (publish && outcome.status === 'corrected') {
+      await this.inbox?.execute({
+        userId: outcome.contributorUserId,
+        type: 'contribution_corrected',
+        targetKind: 'contribution',
+        targetId: outcome.contributionId,
+      });
+    }
 
     return outcome;
   }

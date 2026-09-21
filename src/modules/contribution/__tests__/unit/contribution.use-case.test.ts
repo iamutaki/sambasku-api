@@ -62,10 +62,12 @@ describe('ReviewContributionUseCase', () => {
   it('approve → panggil review + audit action approve', async () => {
     const { contributionRepo, auditRepo } = makeDeps();
     const notifyUser = { execute: vi.fn().mockResolvedValue(undefined) };
+    const inbox = { execute: vi.fn().mockResolvedValue(undefined) };
     const useCase = new ReviewContributionUseCase(
       contributionRepo,
       auditRepo as unknown as AuditLogRepository,
       notifyUser as never,
+      inbox as never,
     );
     const outcome = await useCase.execute({
       contributionId: '01CONTRIBULID0000000000000',
@@ -88,15 +90,25 @@ describe('ReviewContributionUseCase', () => {
         data: expect.objectContaining({ type: 'contribution_approved' }),
       }),
     );
+    expect(inbox.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: '01CONTRIBUTORULID0000000000',
+        type: 'contribution_approved',
+        targetKind: 'contribution',
+        targetId: '01CONTRIBULID0000000000000',
+      }),
+    );
   });
 
   it('reject → tidak kirim push notifikasi', async () => {
     const { contributionRepo, auditRepo } = makeDeps();
     const notifyUser = { execute: vi.fn().mockResolvedValue(undefined) };
+    const inbox = { execute: vi.fn().mockResolvedValue(undefined) };
     const useCase = new ReviewContributionUseCase(
       contributionRepo,
       auditRepo as unknown as AuditLogRepository,
       notifyUser as never,
+      inbox as never,
     );
     await useCase.execute({
       contributionId: '01CONTRIBULID0000000000000',
@@ -105,6 +117,12 @@ describe('ReviewContributionUseCase', () => {
       actorId: ACTOR.userId,
     });
     expect(notifyUser.execute).not.toHaveBeenCalled();
+    expect(inbox.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'contribution_rejected',
+        targetKind: 'contribution',
+      }),
+    );
   });
 
   it('reject tanpa comment → VALIDATION_ERROR field comment (domain rule)', async () => {
