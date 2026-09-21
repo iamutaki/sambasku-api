@@ -36,7 +36,7 @@ openssl pkey -in jwt_private.pem -pubout -out jwt_public.pem
 #    bungkus dengan tanda kutip dua), lalu hapus file key-nya
 
 # 3. Apply migration → membuat/mengisi local.db
-pnpm drizzle-kit migrate
+pnpm db:migrate
 
 # 4. Seed user awal (admin / root / contributor / reviewer — password: pass1234)
 pnpm seed
@@ -52,7 +52,7 @@ pnpm dev                    # http://localhost:3000 — docs di /docs
 cp .env.test.example .env.test
 #    DATABASE_URL=file:./test.db + JWT key (sama pola .env)
 
-DATABASE_URL=file:./test.db pnpm drizzle-kit migrate
+DATABASE_URL=file:./test.db pnpm db:migrate
 pnpm test
 ```
 
@@ -68,7 +68,7 @@ pnpm test
 | `pnpm typecheck`                                       | `tsc --noEmit`                                         |
 | `pnpm seed`                                            | Seeder user + referensi (idempoten)                    |
 | `pnpm drizzle-kit generate --name=…`                   | Generate migration SQL dari perubahan schema           |
-| `pnpm drizzle-kit migrate`                             | Apply migration (lokal file: atau Turso remote)        |
+| `pnpm db:migrate`                                      | Apply migration (libsql; error terlihat di CI)         |
 | `pnpm drizzle-kit studio`                              | GUI browser untuk lihat isi database                   |
 
 ## Cloudflare Workers (deploy)
@@ -77,7 +77,7 @@ Dua runtime berbagi satu composition root: `main.ts` (Node, default dev)
 dan `worker.ts` (Workers — env dari bindings, DB via `@libsql/client/web`
 singleton HTTP ke Turso, email via Resend).
 
-Migration **tetap dari CI Node** (`drizzle-kit migrate`), bukan dari Workers.
+Migration **tetap dari CI Node** (`pnpm db:migrate`), bukan dari Workers.
 
 ### Secret Worker (staging) — sekali
 
