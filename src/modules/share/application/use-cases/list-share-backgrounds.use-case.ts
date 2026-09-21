@@ -60,7 +60,7 @@ export class ListShareBackgroundsUseCase {
     query: string,
     page: number = 1,
     sort: ShareBackgroundSort = 'relevant',
-    providerId: ShareBackgroundProviderId = 'unsplash',
+    providerId: ShareBackgroundProviderId = 'pexels',
     limit: number = DEFAULT_LIMIT,
     media: ShareMediaKind = 'photo',
     orientation?: ShareOrientation,

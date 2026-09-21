@@ -14,7 +14,7 @@ const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
 });
 
-/** GET /api/v1/share/backgrounds — proxy latar multi-provider (Unsplash + Pexels). */
+/** GET /api/v1/share/backgrounds — proxy latar multi-provider (Pexels, Pixabay, Unsplash). */
 export function createShareRoutes(deps: { controller: ShareController }) {
   const routes = createOpenApiApp();
   routes.use('*', rateLimit({ points: 30, duration: 60 }));
@@ -25,9 +25,9 @@ export function createShareRoutes(deps: { controller: ShareController }) {
     tags: ['Share'],
     summary: 'Cari foto atau video latar untuk kartu share',
     description:
-      'Default `provider=unsplash`, `media=photo`. `sort=relevant` butuh `q`. ' +
-      '`sort=popular` untuk Image Explorer (q opsional). ' +
-      '`limit` 1–30 (default 3). `media=video` hanya `provider=pexels`. ' +
+      'Default `provider=pexels`, `media=photo`. `sort=relevant` butuh `q`. ' +
+      '`sort=popular` untuk Media Explorer (q opsional). ' +
+      '`limit` 1–30 (default 3). `media=video` untuk `pexels` dan `pixabay`. ' +
       'Tanpa konfigurasi / gagal upstream → items kosong + degraded:true.',
     request: { query: listShareBackgroundsQuerySchema },
     responses: {

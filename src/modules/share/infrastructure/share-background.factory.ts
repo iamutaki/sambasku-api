@@ -6,6 +6,7 @@ import type {
 } from '../application/ports/share-background-provider.port';
 import { SHARE_PROVIDER_MEDIA } from '../application/ports/share-background-provider.port';
 import { PexelsBackgroundProvider } from './pexels-background.provider';
+import { PixabayBackgroundProvider } from './pixabay-background.provider';
 import { UnsplashBackgroundProvider } from './unsplash-background.provider';
 
 export type ShareBackgroundProviderRegistry = Map<
@@ -24,12 +25,17 @@ export function createShareBackgroundProviderRegistry(): ShareBackgroundProvider
   if (pexelsKey) {
     registry.set('pexels', new PexelsBackgroundProvider(pexelsKey));
   }
+  const pixabayKey = env.PIXABAY_API_KEY?.trim();
+  if (pixabayKey) {
+    registry.set('pixabay', new PixabayBackgroundProvider(pixabayKey));
+  }
   return registry;
 }
 
 /** @deprecated pakai createShareBackgroundProviderRegistry */
 export function createShareBackgroundProvider(): ShareBackgroundProviderPort | null {
-  return createShareBackgroundProviderRegistry().get('unsplash') ?? null;
+  const registry = createShareBackgroundProviderRegistry();
+  return registry.get('pexels') ?? registry.get('pixabay') ?? registry.get('unsplash') ?? null;
 }
 
 export function listShareBackgroundProviderInfos(
@@ -37,16 +43,22 @@ export function listShareBackgroundProviderInfos(
 ): ShareBackgroundProviderInfo[] {
   return [
     {
-      id: 'unsplash',
-      label: 'Unsplash',
-      available: registry.has('unsplash'),
-      media: [...SHARE_PROVIDER_MEDIA.unsplash],
-    },
-    {
       id: 'pexels',
       label: 'Pexels',
       available: registry.has('pexels'),
       media: [...SHARE_PROVIDER_MEDIA.pexels],
+    },
+    {
+      id: 'pixabay',
+      label: 'Pixabay',
+      available: registry.has('pixabay'),
+      media: [...SHARE_PROVIDER_MEDIA.pixabay],
+    },
+    {
+      id: 'unsplash',
+      label: 'Unsplash',
+      available: registry.has('unsplash'),
+      media: [...SHARE_PROVIDER_MEDIA.unsplash],
     },
   ];
 }

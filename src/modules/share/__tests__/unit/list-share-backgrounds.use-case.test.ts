@@ -49,7 +49,7 @@ describe('ListShareBackgroundsUseCase', () => {
     expect(result.items).toEqual([]);
     expect(result.degraded).toBe(true);
     expect(result.page).toBe(1);
-    expect(result.provider).toBe('unsplash');
+    expect(result.provider).toBe('pexels');
     expect(result.cache_hit).toBe(false);
     expect(result.media).toBe('photo');
   });
@@ -60,7 +60,7 @@ describe('ListShareBackgroundsUseCase', () => {
       new Map([['unsplash', provider]]),
       0,
     );
-    const result = await useCase.execute('makan');
+    const result = await useCase.execute('makan', 1, 'relevant', 'unsplash');
     expect(provider.search).toHaveBeenCalledWith(
       'makan',
       3,
@@ -88,9 +88,9 @@ describe('ListShareBackgroundsUseCase', () => {
       86_400,
     );
 
-    const p1 = await useCase.execute('makan', 1);
-    const p1Again = await useCase.execute('makan', 1);
-    const p2 = await useCase.execute('makan', 2);
+    const p1 = await useCase.execute('makan', 1, 'relevant', 'unsplash');
+    const p1Again = await useCase.execute('makan', 1, 'relevant', 'unsplash');
+    const p2 = await useCase.execute('makan', 2, 'relevant', 'unsplash');
 
     expect(provider.search).toHaveBeenCalledTimes(2);
     expect(p1.items).toEqual(sample);
@@ -144,6 +144,30 @@ describe('ListShareBackgroundsUseCase', () => {
     expect(result.media).toBe('video');
   });
 
+  it('pixabay + video diizinkan', async () => {
+    const pixabay: ShareBackgroundProviderPort = {
+      providerId: 'pixabay',
+      providerName: 'pixabay',
+      supportedMedia: ['photo', 'video'],
+      search: vi.fn().mockResolvedValue([
+        photoItem('v1', {
+          provider: 'pixabay',
+          kind: 'video',
+          mime_type: 'video/mp4',
+          duration_seconds: 8,
+        }),
+      ]),
+    };
+    const useCase = new ListShareBackgroundsUseCase(
+      new Map([['pixabay', pixabay]]),
+      0,
+    );
+    const result = await useCase.execute('makan', 1, 'relevant', 'pixabay', 3, 'video');
+    expect(result.provider).toBe('pixabay');
+    expect(result.media).toBe('video');
+    expect(result.degraded).toBe(false);
+  });
+
   it('sort=popular tanpa q diizinkan', async () => {
     const provider = makeProvider(sample);
     const useCase = new ListShareBackgroundsUseCase(
@@ -174,9 +198,9 @@ describe('ListShareBackgroundsUseCase', () => {
       86_400,
     );
 
-    await useCase.execute('makan', 1, 'popular');
-    await useCase.execute('lain', 1, 'popular');
-    await useCase.execute('makan', 1, 'relevant');
+    await useCase.execute('makan', 1, 'popular', 'unsplash');
+    await useCase.execute('lain', 1, 'popular', 'unsplash');
+    await useCase.execute('makan', 1, 'relevant', 'unsplash');
 
     expect(provider.search).toHaveBeenCalledTimes(2);
   });
@@ -192,7 +216,7 @@ describe('ListShareBackgroundsUseCase', () => {
       new Map([['unsplash', provider]]),
       0,
     );
-    const result = await useCase.execute('makan');
+    const result = await useCase.execute('makan', 1, 'relevant', 'unsplash');
     expect(result.items).toEqual([]);
     expect(result.degraded).toBe(true);
   });

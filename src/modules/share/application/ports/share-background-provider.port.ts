@@ -1,8 +1,9 @@
-export type ShareBackgroundProviderId = 'unsplash' | 'pexels';
+export type ShareBackgroundProviderId = 'unsplash' | 'pexels' | 'pixabay';
 
 export const SHARE_BACKGROUND_PROVIDER_IDS = [
   'unsplash',
   'pexels',
+  'pixabay',
 ] as const satisfies readonly ShareBackgroundProviderId[];
 
 export type ShareMediaKind = 'photo' | 'video';
@@ -20,6 +21,7 @@ export const SHARE_ORIENTATIONS = [
 export const SHARE_PROVIDER_MEDIA: Record<ShareBackgroundProviderId, readonly ShareMediaKind[]> = {
   unsplash: ['photo'],
   pexels: ['photo', 'video'],
+  pixabay: ['photo', 'video'],
 };
 
 export interface ShareBackgroundSearchOptions {
