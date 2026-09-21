@@ -9,6 +9,7 @@
 #        npx wrangler secret put JWT_PUBLIC_KEY      # PEM
 #        npx wrangler secret put RESEND_API_KEY      # opsional (email HTTP)
 #        npx wrangler secret put IMAGEKIT_PRIVATE_KEY # opsional
+#        npx wrangler secret put FACEBOOK_APP_SECRET  # opsional (login Facebook)
 #   4. npx wrangler deploy
 #
 # Migration TIDAK lewat Workers - tetap `pnpm drizzle-kit migrate` dari CI
@@ -48,8 +49,12 @@ LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
 # Pixabay — secret: PIXABAY_API_KEY (foto + video share)
 # Openverse — anonim (foto). Wikimedia — User-Agent (foto + video), bukan secret.
 SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
-# Google Sign-In — Web client ID (publik, bukan secret). Kosong = 503.
-# GOOGLE_CLIENT_ID = "....apps.googleusercontent.com"
+# Google Sign-In — Web client ID publik (bukan secret). Kosong = 503.
+# Nilai production: docs/env/google_sign_in/web/production/
+GOOGLE_CLIENT_ID = "497143924506-embip2d0er5te84t6cind855tlmsm0i1.apps.googleusercontent.com"
+# Facebook Login — App ID publik (bukan secret). Secret: FACEBOOK_APP_SECRET.
+# Kosong = 503 FACEBOOK_AUTH_UNAVAILABLE.
+# FACEBOOK_APP_ID = ""
 
 # Observability: Workers Logs (console.* dari logger JSON langsung terekap)
 [observability]
@@ -91,8 +96,11 @@ SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
 # Pexels — `wrangler secret put --env staging PEXELS_API_KEY`
 # Pixabay — `wrangler secret put --env staging PIXABAY_API_KEY`
 # Openverse anonim. Wikimedia User-Agent opsional via vars WIKIMEDIA_USER_AGENT.
-# Google Sign-In — Web client ID (publik, bukan secret).
-# GOOGLE_CLIENT_ID = "....apps.googleusercontent.com"
+# Google Sign-In — Web client ID publik (bukan secret).
+# Nilai staging: docs/env/google_sign_in/web/staging/
+GOOGLE_CLIENT_ID = "497143924506-rs7qao9as5jf95r5m1mgp51boc6rdrv7.apps.googleusercontent.com"
+# Facebook Login — App ID publik. Secret: `wrangler secret put --env staging FACEBOOK_APP_SECRET`
+# FACEBOOK_APP_ID = ""
 # FCM — pola jnn_api: project id + client email di vars (bukan rahasia);
 # hanya FIREBASE_PRIVATE_KEY lewat wrangler secret.
 # Samakan dengan mobile flavorizr/firebase/staging → project_id.
@@ -115,6 +123,7 @@ enabled = true
 #   npx wrangler secret put UNSPLASH_ACCESS_KEY --env staging  # opsional (share card)
 #   npx wrangler secret put PEXELS_API_KEY --env staging       # opsional (share video + foto)
 #   npx wrangler secret put PIXABAY_API_KEY --env staging      # opsional (share video + foto)
+#   npx wrangler secret put FACEBOOK_APP_SECRET --env staging  # opsional (login Facebook)
 #   # FCM push (project Firebase = sambasku-staging, samakan dengan mobile):
 #   npx wrangler secret put FIREBASE_PROJECT_ID --env staging
 #   npx wrangler secret put FIREBASE_CLIENT_EMAIL --env staging
