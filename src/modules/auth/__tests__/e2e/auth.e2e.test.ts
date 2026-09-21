@@ -130,7 +130,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(body.error_code).toBe('INVALID_OTP');
   });
 
-  it('POST /api/v1/auth/resend-otp selalu 200 (anti-enumeration)', async () => {
+  it('POST /api/v1/auth/resend-otp email tak dikenal selalu 200 (anti-enumeration)', async () => {
     const res = await client.api.v1.auth['resend-otp'].$post(
       { json: { email: unique() } },
       { headers: xff() },
@@ -138,6 +138,18 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+  });
+
+  it('POST /api/v1/auth/resend-otp segera setelah register → 429 RATE_LIMITED', async () => {
+    const email = unique();
+    await register(email);
+    const res = await client.api.v1.auth['resend-otp'].$post(
+      { json: { email } },
+      { headers: xff() },
+    );
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error_code).toBe('RATE_LIMITED');
   });
 
   it('POST /api/v1/auth/login → 200 access_token + cookie httpOnly', async () => {

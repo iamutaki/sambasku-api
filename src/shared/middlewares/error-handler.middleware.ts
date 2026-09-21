@@ -1,12 +1,21 @@
 import type { ErrorHandler } from 'hono';
 import type { z } from 'zod';
-import { AppError, BadRequestError, ForbiddenError, ValidationError } from '@/shared/errors/app-error';
+import {
+  AppError,
+  BadRequestError,
+  ForbiddenError,
+  RateLimitedError,
+  ValidationError,
+} from '@/shared/errors/app-error';
 import { logger } from '@/shared/logging/logger';
 
 // Dipasang sekali di main.ts via app.onError(errorHandler) -
 // controller tidak perlu try-catch manual.
 export const errorHandler: ErrorHandler = (err, c) => {
   if (err instanceof AppError) {
+    if (err instanceof RateLimitedError) {
+      c.header('Retry-After', String(err.retryAfterSeconds));
+    }
     return c.json(
       {
         success: false as const,
@@ -21,7 +30,7 @@ export const errorHandler: ErrorHandler = (err, c) => {
                 ? err.details
                 : null,
       },
-      err.statusCode as 400 | 401 | 403 | 404 | 409,
+      err.statusCode as 400 | 401 | 403 | 404 | 409 | 429,
     );
   }
 

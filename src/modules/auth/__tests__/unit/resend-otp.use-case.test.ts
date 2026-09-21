@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ResendOtpUseCase } from '../../application/use-cases/resend-otp.use-case';
+import { RateLimitedError } from '@/shared/errors/app-error';
 import type { UserRepository } from '../../domain/repositories/user.repository';
 import type { EmailVerificationOtpRepository } from '../../domain/repositories/email-verification-otp.repository';
 import type { MailerPort } from '../../application/ports/mailer.port';
@@ -22,12 +23,24 @@ function makeUser(overrides: Partial<User> = {}): User {
   };
 }
 
-function makeDeps(user: User | null) {
+function makeOtp(createdAt: Date) {
+  return {
+    id: '01TESTOTPID00000000000000',
+    userId: '01TESTULIDUSERID00000000',
+    codeHash: 'hash',
+    expiresAt: new Date(createdAt.getTime() + 10 * 60 * 1000),
+    attemptCount: 0,
+    createdAt,
+  };
+}
+
+function makeDeps(user: User | null, otp: ReturnType<typeof makeOtp> | null = null) {
   const userRepo = {
     findByEmail: vi.fn().mockResolvedValue(user),
   } as unknown as UserRepository;
   const otpRepo = {
     replaceForUser: vi.fn().mockResolvedValue({}),
+    findByUserId: vi.fn().mockResolvedValue(otp),
   } as unknown as EmailVerificationOtpRepository;
   const mailer = {
     sendResetPasswordEmail: vi.fn(),
@@ -64,5 +77,24 @@ describe('ResendOtpUseCase', () => {
       'budi@test.com',
       expect.stringMatching(/^\d{3}-\d{3}$/),
     );
+  });
+
+  it('OTP baru dikirim < 2 menit: RATE_LIMITED, tidak ganti kode', async () => {
+    const { useCase, otpRepo, mailer } = makeDeps(
+      makeUser(),
+      makeOtp(new Date()),
+    );
+    await expect(useCase.execute('budi@test.com')).rejects.toBeInstanceOf(RateLimitedError);
+    expect(otpRepo.replaceForUser).not.toHaveBeenCalled();
+    expect(mailer.sendVerificationOtpEmail).not.toHaveBeenCalled();
+  });
+
+  it('cooldown lewat: ganti OTP dan kirim lagi', async () => {
+    const { useCase, mailer } = makeDeps(
+      makeUser(),
+      makeOtp(new Date(Date.now() - 2 * 60 * 1000 - 1)),
+    );
+    await useCase.execute('budi@test.com');
+    expect(mailer.sendVerificationOtpEmail).toHaveBeenCalled();
   });
 });

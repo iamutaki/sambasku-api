@@ -35,7 +35,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   authRoutes.use('/register', rateLimit({ points: 5, duration: 3600 })); // 5/jam per IP
   authRoutes.use('/login', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
   authRoutes.use('/verify-email', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
-  authRoutes.use('/resend-otp', rateLimit({ points: 3, duration: 900 })); // 3/15 menit
+  authRoutes.use('/resend-otp', rateLimit({ points: 1, duration: 120 })); // 1/2 menit per IP
   authRoutes.use('/forgot-password', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
   authRoutes.use('/logout-all-devices', deps.authenticate);
   // authenticate HARUS duluan supaya c.get('user') terisi untuk keyFn
@@ -96,12 +96,12 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     method: 'post',
     path: '/resend-otp',
     tags: ['Auth'],
-    summary: 'Kirim ulang OTP (response selalu 200, anti-enumeration)',
+    summary: 'Kirim ulang OTP (email tak dikenal tetap 200; cooldown 2 menit)',
     request: { body: { content: json(resendOtpSchema) } },
     responses: {
       200: { description: 'Kode baru dikirim jika email belum diverifikasi', content: json(resendOtpResponseSchema) },
       400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
-      429: { description: 'Terlalu banyak percobaan (3/15 menit per IP)', content: json(errorResponseSchema) },
+      429: { description: 'Kirim ulang terlalu cepat (1/2 menit per IP, dan 2 menit per email)', content: json(errorResponseSchema) },
     },
   });
 

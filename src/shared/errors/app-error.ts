@@ -76,6 +76,17 @@ export class ConflictError extends AppError {
   }
 }
 
+export class RateLimitedError extends AppError {
+  statusCode = 429;
+  errorCode = 'RATE_LIMITED';
+  constructor(
+    message = 'Terlalu banyak percobaan, coba lagi nanti',
+    public retryAfterSeconds = 120,
+  ) {
+    super(message);
+  }
+}
+
 export class ServiceUnavailableError extends AppError {
   statusCode = 503;
   errorCode: string;
