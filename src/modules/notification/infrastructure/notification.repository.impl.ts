@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, lt } from 'drizzle-orm';
 import { notifications } from '@/shared/database/drizzle/schema';
 import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type {
@@ -91,7 +91,7 @@ export class NotificationRepositoryImpl implements NotificationRepository {
 
     await this.db
       .update(notifications)
-      .set({ readAt: sql`now()` })
+      .set({ readAt: new Date() })
       .where(and(eq(notifications.id, id), eq(notifications.userId, userId), isNull(notifications.readAt)));
     return 'updated';
   }
@@ -99,7 +99,7 @@ export class NotificationRepositoryImpl implements NotificationRepository {
   async markAllRead(userId: string): Promise<number> {
     const updated = await this.db
       .update(notifications)
-      .set({ readAt: sql`now()` })
+      .set({ readAt: new Date() })
       .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
       .returning({ id: notifications.id });
     return updated.length;

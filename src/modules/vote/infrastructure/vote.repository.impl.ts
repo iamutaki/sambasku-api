@@ -10,6 +10,7 @@ import {
   words,
 } from '@/shared/database/drizzle/schema';
 import type { AppDatabase } from '@/shared/database/drizzle/client';
+import { ilikeCompat } from '@/shared/database/drizzle/ilike-compat';
 import { NotFoundError } from '@/shared/errors/app-error';
 import type {
   AdminVoteCursor,
@@ -215,8 +216,8 @@ export class VoteRepositoryImpl implements VoteRepository {
           filter.targetId ? eq(votes.entityId, filter.targetId) : undefined,
           filter.q
             ? or(
-                sql`${users.username} ILIKE ${`%${filter.q}%`}`,
-                sql`${users.email} ILIKE ${`%${filter.q}%`}`,
+                ilikeCompat(users.username, `%${filter.q}%`),
+                ilikeCompat(users.email, `%${filter.q}%`),
               )
             : undefined,
           cursor

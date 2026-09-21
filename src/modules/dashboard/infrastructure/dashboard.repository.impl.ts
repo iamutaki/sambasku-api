@@ -36,26 +36,26 @@ export class DashboardRepositoryImpl implements DashboardRepository {
       await Promise.all([
         // Kata per status (exclude soft-deleted)
         this.db
-          .select({ status: words.status, count: sql<number>`count(*)::int`.mapWith(Number) })
+          .select({ status: words.status, count: sql<number>`count(*)`.mapWith(Number) })
           .from(words)
           .where(isNull(words.deletedAt))
           .groupBy(words.status),
 
         // Kata terverifikasi (belum soft-deleted)
         this.db
-          .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
+          .select({ count: sql<number>`count(*)`.mapWith(Number) })
           .from(words)
           .where(and(isNull(words.deletedAt), eq(words.isVerified, true))),
 
         // Kata soft-deleted
         this.db
-          .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
+          .select({ count: sql<number>`count(*)`.mapWith(Number) })
           .from(words)
           .where(isNotNull(words.deletedAt)),
 
         // Kontribusi per status (exclude soft-deleted)
         this.db
-          .select({ status: contributions.status, count: sql<number>`count(*)::int`.mapWith(Number) })
+          .select({ status: contributions.status, count: sql<number>`count(*)`.mapWith(Number) })
           .from(contributions)
           .where(isNull(contributions.deletedAt))
           .groupBy(contributions.status),
@@ -63,14 +63,14 @@ export class DashboardRepositoryImpl implements DashboardRepository {
         // User aktif per role (exclude soft-deleted) - dipetakan ke `status`
         // supaya satu helper toRecord() untuk semua grup status/role
         this.db
-          .select({ status: users.role, count: sql<number>`count(*)::int`.mapWith(Number) })
+          .select({ status: users.role, count: sql<number>`count(*)`.mapWith(Number) })
           .from(users)
           .where(and(isNull(users.deletedAt), eq(users.isActive, true)))
           .groupBy(users.role),
 
         // Aktivitas mutasi 7 hari terakhir
         this.db
-          .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
+          .select({ count: sql<number>`count(*)`.mapWith(Number) })
           .from(auditLogs)
           .where(gte(auditLogs.createdAt, sevenDaysAgo)),
       ]);
