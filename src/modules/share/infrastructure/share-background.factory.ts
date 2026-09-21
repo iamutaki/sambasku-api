@@ -7,6 +7,8 @@ import type {
 import { SHARE_PROVIDER_MEDIA } from '../application/ports/share-background-provider.port';
 import { PexelsBackgroundProvider } from './pexels-background.provider';
 import { PixabayBackgroundProvider } from './pixabay-background.provider';
+import { OpenverseBackgroundProvider } from './openverse-background.provider';
+import { WikimediaBackgroundProvider } from './wikimedia-background.provider';
 import { UnsplashBackgroundProvider } from './unsplash-background.provider';
 
 export type ShareBackgroundProviderRegistry = Map<
@@ -14,7 +16,7 @@ export type ShareBackgroundProviderRegistry = Map<
   ShareBackgroundProviderPort
 >;
 
-/** Registry provider aktif. Hanya masuk jika kuncinya terisi. */
+/** Registry provider. Vendor berbayar hanya masuk jika kuncinya terisi. Openverse dan Wikimedia selalu didaftarkan. */
 export function createShareBackgroundProviderRegistry(): ShareBackgroundProviderRegistry {
   const registry: ShareBackgroundProviderRegistry = new Map();
   const unsplashKey = env.UNSPLASH_ACCESS_KEY?.trim();
@@ -29,6 +31,11 @@ export function createShareBackgroundProviderRegistry(): ShareBackgroundProvider
   if (pixabayKey) {
     registry.set('pixabay', new PixabayBackgroundProvider(pixabayKey));
   }
+  registry.set('openverse', new OpenverseBackgroundProvider());
+  registry.set(
+    'wikimedia',
+    new WikimediaBackgroundProvider(env.WIKIMEDIA_USER_AGENT),
+  );
   return registry;
 }
 
@@ -53,6 +60,18 @@ export function listShareBackgroundProviderInfos(
       label: 'Pixabay',
       available: registry.has('pixabay'),
       media: [...SHARE_PROVIDER_MEDIA.pixabay],
+    },
+    {
+      id: 'openverse',
+      label: 'Openverse',
+      available: registry.has('openverse'),
+      media: [...SHARE_PROVIDER_MEDIA.openverse],
+    },
+    {
+      id: 'wikimedia',
+      label: 'Wikimedia',
+      available: registry.has('wikimedia'),
+      media: [...SHARE_PROVIDER_MEDIA.wikimedia],
     },
     {
       id: 'unsplash',

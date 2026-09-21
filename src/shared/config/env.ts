@@ -51,6 +51,8 @@ const envSchema = z.object({
   UNSPLASH_ACCESS_KEY: z.string().optional(),
   PEXELS_API_KEY: z.string().optional(),
   PIXABAY_API_KEY: z.string().optional(),
+  // Wikimedia Commons — User-Agent deskriptif (bukan secret). Kosong = default SambasKu.
+  WIKIMEDIA_USER_AGENT: z.string().optional(),
   SHARE_BACKGROUNDS_CACHE_TTL_SECONDS: z.coerce.number().default(86_400),
 
   // Firebase Cloud Messaging (opsional). Tanpa ketiganya → push no-op.

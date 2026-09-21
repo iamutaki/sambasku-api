@@ -15,6 +15,7 @@ import {
   listWordsQuerySchema,
   searchWordsQuerySchema,
   wordDetailResponseSchema,
+  wordOfDayResponseSchema,
   wordListResponseSchema,
 } from './validators/create-word.validator';
 import {
@@ -248,6 +249,18 @@ export function createPublicWordRoutes(deps: WordRoutesDeps) {
     },
   });
 
+  // 28-api-word-of-the-day.md - literal '/today' WAJIB sebelum '/:id'
+  // (kalau tidak, tertangkap param id → gagal validasi ULID 400).
+  const wordOfDayRoute = createRoute({
+    method: 'get',
+    path: '/today',
+    tags: ['Words'],
+    summary: 'Kata hari ini - deterministik per tanggal WIB (korpus kosong = data null)',
+    responses: {
+      200: { description: 'Detail kata + date + is_new_this_week, atau null', content: json(wordOfDayResponseSchema) },
+    },
+  });
+
   const wordDetailRoute = createRoute({
     method: 'get',
     path: '/:id',
@@ -276,6 +289,7 @@ export function createPublicWordRoutes(deps: WordRoutesDeps) {
 
   routes.openapi(listWordsRoute, (c) => deps.controller.list(c, c.req.valid('query')) as never);
   routes.openapi(searchWordsRoute, (c) => deps.controller.search(c, c.req.valid('query')) as never);
+  routes.openapi(wordOfDayRoute, (c) => deps.controller.wordOfDay(c) as never);
   routes.openapi(wordDetailRoute, (c) => deps.controller.detail(c, c.req.param('id')) as never);
 
   return routes;

@@ -1,4 +1,5 @@
 import { and, desc, eq, isNull, lt } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { users, verifierApplications } from '@/shared/database/drizzle/schema';
 import type * as schema from '@/shared/database/drizzle/schema';
@@ -29,7 +30,11 @@ function asLinks(value: unknown): SocialLink[] {
   return Array.isArray(value) ? (value as SocialLink[]) : [];
 }
 
-function toEntity(row: Row, username: string | null): VerifierApplication {
+function toEntity(
+  row: Row,
+  username: string | null,
+  reviewedByUsername: string | null = null,
+): VerifierApplication {
   return {
     id: row.id,
     userId: row.userId,
@@ -40,11 +45,14 @@ function toEntity(row: Row, username: string | null): VerifierApplication {
     status: asStatus(row.status),
     adminComment: row.adminComment,
     reviewedBy: row.reviewedBy,
+    reviewedByUsername,
     reviewedAt: row.reviewedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 }
+
+const reviewers = alias(users, 'reviewers');
 
 function pgMeta(err: unknown): { code?: string; constraint: string; detail: string } {
   const e = err as {
@@ -102,22 +110,32 @@ export class VerifierApplicationRepositoryImpl implements VerifierApplicationRep
 
   async findByUserId(userId: string): Promise<VerifierApplication | null> {
     const [row] = await this.db
-      .select({ app: verifierApplications, username: users.username })
+      .select({
+        app: verifierApplications,
+        username: users.username,
+        reviewedByUsername: reviewers.username,
+      })
       .from(verifierApplications)
       .leftJoin(users, eq(users.id, verifierApplications.userId))
+      .leftJoin(reviewers, eq(reviewers.id, verifierApplications.reviewedBy))
       .where(eq(verifierApplications.userId, userId))
       .limit(1);
-    return row ? toEntity(row.app, row.username) : null;
+    return row ? toEntity(row.app, row.username, row.reviewedByUsername) : null;
   }
 
   async findById(id: string): Promise<VerifierApplication | null> {
     const [row] = await this.db
-      .select({ app: verifierApplications, username: users.username })
+      .select({
+        app: verifierApplications,
+        username: users.username,
+        reviewedByUsername: reviewers.username,
+      })
       .from(verifierApplications)
       .leftJoin(users, eq(users.id, verifierApplications.userId))
+      .leftJoin(reviewers, eq(reviewers.id, verifierApplications.reviewedBy))
       .where(eq(verifierApplications.id, id))
       .limit(1);
-    return row ? toEntity(row.app, row.username) : null;
+    return row ? toEntity(row.app, row.username, row.reviewedByUsername) : null;
   }
 
   async list(

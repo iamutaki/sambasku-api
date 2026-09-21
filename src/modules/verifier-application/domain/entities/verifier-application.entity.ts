@@ -23,6 +23,8 @@ export interface VerifierApplication {
   status: VerifierApplicationStatus;
   adminComment: string | null;
   reviewedBy: string | null;
+  /** Username admin/root yang memutuskan; null jika belum direview atau akun reviewer hilang. */
+  reviewedByUsername: string | null;
   reviewedAt: Date | null;
   createdAt: Date;
   updatedAt: Date | null;

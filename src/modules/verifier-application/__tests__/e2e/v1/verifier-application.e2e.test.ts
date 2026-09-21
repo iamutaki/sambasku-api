@@ -158,5 +158,12 @@ describe.skipIf(!hasTestDb)('Verifier application E2E v1 (20 doc)', () => {
     const db = getTestDb();
     const [user] = await db.select().from(users).where(eq(users.email, contributorEmail)).limit(1);
     expect(user.role).toBe('reviewer');
+
+    const detail = await get(`/api/v1/admin/verifier-applications/${applicationId}`, adminToken);
+    expect(detail.status).toBe(200);
+    const detailBody = await detail.json();
+    expect(detailBody.data.status).toBe('approved');
+    expect(detailBody.data.reviewed_by_username).toMatch(/^admva/);
+    expect(detailBody.data.reviewed_at).toBeTruthy();
   });
 });

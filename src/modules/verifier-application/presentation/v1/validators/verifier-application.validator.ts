@@ -136,6 +136,7 @@ export const adminVerifierApplicationDetailResponseSchema = z.object({
     social_links: z.array(socialLinkWire),
     admin_comment: z.string().nullable(),
     reviewed_by: z.string().nullable(),
+    reviewed_by_username: z.string().nullable(),
     reviewed_at: z.string().nullable(),
     created_at: z.string(),
     updated_at: z.string().nullable(),

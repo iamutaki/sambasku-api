@@ -178,5 +178,9 @@ describe.skipIf(!hasTestDb)('VerifierApplicationRepositoryImpl', () => {
     const approved = await repo.approveAtomically(pending.id, admin.id);
     expect(approved.status).toBe('approved');
     expect((await users.findById(contributor.id))?.role).toBe('reviewer');
+
+    const detail = await repo.findById(pending.id);
+    expect(detail?.reviewedBy).toBe(admin.id);
+    expect(detail?.reviewedByUsername).toBe('admin-va');
   });
 });

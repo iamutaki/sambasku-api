@@ -5,6 +5,7 @@ import type { AppVariables } from '@/shared/types';
 import type { CreateWordUseCase } from '../../application/use-cases/create-word.use-case';
 import type { UpdateWordUseCase } from '../../application/use-cases/update-word.use-case';
 import type { GetWordByIdUseCase } from '../../application/use-cases/get-word-by-id.use-case';
+import type { GetWordOfDayUseCase } from '../../application/use-cases/get-word-of-day.use-case';
 import type { SearchWordsUseCase } from '../../application/use-cases/search-words.use-case';
 import type { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-case';
 import type { PublishWordUseCase } from '../../application/use-cases/publish-word.use-case';
@@ -38,6 +39,7 @@ export class WordController {
       create: CreateWordUseCase;
       update: UpdateWordUseCase;
       getById: GetWordByIdUseCase;
+      wordOfDay: GetWordOfDayUseCase;
       search: SearchWordsUseCase;
       listAdmin: ListAdminWordsUseCase;
       list: ListWordsUseCase;
@@ -113,6 +115,18 @@ export class WordController {
   async detail(c: Context, id: string) {
     const word = await this.deps.getById.execute(id);
     return c.json({ success: true as const, data: this.toDetailData(word) });
+  }
+
+  /** 28-api-word-of-the-day.md - payload detail + date + is_new_this_week,
+   *  atau data:null saat korpus published kosong (state normal). */
+  async wordOfDay(c: Context) {
+    const { date, isNewThisWeek, word } = await this.deps.wordOfDay.execute();
+    return c.json({
+      success: true as const,
+      data: word
+        ? { ...this.toDetailData(word), date, is_new_this_week: isNewThisWeek }
+        : null,
+    });
   }
 
   /**

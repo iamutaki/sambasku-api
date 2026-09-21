@@ -168,6 +168,12 @@ export interface WordRepository {
   findDuplicate(languageId: string, lemma: string, excludeWordId?: string): Promise<boolean>;
   /** hanya published + belum soft-deleted; includeAllStatuses = layar review */
   findDetailById(id: string, opts?: { includeAllStatuses?: boolean }): Promise<WordDetail | null>;
+  /**
+   * 28-api-word-of-the-day.md: id kata published untuk tanggal WIB
+   * ('YYYY-MM-DD'). Deterministik: ORDER BY md5(id || ':' || date) -
+   * semua user melihat kata sama per hari. Null = korpus kosong.
+   */
+  findWordOfDayId(date: string): Promise<string | null>;
   /** kata by id (belum soft-deleted, semua status) - validasi parent kontribusi media */
   findById(id: string): Promise<Word | null>;
   /** replace semantics: hapus children lama, insert baru - satu transaksi.

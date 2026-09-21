@@ -544,6 +544,17 @@ export const wordDetailResponseSchema = z.object({
   }),
 });
 
+// 28-api-word-of-the-day.md: detail kata + 2 field tambahan, data nullable
+// saat korpus published kosong (200 data:null, bukan error).
+export const wordOfDayResponseSchema = wordDetailResponseSchema.extend({
+  data: wordDetailResponseSchema.shape.data
+    .extend({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      is_new_this_week: z.boolean(),
+    })
+    .nullable(),
+});
+
 export const wordListResponseSchema = z.object({
   success: z.literal(true),
   data: z.array(

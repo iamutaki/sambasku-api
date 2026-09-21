@@ -106,6 +106,7 @@ export class VerifierApplicationController {
         social_links: row.socialLinks,
         admin_comment: row.adminComment,
         reviewed_by: row.reviewedBy,
+        reviewed_by_username: row.reviewedByUsername,
         reviewed_at: row.reviewedAt?.toISOString() ?? null,
         created_at: row.createdAt.toISOString(),
         updated_at: row.updatedAt?.toISOString() ?? null,

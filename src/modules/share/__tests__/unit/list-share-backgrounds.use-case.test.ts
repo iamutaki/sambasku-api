@@ -168,6 +168,37 @@ describe('ListShareBackgroundsUseCase', () => {
     expect(result.degraded).toBe(false);
   });
 
+  it('openverse + video → ValidationError', async () => {
+    const useCase = new ListShareBackgroundsUseCase(new Map(), 0);
+    await expect(
+      useCase.execute('makan', 1, 'relevant', 'openverse', 3, 'video'),
+    ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
+  });
+
+  it('wikimedia + video diizinkan', async () => {
+    const wikimedia: ShareBackgroundProviderPort = {
+      providerId: 'wikimedia',
+      providerName: 'wikimedia',
+      supportedMedia: ['photo', 'video'],
+      search: vi.fn().mockResolvedValue([
+        photoItem('v1', {
+          provider: 'wikimedia',
+          kind: 'video',
+          mime_type: 'video/mp4',
+          duration_seconds: 8,
+        }),
+      ]),
+    };
+    const useCase = new ListShareBackgroundsUseCase(
+      new Map([['wikimedia', wikimedia]]),
+      0,
+    );
+    const result = await useCase.execute('makan', 1, 'relevant', 'wikimedia', 3, 'video');
+    expect(result.provider).toBe('wikimedia');
+    expect(result.media).toBe('video');
+    expect(result.degraded).toBe(false);
+  });
+
   it('sort=popular tanpa q diizinkan', async () => {
     const provider = makeProvider(sample);
     const useCase = new ListShareBackgroundsUseCase(

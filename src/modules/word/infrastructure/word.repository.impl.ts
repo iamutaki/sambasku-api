@@ -582,6 +582,19 @@ export class WordRepositoryImpl implements WordRepository {
     };
   }
 
+  // 28-api-word-of-the-day.md: deterministik per tanggal WIB - md5(id:date)
+  // merata tiap hari, tanpa COUNT/OFFSET/tabel state. Deterministik =
+  // cache use case aman dipakai semua request di tanggal yang sama.
+  async findWordOfDayId(date: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ id: words.id })
+      .from(words)
+      .where(and(eq(words.status, 'published'), isNull(words.deletedAt)))
+      .orderBy(sql`md5(${words.id} || ':' || ${date})`)
+      .limit(1);
+    return row?.id ?? null;
+  }
+
   // Cursor-based (Section 13): cursor = ULID id item terakhir, id DESC,
   // fetch limit+1 untuk has_more - tanpa OFFSET, tanpa COUNT(*).
   // Dua arah: 'lemma' (Sambas→Indonesia, default) atau 'translation'
