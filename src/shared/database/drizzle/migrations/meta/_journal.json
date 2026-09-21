@@ -218,6 +218,13 @@
       "when": 1789924000000,
       "tag": "0030_create-bug-reports",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789925000000,
+      "tag": "0031_publish-approved-word-meanings",
+      "breakpoints": true
     }
   ]
 }
