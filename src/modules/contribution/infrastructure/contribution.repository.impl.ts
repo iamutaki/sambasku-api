@@ -667,6 +667,10 @@ export class ContributionRepositoryImpl implements ContributionRepository {
     now: Date,
   ): Promise<void> {
     const meaningRows = await tx.select({ id: meanings.id }).from(meanings).where(eq(meanings.wordId, wordId));
+    await tx
+      .update(meanings)
+      .set({ status, isVerified, updatedBy: reviewerId, updatedAt: now })
+      .where(eq(meanings.wordId, wordId));
     if (meaningRows.length > 0) {
       await tx
         .update(examples)

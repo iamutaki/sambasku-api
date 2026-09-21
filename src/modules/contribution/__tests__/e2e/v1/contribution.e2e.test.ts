@@ -139,6 +139,13 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     expect(publikBody.data.is_verified).toBe(true);
     expect(publikBody.data.self_verified).toBe(false);
     expect(typeof publikBody.data.verified_at).toBe('string');
+    expect(publikBody.data.meanings).toHaveLength(1);
+    expect(publikBody.data.meanings[0]).toMatchObject({
+      definition: expect.any(String),
+      is_have_definition: expect.any(Boolean),
+      is_have_translation: expect.any(Boolean),
+    });
+    expect(publikBody.data.meanings[0].translations.length).toBeGreaterThan(0);
   });
 
   it('approve ulang → 409 CONTRIBUTION_ALREADY_REVIEWED', async () => {

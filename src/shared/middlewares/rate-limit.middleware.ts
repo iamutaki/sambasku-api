@@ -12,8 +12,15 @@ interface RateLimitOpts {
 // Key default per-IP: Cloudflare Workers menyediakan cf-connecting-ip
 // (x-forwarded-for TIDAK diset di sana) - tanpa ini semua klien anonim
 // berbagi satu bucket "unknown" dan saling mengunci (Section 15).
-function clientIpKey(c: Context): string {
+export function clientIpKey(c: Context): string {
   return c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? 'unknown';
+}
+
+/** Header X-Device-Id: trim, panjang 8-64. Di luar itu diabaikan (06-api). */
+export function normalizedDeviceId(c: Context): string | null {
+  const raw = (c.req.header('x-device-id') ?? '').trim();
+  if (raw.length < 8 || raw.length > 64) return null;
+  return raw;
 }
 
 export function rateLimit(opts: RateLimitOpts) {
@@ -21,6 +28,11 @@ export function rateLimit(opts: RateLimitOpts) {
 
   return createMiddleware(async (c, next) => {
     const key = opts.keyFn ? opts.keyFn(c) : clientIpKey(c);
+    // key kosong = lewati consume (header device absen → bucket IP saja)
+    if (!key) {
+      await next();
+      return;
+    }
     try {
       await limiter.consume(key);
       await next();

@@ -80,7 +80,14 @@ describe.skipIf(!hasTestDb)('ContributionRepositoryImpl', () => {
     // anak-anak kata ikut submit kata → pending_review
     const [meaning] = await db
       .insert(meanings)
-      .values({ wordId, wordClassId: NOMINA, definition: 'ikan kecil', orderIndex: 1, createdBy: KONTRIBUTOR })
+      .values({
+        wordId,
+        wordClassId: NOMINA,
+        definition: 'ikan kecil',
+        orderIndex: 1,
+        status: 'pending_review',
+        createdBy: KONTRIBUTOR,
+      })
       .returning();
     await db.insert(examples).values({
       meaningId: meaning.id,
@@ -106,6 +113,8 @@ describe.skipIf(!hasTestDb)('ContributionRepositoryImpl', () => {
     expect(wordRow).toMatchObject({ status: 'published', isVerified: true, verifiedBy: REVIEWER });
     expect(wordRow.verifiedAt).not.toBeNull();
 
+    const [meaningRow] = await db.select().from(meanings).where(eq(meanings.id, meaning.id));
+    expect(meaningRow).toMatchObject({ status: 'published', isVerified: true });
     const [exampleRow] = await db.select().from(examples);
     expect(exampleRow).toMatchObject({ status: 'published', isVerified: true });
     const [pronRow] = await db.select().from(pronunciations);

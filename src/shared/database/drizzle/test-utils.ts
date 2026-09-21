@@ -4,6 +4,7 @@ import {
   auditLogs,
   authIdentities,
   bookmarks,
+  bugReports,
   categories,
   comments,
   contributionReviews,
@@ -37,6 +38,7 @@ import {
 export async function truncateAll(db: NodePgDatabase<typeof schema>): Promise<void> {
   for (const table of [
     auditLogs,
+    bugReports,
     contributionReviews,
     contributions,
     wordEditSuggestions,

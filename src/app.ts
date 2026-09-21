@@ -115,6 +115,13 @@ import { createImageStorage } from '@/modules/image/infrastructure/image-storage
 import { CreateUploadCredentialsUseCase } from '@/modules/image/application/use-cases/create-upload-credentials.use-case';
 import { ImageController } from '@/modules/image/presentation/v1/image.controller';
 import { createImageRoutes } from '@/modules/image/presentation/v1/image.routes';
+import { BugReportRepositoryImpl } from '@/modules/bug-report/infrastructure/bug-report.repository.impl';
+import { CreateBugReportUseCase } from '@/modules/bug-report/application/use-cases/create-bug-report.use-case';
+import { ListBugReportsUseCase } from '@/modules/bug-report/application/use-cases/list-bug-reports.use-case';
+import { ResolveBugReportUseCase } from '@/modules/bug-report/application/use-cases/resolve-bug-report.use-case';
+import { BugReportController } from '@/modules/bug-report/presentation/v1/bug-report.controller';
+import { createBugReportRoutes } from '@/modules/bug-report/presentation/v1/bug-report.routes';
+import { createAdminBugReportRoutes } from '@/modules/bug-report/presentation/v1/admin-bug-report.routes';
 import { DashboardController } from '@/modules/dashboard/presentation/v1/dashboard.controller';
 import { createDashboardRoutes } from '@/modules/dashboard/presentation/v1/dashboard.routes';
 import { GetDashboardStatsUseCase } from '@/modules/dashboard/application/use-cases/get-dashboard-stats.use-case';
@@ -582,6 +589,22 @@ const imageController = new ImageController({
   }),
 });
 app.route('/api/v1/admin/images/upload-token', createImageRoutes({ controller: imageController, authenticate }));
+
+const bugReportRepo = new BugReportRepositoryImpl(db);
+const bugReportController = new BugReportController({
+  create: new CreateBugReportUseCase(bugReportRepo, auditRepo),
+  list: new ListBugReportsUseCase(bugReportRepo),
+  resolve: new ResolveBugReportUseCase(bugReportRepo, auditRepo),
+  imageController,
+});
+app.route(
+  '/api/v1/bug-reports',
+  createBugReportRoutes({ controller: bugReportController, optionalAuthenticate }),
+);
+app.route(
+  '/api/v1/admin/bug-reports',
+  createAdminBugReportRoutes({ controller: bugReportController, authenticate }),
+);
 
 // Statistik dashboard - semua role yang login (dashboard = halaman pertama konsol)
 app.route('/api/v1/admin/dashboard', createDashboardRoutes({ controller: dashboardController, authenticate }));

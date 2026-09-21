@@ -34,6 +34,7 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `EMAIL_ALREADY_EXISTS` | 409 | Registrasi dengan email yang sudah dipakai |
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan nama (username) yang sudah dipakai |
 | `PHONE_ALREADY_EXISTS` | 409 | Registrasi / pengajuan verifikator dengan nomor HP yang sudah dipakai user lain |
+| `BUG_REPORT_NOT_FOUND` | 404 | Laporan masalah tidak ditemukan / sudah selesai (resolve admin) |
 | `VERIFIER_APPLICATION_NOT_FOUND` | 404 | Pengajuan verifikator tidak ada (GET me belum apply; detail admin id tidak dikenal) |
 | `VERIFIER_APPLICATION_NOT_REJECTED` | 409 | PATCH me hanya boleh jika status rejected |
 | `ALREADY_VERIFIER` | 403 | POST/PATCH pengajuan oleh user yang role-nya bukan contributor; juga approve jika pemohon sudah bukan contributor |

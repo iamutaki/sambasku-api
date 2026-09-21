@@ -74,6 +74,8 @@ export async function publishOrMergeMeaningsInTx(
       .set({
         wordId: twin.id,
         orderIndex: nextOrder++,
+        status: 'published',
+        isVerified: true,
         updatedBy: actorId,
         updatedAt: now,
       })
@@ -115,10 +117,16 @@ export async function publishOrMergeMeaningsInTx(
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function publishWordChildren(tx: any, wordId: string, actorId: string, now: Date): Promise<void> {
+  // Makna ikut gerbang kata: tanpa ini GET publik memfilter
+  // status='published' → meanings:[] → key definition/translations hilang.
+  await tx
+    .update(meanings)
+    .set({ status: 'published', isVerified: true, updatedBy: actorId, updatedAt: now })
+    .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)));
   const meaningRows: { id: string }[] = await tx
     .select({ id: meanings.id })
     .from(meanings)
-    .where(eq(meanings.wordId, wordId));
+    .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)));
   if (meaningRows.length > 0) {
     await tx
       .update(examples)
