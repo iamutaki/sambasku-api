@@ -52,9 +52,9 @@ export interface WordSummary {
   /** 11: terisi saat pencarian lemma cocok lewat variasi penulisan (formnya) */
   matchedVariant?: string;
   /**
-   * Ringkas gloss A-Z: `[n] makan,[v] santap` (kode kelas + terjemahan).
-   * Hanya GET /words (listAtoZ). Feed /latest memakai `LatestWordSummary.sense`
-   * dengan semantik berbeda (satu baris definisi/terjemahan).
+   * Ringkas gloss daftar: `[n] makan,[v] santap` (kode kelas + terjemahan).
+   * GET /words (A-Z) dan GET /words/search. Feed /latest memakai
+   * `LatestWordSummary.sense` dengan semantik berbeda (satu baris definisi).
    */
   sense?: string | null;
 }

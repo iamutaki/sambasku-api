@@ -503,6 +503,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     const hasil = await repo.search({ q: 'makan', searchIn: 'translation', limit: 10, published: true });
     expect(hasil.items.map((w) => w.lemma)).toEqual(['makatn']);
     expect(hasil.items[0].matchedTranslation).toBe('makan');
+    expect(hasil.items[0].sense).toBe('[n] makan');
 
     // filter bahasa terjemahan bekerja
     const terfilter = await repo.search({

@@ -747,7 +747,7 @@ function toListItem(w: {
     status: w.status,
     ...(w.matchedTranslation !== undefined ? { matched_translation: w.matchedTranslation } : {}),
     ...(w.matchedVariant !== undefined ? { matched_variant: w.matchedVariant } : {}),
-    // A-Z: `[n] makan,[v] santap`. Search tanpa sense → field tidak dikirim.
+    // A-Z + search: `[n] makan,[v] santap`. Null = belum ada terjemahan published.
     ...(w.sense !== undefined ? { sense: w.sense } : {}),
   };
 }

@@ -586,8 +586,11 @@ export const wordListResponseSchema = z.object({
       language_code: z.string(),
       word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']),
       status: wordStatusSchema,
+      is_verified: z.boolean(),
       matched_translation: z.string().optional(), // hanya search_in=translation
       matched_variant: z.string().optional(), // 11: form variasi yang cocok (search_in=lemma)
+      // A-Z + search: gloss `[n] makan,[v] santap` (null jika belum ada terjemahan)
+      sense: z.string().nullable().optional(),
     }),
   ),
   meta: z.object({

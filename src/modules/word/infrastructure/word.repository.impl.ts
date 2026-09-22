@@ -772,6 +772,7 @@ export class WordRepositoryImpl implements WordRepository {
       wordType: r.wordType as Word['wordType'],
       isVerified: r.isVerified,
       status: r.status as WordStatus,
+      sense: null,
     }));
 
     // 11: isi matched_variant HANYA untuk item yang match lewat variasi
@@ -804,6 +805,8 @@ export class WordRepositoryImpl implements WordRepository {
         if (matched) p.matchedVariant = matched;
       }
     }
+
+    await this.attachListGlosses(page);
 
     return {
       items: page,
@@ -868,7 +871,7 @@ export class WordRepositoryImpl implements WordRepository {
   }
 
   /**
-   * Gloss daftar A-Z: `[n] makan,[v] santap`.
+   * Gloss daftar A-Z / search: `[n] makan,[v] santap`.
    * Semua makna published × terjemahan valid, urut orderIndex makna lalu id terjemahan.
    * Batch (bukan N+1) — pola sama attachSenses feed.
    */
@@ -1147,7 +1150,7 @@ export class WordRepositoryImpl implements WordRepository {
       .limit(params.limit + 1);
 
     const hasMore = rows.length > params.limit;
-    const page = (hasMore ? rows.slice(0, params.limit) : rows).map((r) => ({
+    const page: WordSummary[] = (hasMore ? rows.slice(0, params.limit) : rows).map((r) => ({
       id: r.id,
       lemma: r.lemma,
       languageId: r.languageId,
@@ -1156,7 +1159,10 @@ export class WordRepositoryImpl implements WordRepository {
       isVerified: r.isVerified,
       status: r.status as WordStatus,
       matchedTranslation: r.matchedTranslation,
+      sense: null,
     }));
+
+    await this.attachListGlosses(page);
 
     return {
       items: page,
