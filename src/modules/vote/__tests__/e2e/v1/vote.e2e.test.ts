@@ -171,4 +171,60 @@ describe.skipIf(!hasTestDb)('Vote E2E v1 - toggle + counts + my (08 doc)', () =>
     expect(bad.status).toBe(400);
     expect((await bad.json()).error_code).toBe('VALIDATION_ERROR');
   });
+
+  it('GET /votes/my tanpa targets tetap 400; history milik pemohon saja', async () => {
+    expect((await get('/api/v1/votes/my', contributorToken)).status).toBe(400);
+    expect((await get('/api/v1/votes/history')).status).toBe(401);
+
+    await post('/api/v1/votes', { target_type: 'word', target_id: wordId, value: 1 }, adminToken);
+
+    const mine = await get('/api/v1/votes/history', contributorToken);
+    expect(mine.status).toBe(200);
+    const body = (await mine.json()) as {
+      data: { value: number; target_type: string; word: { lemma: string } | null }[];
+      meta: { has_more: boolean };
+    };
+    expect(body.data.every((row) => row.value === -1)).toBe(true);
+    expect(body.data[0].word?.lemma).toBe('kata divote');
+    expect(body.meta.has_more).toBe(false);
+
+    const adminHist = await get('/api/v1/votes/history?value=1&target_type=word', adminToken);
+    const adminBody = (await adminHist.json()) as { data: { value: number; target_type: string }[] };
+    expect(adminBody.data).toEqual([expect.objectContaining({ value: 1, target_type: 'word' })]);
+  });
+
+  it('history: cursor has_more; word null setelah kata di-soft-delete', async () => {
+    const created = await post(
+      `/api/v1/words/${wordId}/comments`,
+      { body: 'komentar untuk vote history' },
+      contributorToken,
+    );
+    const commentId = ((await created.json()) as { data: { id: string } }).data.id;
+    await post('/api/v1/votes', { target_type: 'comment', target_id: commentId, value: 1 }, contributorToken);
+
+    const page1 = await get('/api/v1/votes/history?limit=1', contributorToken);
+    const b1 = (await page1.json()) as {
+      data: { id: string; target_type: string }[];
+      meta: { next_cursor: string | null; has_more: boolean; limit: number };
+    };
+    expect(b1.meta).toMatchObject({ limit: 1, has_more: true });
+    expect(b1.data[0].target_type).toBe('comment');
+
+    const page2 = await get(
+      `/api/v1/votes/history?limit=1&cursor=${b1.meta.next_cursor}`,
+      contributorToken,
+    );
+    const b2 = (await page2.json()) as { data: { id: string }[] };
+    expect(b2.data[0].id).not.toBe(b1.data[0].id);
+
+    const { getTestDb } = await import('@/shared/database/drizzle/test-client');
+    const { words } = await import('@/shared/database/drizzle/schema');
+    const db = getTestDb();
+    await db.update(words).set({ deletedAt: new Date() }).where(eq(words.id, wordId));
+
+    const after = await get('/api/v1/votes/history?target_type=word', contributorToken);
+    const afterBody = (await after.json()) as { data: { word: null }[] };
+    expect(afterBody.data.length).toBeGreaterThan(0);
+    expect(afterBody.data.every((row) => row.word === null)).toBe(true);
+  });
 });

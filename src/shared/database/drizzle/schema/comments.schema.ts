@@ -3,10 +3,9 @@ import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 import { words } from './words.schema';
 
-// Komentar pada lemma (09-api-comment.md). Terikat ke word (FK langsung,
-// BUKAN polymorphic - keputusan 09) + pre-moderation penuh: komentar baru
-// pending_review, tampil publik HANYA setelah approve admin/root/reviewer
-// (approval gate Section 22; TANPA is_verified/is_corrected - konten ringan).
+// Komentar pada lemma (09-api-comment.md). Terikat ke word (FK langsung).
+// Post-moderation: create → published; admin takedown → taken_down;
+// penulis hapus → deleted_by_author. Soft-delete hanya purge keras.
 export const comments = sqliteTable(
   'comments',
   {
@@ -18,9 +17,8 @@ export const comments = sqliteTable(
       .notNull()
       .references(() => users.id),
     body: text('body').notNull(),
-    // pending_review | published | rejected (kosakata konten Section 22,
-    // bukan kosakata workflow contributions - komentar adalah konten)
-    status: text('status').notNull().default('pending_review'),
+    // published | taken_down | deleted_by_author
+    status: text('status').notNull().default('published'),
     reviewedBy: text('reviewed_by').references(() => users.id),
     reviewedAt: integer('reviewed_at', { mode: 'timestamp' }),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
@@ -31,5 +29,6 @@ export const comments = sqliteTable(
   (t) => [
     index('comments_word_status_idx').on(t.wordId, t.status, t.id),
     index('comments_status_idx').on(t.status, t.id),
+    index('comments_user_status_id_idx').on(t.userId, t.status, t.id),
   ],
 );

@@ -20,6 +20,10 @@ import type {
   AdminTopVoteTarget,
   ToggleVoteResult,
   VoteCounts,
+  VoteHistoryItem,
+  VoteHistoryListOptions,
+  VoteHistoryListResult,
+  VoteHistoryWord,
   VoteRepository,
   VoteTarget,
   VoteTargetType,
@@ -308,6 +312,175 @@ export class VoteRepositoryImpl implements VoteRepository {
         previewMap.get(voteTargetKey({ entityType: r.entityType as VoteTargetType, entityId: r.entityId })) ??
         null,
     }));
+  }
+
+  async listByUser(userId: string, opts: VoteHistoryListOptions): Promise<VoteHistoryListResult> {
+    const rows = await this.db
+      .select({
+        id: votes.id,
+        entityType: votes.entityType,
+        entityId: votes.entityId,
+        value: votes.value,
+        createdAt: votes.createdAt,
+      })
+      .from(votes)
+      .where(
+        and(
+          eq(votes.userId, userId),
+          opts.targetType ? eq(votes.entityType, opts.targetType) : undefined,
+          opts.value !== undefined ? eq(votes.value, opts.value) : undefined,
+          opts.cursor ? lt(votes.id, opts.cursor) : undefined,
+        ),
+      )
+      .orderBy(desc(votes.id))
+      .limit(opts.limit + 1);
+
+    const hasMore = rows.length > opts.limit;
+    const page = hasMore ? rows.slice(0, opts.limit) : rows;
+    const wordMap = await this.resolveParentWords(
+      page.map((row) => ({
+        entityType: row.entityType as VoteTargetType,
+        entityId: row.entityId,
+      })),
+    );
+
+    const items: VoteHistoryItem[] = page.map((row) => {
+      const target = { entityType: row.entityType as VoteTargetType, entityId: row.entityId };
+      return {
+        id: row.id,
+        entityType: target.entityType,
+        entityId: target.entityId,
+        value: row.value === 1 ? 1 : -1,
+        votedAt: row.createdAt,
+        word: wordMap.get(voteTargetKey(target)) ?? null,
+      };
+    });
+
+    const last = page[page.length - 1];
+    return {
+      items,
+      nextCursor: hasMore && last ? last.id : null,
+      hasMore,
+    };
+  }
+
+  /**
+   * Batch kata induk per jenis target. Satu query per jenis, lalu satu
+   * query words. Kata soft-delete atau parent hilang tidak masuk map
+   * (pemanggil mengisi `word: null` tanpa membuang baris vote).
+   */
+  private async resolveParentWords(
+    targets: { entityType: VoteTargetType; entityId: string }[],
+  ): Promise<Map<string, VoteHistoryWord>> {
+    const out = new Map<string, VoteHistoryWord>();
+    if (targets.length === 0) return out;
+
+    const idsByType = new Map<VoteTargetType, string[]>();
+    for (const target of targets) {
+      const list = idsByType.get(target.entityType) ?? [];
+      list.push(target.entityId);
+      idsByType.set(target.entityType, list);
+    }
+
+    const wordIdByTarget = new Map<string, string>();
+
+    const directWordIds = [...new Set(idsByType.get('word') ?? [])];
+    for (const id of directWordIds) {
+      wordIdByTarget.set(voteTargetKey({ entityType: 'word', entityId: id }), id);
+    }
+
+    const meaningIds = [...new Set(idsByType.get('meaning') ?? [])];
+    const exampleIds = [...new Set(idsByType.get('example') ?? [])];
+    const pronunciationIds = [...new Set(idsByType.get('pronunciation') ?? [])];
+    const imageIds = [...new Set(idsByType.get('word_image') ?? [])];
+    const commentIds = [...new Set(idsByType.get('comment') ?? [])];
+
+    const [meaningRows, exampleRows, pronunciationRows, imageRows, commentRows] = await Promise.all([
+      meaningIds.length > 0
+        ? this.db
+            .select({ id: meanings.id, wordId: meanings.wordId })
+            .from(meanings)
+            .where(inArray(meanings.id, meaningIds))
+        : Promise.resolve([]),
+      exampleIds.length > 0
+        ? this.db
+            .select({ id: examples.id, meaningId: examples.meaningId })
+            .from(examples)
+            .where(inArray(examples.id, exampleIds))
+        : Promise.resolve([]),
+      pronunciationIds.length > 0
+        ? this.db
+            .select({ id: pronunciations.id, wordId: pronunciations.wordId })
+            .from(pronunciations)
+            .where(inArray(pronunciations.id, pronunciationIds))
+        : Promise.resolve([]),
+      imageIds.length > 0
+        ? this.db
+            .select({ id: wordImages.id, wordId: wordImages.wordId })
+            .from(wordImages)
+            .where(inArray(wordImages.id, imageIds))
+        : Promise.resolve([]),
+      commentIds.length > 0
+        ? this.db
+            .select({ id: comments.id, wordId: comments.wordId })
+            .from(comments)
+            .where(inArray(comments.id, commentIds))
+        : Promise.resolve([]),
+    ]);
+
+    for (const row of meaningRows) {
+      wordIdByTarget.set(voteTargetKey({ entityType: 'meaning', entityId: row.id }), row.wordId);
+    }
+    for (const row of pronunciationRows) {
+      wordIdByTarget.set(voteTargetKey({ entityType: 'pronunciation', entityId: row.id }), row.wordId);
+    }
+    for (const row of imageRows) {
+      wordIdByTarget.set(voteTargetKey({ entityType: 'word_image', entityId: row.id }), row.wordId);
+    }
+    for (const row of commentRows) {
+      wordIdByTarget.set(voteTargetKey({ entityType: 'comment', entityId: row.id }), row.wordId);
+    }
+
+    if (exampleRows.length > 0) {
+      const parentMeaningIds = [...new Set(exampleRows.map((row) => row.meaningId))];
+      const parentMeanings = await this.db
+        .select({ id: meanings.id, wordId: meanings.wordId })
+        .from(meanings)
+        .where(inArray(meanings.id, parentMeaningIds));
+      const wordByMeaning = new Map(parentMeanings.map((row) => [row.id, row.wordId]));
+      for (const row of exampleRows) {
+        const wordId = wordByMeaning.get(row.meaningId);
+        if (wordId) {
+          wordIdByTarget.set(voteTargetKey({ entityType: 'example', entityId: row.id }), wordId);
+        }
+      }
+    }
+
+    const parentWordIds = [...new Set(wordIdByTarget.values())];
+    if (parentWordIds.length === 0) return out;
+
+    const wordRows = await this.db
+      .select({
+        id: words.id,
+        lemma: words.lemma,
+        wordType: words.wordType,
+        isVerified: words.isVerified,
+      })
+      .from(words)
+      .where(and(inArray(words.id, parentWordIds), isNull(words.deletedAt)));
+
+    const summaryById = new Map<string, VoteHistoryWord>(
+      wordRows.map((row) => [
+        row.id,
+        { id: row.id, lemma: row.lemma, wordType: row.wordType, isVerified: row.isVerified },
+      ]),
+    );
+
+    for (const [key, wordId] of wordIdByTarget) {
+      const summary = summaryById.get(wordId);
+      if (summary) out.set(key, summary);
+    }
+    return out;
   }
 
   /**

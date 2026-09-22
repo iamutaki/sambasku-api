@@ -11,6 +11,8 @@ import {
   createCommentResponseSchema,
   listCommentsQuerySchema,
   listCommentsResponseSchema,
+  listMyCommentsQuerySchema,
+  myCommentsResponseSchema,
 } from './validators/comment.validator';
 
 const json = <T extends z.ZodType>(schema: T) => ({
@@ -40,7 +42,7 @@ export function createWordCommentRoutes(deps: CommentRoutesDeps) {
     method: 'get',
     path: '/:wordId/comments',
     tags: ['Comments'],
-    summary: 'Komentar published pada sebuah kata (publik, terbaru dulu, + vote counts)',
+    summary: 'Komentar pada sebuah kata (published/taken_down/deleted_by_author, + vote counts)',
     request: {
       params: z.object({ wordId: ulid26 }),
       query: listCommentsQuerySchema,
@@ -56,13 +58,13 @@ export function createWordCommentRoutes(deps: CommentRoutesDeps) {
     method: 'post',
     path: '/:wordId/comments',
     tags: ['Comments'],
-    summary: 'Tulis komentar pada lemma - langsung pending_review (pre-moderation, approval gate Section 22)',
+    summary: 'Tulis komentar pada lemma - langsung published (post-moderation + blocklist filter)',
     request: {
       params: z.object({ wordId: ulid26 }),
       body: { content: json(commentBodySchema) },
     },
     responses: {
-      201: { description: 'Komentar tersimpan (menunggu moderasi)', content: json(createCommentResponseSchema) },
+      201: { description: 'Komentar tersimpan dan tayang', content: json(createCommentResponseSchema) },
       400: { description: 'Body kosong/kepanjangan', content: json(errorResponseSchema) },
       401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
       404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
@@ -85,20 +87,52 @@ export function createWordCommentRoutes(deps: CommentRoutesDeps) {
 export function createCommentRoutes(deps: CommentRoutesDeps) {
   const routes = createOpenApiApp();
 
+  // /my SEBELUM /:id supaya "my" tidak tertelan param delete.
+  routes.use(
+    '/my',
+    deps.authenticate,
+    rateLimit({
+      points: 100,
+      duration: 60,
+      keyFn: (c) => {
+        const user = (c.get('user') as AuthUser | undefined) ?? null;
+        return `my-comments:${user?.user_id ?? 'unknown'}`;
+      },
+    }),
+  );
+
+  const myRoute = createRoute({
+    method: 'get',
+    path: '/my',
+    tags: ['Comments'],
+    summary: 'Komentar milik user login (semua status kecuali soft-delete)',
+    request: {
+      query: listMyCommentsQuerySchema,
+    },
+    responses: {
+      200: { description: 'Daftar komentar milik pemohon', content: json(myCommentsResponseSchema) },
+      400: { description: 'Query tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      429: { description: 'Terlalu banyak permintaan (100/menit per user)', content: json(errorResponseSchema) },
+    },
+  });
+
+  routes.openapi(myRoute, (c) => deps.controller.my(c, c.req.valid('query')) as never);
+
   routes.use('/:id', deps.authenticate, wordCommentLimiter());
 
   const deleteRoute = createRoute({
     method: 'delete',
     path: '/:id',
     tags: ['Comments'],
-    summary: 'Soft-delete komentar - penulis sendiri atau admin/root/reviewer',
+    summary: 'Hapus komentar oleh penulis → status deleted_by_author',
     request: {
       params: z.object({ id: ulid26 }),
     },
     responses: {
-      200: { description: 'Komentar di-soft-delete', content: json(okNullResponseSchema) },
+      200: { description: 'Komentar ditandai dihapus penulis', content: json(okNullResponseSchema) },
       401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
-      403: { description: 'Bukan penulis dan bukan verifikator', content: json(errorResponseSchema) },
+      403: { description: 'Bukan penulis', content: json(errorResponseSchema) },
       404: { description: 'Komentar tidak ditemukan', content: json(errorResponseSchema) },
     },
   });

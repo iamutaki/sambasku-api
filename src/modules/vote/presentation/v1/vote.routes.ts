@@ -12,6 +12,8 @@ import {
   toggleVoteResponseSchema,
   toggleVoteSchema,
   voteCountsResponseSchema,
+  voteHistoryQuerySchema,
+  voteHistoryResponseSchema,
 } from './validators/vote.validator';
 
 const json = <T extends z.ZodType>(schema: T) => ({
@@ -46,6 +48,20 @@ export function createVoteRoutes(deps: VoteRoutesDeps) {
   routes.use('/counts', rateLimit({ points: 100, duration: 60 }));
   // My: login (semua role), tanpa limit tambahan - baca kecil bermakna user sendiri
   routes.use('/my', deps.authenticate);
+  // History: login (semua role) + 100/menit per user_id. Path baru, bukan
+  // dual-mode /my (26-api-my-votes.md).
+  routes.use(
+    '/history',
+    deps.authenticate,
+    rateLimit({
+      points: 100,
+      duration: 60,
+      keyFn: (c) => {
+        const user = (c.get('user') as AuthUser | undefined) ?? null;
+        return `vote-history:${user?.user_id ?? 'unknown'}`;
+      },
+    }),
+  );
 
   const toggleRoute = createRoute({
     method: 'post',
@@ -80,6 +96,22 @@ export function createVoteRoutes(deps: VoteRoutesDeps) {
     },
   });
 
+  const historyRoute = createRoute({
+    method: 'get',
+    path: '/history',
+    tags: ['Votes'],
+    summary: 'Riwayat vote milik user login (semua jenis target, lemma kata induk)',
+    request: {
+      query: voteHistoryQuerySchema,
+    },
+    responses: {
+      200: { description: 'Daftar vote milik pemohon', content: json(voteHistoryResponseSchema) },
+      400: { description: 'Query tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      429: { description: 'Terlalu banyak permintaan (100/menit per user)', content: json(errorResponseSchema) },
+    },
+  });
+
   const myRoute = createRoute({
     method: 'get',
     path: '/my',
@@ -97,6 +129,7 @@ export function createVoteRoutes(deps: VoteRoutesDeps) {
 
   routes.openapi(toggleRoute, (c) => deps.controller.toggle(c, c.req.valid('json')) as never);
   routes.openapi(countsRoute, (c) => deps.controller.counts(c, c.req.valid('query')) as never);
+  routes.openapi(historyRoute, (c) => deps.controller.history(c, c.req.valid('query')) as never);
   routes.openapi(myRoute, (c) => deps.controller.my(c, c.req.valid('query')) as never);
 
   return routes;

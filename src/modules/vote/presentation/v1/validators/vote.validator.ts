@@ -68,6 +68,41 @@ export const voteCountsResponseSchema = z.object({
   ),
 });
 
+export const voteHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  cursor: opaqueId.optional(),
+  target_type: voteTargetTypeEnum.optional(),
+  value: z.enum(['1', '-1']).optional(),
+});
+
+export type VoteHistoryQuery = z.infer<typeof voteHistoryQuerySchema>;
+
+const voteHistoryWordSchema = z.object({
+  id: z.string(),
+  lemma: z.string(),
+  word_type: z.string(),
+  is_verified: z.boolean(),
+});
+
+export const voteHistoryResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(
+    z.object({
+      id: z.string(),
+      target_type: voteTargetTypeEnum,
+      target_id: z.string(),
+      value: z.union([z.literal(1), z.literal(-1)]),
+      voted_at: z.string(),
+      word: voteHistoryWordSchema.nullable(),
+    }),
+  ),
+  meta: z.object({
+    limit: z.number().int(),
+    next_cursor: z.string().nullable(),
+    has_more: z.boolean(),
+  }),
+});
+
 export const myVotesResponseSchema = z.object({
   success: z.literal(true),
   data: z.array(

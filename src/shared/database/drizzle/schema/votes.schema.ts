@@ -26,5 +26,7 @@ export const votes = sqliteTable(
   (t) => [
     uniqueIndex('votes_user_target_unique').on(t.userId, t.entityType, t.entityId),
     index('votes_target_idx').on(t.entityType, t.entityId),
+    // Riwayat milik user: ORDER BY id DESC (26-api-my-votes.md)
+    index('votes_user_id_id_idx').on(t.userId, t.id),
   ],
 );

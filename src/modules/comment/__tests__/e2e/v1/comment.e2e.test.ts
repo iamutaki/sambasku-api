@@ -2,19 +2,17 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
 
-// Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
 const hasTestDb = !!parsed?.DATABASE_URL;
 if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL;
 
-// Fixture ULID - selalu 26 karakter (varchar(26))
 const ulid26 = (prefix: string) => prefix.padEnd(26, '0').slice(0, 26);
 const SMB = ulid26('01U2ELANGSMB');
 const IDN = ulid26('01U2ELANGIDN');
 const NOMINA = ulid26('01U2EWCNOMINA');
 const MAKANAN = ulid26('01U2ECATMAKANAN');
 
-describe.skipIf(!hasTestDb)('Comment E2E v1 - komentar + moderasi (09 doc)', () => {
+describe.skipIf(!hasTestDb)('Comment E2E v1 - post-moderation (09 doc)', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let app: any;
   let adminToken: string;
@@ -104,129 +102,129 @@ describe.skipIf(!hasTestDb)('Comment E2E v1 - komentar + moderasi (09 doc)', () 
     wordId = data.word_id as string;
   });
 
-  it('ALUR PENUH: POST → pending (list kosong) → approve → tampil + vote komentar', async () => {
-    const created = await post(`/api/v1/words/${wordId}/comments`, { body: 'Kata ini sering saya dengar' }, contributorToken);
+  it('ALUR: POST → published langsung + vote; takedown → body null di publik', async () => {
+    const created = await post(
+      `/api/v1/words/${wordId}/comments`,
+      { body: 'Kata ini sering saya dengar' },
+      contributorToken,
+    );
     expect(created.status).toBe(201);
     const { data } = await created.json();
-    expect(data.status).toBe('pending_review');
-    expect(typeof data.username).toBe('string'); // username ter-join (read-back)
+    expect(data.status).toBe('published');
     const commentId = data.id as string;
-
-    // pre-moderation: belum tampil di list publik
-    const empty = await get(`/api/v1/words/${wordId}/comments`);
-    expect(((await empty.json()) as { data: unknown[] }).data).toHaveLength(0);
-
-    // antrean admin melihatnya
-    const queue = await get('/api/v1/admin/comments?status=pending_review', adminToken);
-    const queueBody = await queue.json();
-    expect(queueBody.data.some((c: { id: string }) => c.id === commentId)).toBe(true);
-
-    // approve → tampil publik
-    const approve = await post(`/api/v1/admin/comments/${commentId}/approve`, {}, adminToken);
-    expect(approve.status).toBe(200);
-    expect((await approve.json()).data.status).toBe('published');
 
     const list = await get(`/api/v1/words/${wordId}/comments`);
     const listBody = await list.json();
     expect(listBody.data).toHaveLength(1);
-    expect(listBody.data[0]).toMatchObject({ id: commentId, username: expect.any(String), upvotes: 0 });
+    expect(listBody.data[0]).toMatchObject({
+      id: commentId,
+      status: 'published',
+      body: 'Kata ini sering saya dengar',
+      upvotes: 0,
+    });
 
-    // vote komentar → counts di list naik
     await post('/api/v1/votes', { target_type: 'comment', target_id: commentId, value: 1 }, otherToken);
     const afterVote = await get(`/api/v1/words/${wordId}/comments`);
     expect(((await afterVote.json()) as { data: { upvotes: number }[] }).data[0].upvotes).toBe(1);
 
-    // audit approve tercatat
+    const td = await post(`/api/v1/admin/comments/${commentId}/takedown`, {}, adminToken);
+    expect(td.status).toBe(200);
+    expect((await td.json()).data.status).toBe('taken_down');
+
+    const afterTd = await get(`/api/v1/words/${wordId}/comments`);
+    const afterTdBody = await afterTd.json();
+    expect(afterTdBody.data[0]).toMatchObject({ id: commentId, status: 'taken_down', body: null });
+
     const logs = await get('/api/v1/admin/audit-logs', adminToken);
     const logBody = await logs.json();
-    const approveLog = logBody.data.find(
-      (l: { entity_type: string; action: string }) => l.entity_type === 'comment' && l.action === 'approve',
+    const tdLog = logBody.data.find(
+      (l: { entity_type: string; action: string }) =>
+        l.entity_type === 'comment' && l.action === 'takedown',
     );
-    expect(approveLog.entity_id).toBe(commentId);
+    expect(tdLog.entity_id).toBe(commentId);
   });
 
-  it('REJECT: komentar kedua ditolak → tidak pernah tampil publik', async () => {
-    const created = await post(`/api/v1/words/${wordId}/comments`, { body: 'komentar ditolak' }, contributorToken);
+  it('takedown dua kali → 409 COMMENT_ALREADY_MODERATED', async () => {
+    const created = await post(`/api/v1/words/${wordId}/comments`, { body: 'double td' }, contributorToken);
     const { data } = await created.json();
+    await post(`/api/v1/admin/comments/${data.id}/takedown`, {}, adminToken);
 
-    const reject = await post(`/api/v1/admin/comments/${data.id}/reject`, {}, adminToken);
-    expect(reject.status).toBe(200);
-    expect((await reject.json()).data.status).toBe('rejected');
-
-    const list = await get(`/api/v1/words/${wordId}/comments`);
-    expect(((await list.json()) as { data: unknown[] }).data).toHaveLength(1); // hanya yang approved
-  });
-
-  it('approve dua kali → 409 COMMENT_ALREADY_REVIEWED', async () => {
-    const created = await post(`/api/v1/words/${wordId}/comments`, { body: 'double review' }, contributorToken);
-    const { data } = await created.json();
-    await post(`/api/v1/admin/comments/${data.id}/approve`, {}, adminToken);
-
-    const res = await post(`/api/v1/admin/comments/${data.id}/approve`, {}, adminToken);
+    const res = await post(`/api/v1/admin/comments/${data.id}/takedown`, {}, adminToken);
     expect(res.status).toBe(409);
-    expect((await res.json()).error_code).toBe('COMMENT_ALREADY_REVIEWED');
+    expect((await res.json()).error_code).toBe('COMMENT_ALREADY_MODERATED');
   });
 
-  it('DELETE: penulis sendiri OK → hilang dari list; user lain → 403; admin bisa hapus punya orang', async () => {
+  it('DELETE penulis → deleted_by_author (body null); user lain/admin → 403', async () => {
     const mine = await post(`/api/v1/words/${wordId}/comments`, { body: 'hapus sendiri' }, contributorToken);
     const mineId = ((await mine.json()) as { data: { id: string } }).data.id;
-    await post(`/api/v1/admin/comments/${mineId}/approve`, {}, adminToken);
 
-    // user lain tidak boleh
     expect((await del(`/api/v1/comments/${mineId}`, otherToken)).status).toBe(403);
-    // penulis boleh
+    expect((await del(`/api/v1/comments/${mineId}`, adminToken)).status).toBe(403);
     expect((await del(`/api/v1/comments/${mineId}`, contributorToken)).status).toBe(200);
 
     const list = await get(`/api/v1/words/${wordId}/comments`);
-    const bodies = ((await list.json()) as { data: { id: string }[] }).data.map((c) => c.id);
-    expect(bodies).not.toContain(mineId);
-
-    // admin bisa hapus komentar orang lain
-    const others = await post(`/api/v1/words/${wordId}/comments`, { body: 'dihapus admin' }, otherToken);
-    const otherId = ((await others.json()) as { data: { id: string } }).data.id;
-    await post(`/api/v1/admin/comments/${otherId}/approve`, {}, adminToken);
-    expect((await del(`/api/v1/comments/${otherId}`, adminToken)).status).toBe(200);
+    const item = ((await list.json()) as { data: { id: string; status: string; body: string | null }[] }).data.find(
+      (c) => c.id === mineId,
+    );
+    expect(item).toMatchObject({ status: 'deleted_by_author', body: null });
   });
 
-  it('gagal: 401 tanpa token, 403 contributor ke antrean admin, 404 word/komentar tidak ada, 400 body kosong', async () => {
+  it('blocklist: kata terlarang diganti *** saat create', async () => {
+    const add = await post('/api/v1/admin/comment-blocklist', { word: 'bodoh' }, adminToken);
+    expect(add.status).toBe(201);
+
+    const created = await post(
+      `/api/v1/words/${wordId}/comments`,
+      { body: 'Jangan bilang Bodoh ya' },
+      contributorToken,
+    );
+    expect(created.status).toBe(201);
+    const { data } = await created.json();
+    expect(data.body).toBe('Jangan bilang *** ya');
+  });
+
+  it('gagal: 401, 403 contributor admin, 404, 400', async () => {
     expect((await post(`/api/v1/words/${wordId}/comments`, { body: 'x' })).status).toBe(401);
     expect((await get('/api/v1/admin/comments', contributorToken)).status).toBe(403);
-    expect((await post(`/api/v1/words/${ulid26('01U2EWORDNGACAK')}/comments`, { body: 'x' }, contributorToken)).status).toBe(404);
-    expect((await del(`/api/v1/comments/${ulid26('01U2ECMNGACAK')}`, adminToken)).status).toBe(404);
+    expect(
+      (await post(`/api/v1/words/${ulid26('01U2EWORDNGACAK')}/comments`, { body: 'x' }, contributorToken))
+        .status,
+    ).toBe(404);
+    expect((await del(`/api/v1/comments/${ulid26('01U2ECMNGACAK')}`, contributorToken)).status).toBe(404);
     expect((await post(`/api/v1/words/${wordId}/comments`, { body: '' }, contributorToken)).status).toBe(400);
   });
 
-  it('antrean admin: tanpa status = semua; word_id = hanya kata itu (section detail admin)', async () => {
-    // dua kata: wordId (punya komentar dari test sebelumnya) + kata kedua
-    const create2 = await post('/api/v1/admin/words', {
-      language_id: SMB,
-      lemma: 'kata kedua komentar',
-      meanings: [
-        {
-          word_class_id: NOMINA,
-          definition: 'Kata kedua uji word_id filter',
-          order_index: 1,
-          translations: [{ language_id: IDN, translation_text: 'kata kedua', translation_type: 'direct' }],
-        },
-      ],
-      word_type: 'word',
-      category_ids: [MAKANAN],
-      related_words: [],
-      status: 'published',
-    }, adminToken);
-    const wordId2 = ((await create2.json()) as { data: { word_id: string } }).data.word_id;
-    await post(`/api/v1/words/${wordId2}/comments`, { body: 'komentar kata kedua' }, contributorToken);
+  it('GET /comments/my: milik pemohon; filter taken_down', async () => {
+    expect((await get('/api/v1/comments/my')).status).toBe(401);
 
-    // tanpa status: semua status (published/rejected/pending) muncul
-    const all = await get('/api/v1/admin/comments', adminToken);
-    const allBodies = ((await all.json()) as { data: { word_id: string }[] }).data.map((cm) => cm.word_id);
-    expect(allBodies).toContain(wordId);
-    expect(allBodies).toContain(wordId2);
+    const mine = await get('/api/v1/comments/my', contributorToken);
+    expect(mine.status).toBe(200);
+    const body = (await mine.json()) as {
+      data: { body: string; status: string; user_id?: string; word_lemma: string | null }[];
+    };
+    expect(body.data.some((row) => row.body.includes('sering saya dengar'))).toBe(true);
+    expect(body.data.some((row) => row.status === 'deleted_by_author' && row.body === 'hapus sendiri')).toBe(true);
+    expect(body.data[0]).not.toHaveProperty('user_id');
+    expect(body.data[0]).not.toHaveProperty('username');
 
-    // word_id: hanya komentar kata itu
-    const ofWord = await get(`/api/v1/admin/comments?word_id=${wordId}`, adminToken);
-    const bodies = ((await ofWord.json()) as { data: { word_id: string }[] }).data.map((cm) => cm.word_id);
-    expect(bodies.every((w) => w === wordId)).toBe(true);
-    expect(bodies.length).toBeGreaterThan(0);
+    const taken = await get('/api/v1/comments/my?status=taken_down', contributorToken);
+    const takenBody = ((await taken.json()) as { data: { status: string; body: string }[] }).data;
+    expect(takenBody.length).toBeGreaterThan(0);
+    expect(takenBody.every((row) => row.status === 'taken_down')).toBe(true);
+
+    const other = await get('/api/v1/comments/my', otherToken);
+    const otherBodies = ((await other.json()) as { data: { body: string }[] }).data.map((row) => row.body);
+    expect(otherBodies).not.toContain('hapus sendiri');
+
+    const page = await get('/api/v1/comments/my?limit=1', contributorToken);
+    const pageBody = (await page.json()) as { meta: { limit: number; has_more: boolean; next_cursor: string | null } };
+    expect(pageBody.meta).toMatchObject({ limit: 1, has_more: true });
+    expect(pageBody.meta.next_cursor).toHaveLength(26);
+
+    const publicList = await get(`/api/v1/words/${wordId}/comments`);
+    const publicItem = (
+      (await publicList.json()) as { data: { status: string; body: string | null }[] }
+    ).data.find((row) => row.status === 'taken_down');
+    expect(publicItem?.body).toBeNull();
   });
 });

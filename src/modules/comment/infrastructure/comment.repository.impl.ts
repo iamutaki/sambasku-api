@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt } from 'drizzle-orm';
 import { comments, users, words } from '@/shared/database/drizzle/schema';
 import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type { Comment, CommentStatus, CursorPage } from '../domain/entities/comment.entity';
@@ -6,16 +6,14 @@ import type {
   CommentRepository,
   ListAdminCommentsParams,
   ListCommentsParams,
+  ListMyCommentsParams,
 } from '../domain/repositories/comment.repository';
 
-// Status akhir moderasi per decision (kosakata konten Section 22)
-const STATUS_OF = { approve: 'published', reject: 'rejected' } as const;
+const PUBLIC_STATUSES: CommentStatus[] = ['published', 'taken_down', 'deleted_by_author'];
 
 export class CommentRepositoryImpl implements CommentRepository {
   constructor(private readonly db: AppDatabase) {}
 
-  // Builder SEGAR setiap panggilan - builder Drizzle tidak untuk dipakai
-  // ulang antar-query (state .where() bisa terbawa).
   private selectBase() {
     return this.db
       .select({
@@ -31,7 +29,12 @@ export class CommentRepositoryImpl implements CommentRepository {
   async create(data: { wordId: string; userId: string; body: string }): Promise<Comment> {
     const [row] = await this.db
       .insert(comments)
-      .values({ wordId: data.wordId, userId: data.userId, body: data.body })
+      .values({
+        wordId: data.wordId,
+        userId: data.userId,
+        body: data.body,
+        status: 'published',
+      })
       .returning();
     return this.toComment(row, null, null);
   }
@@ -39,7 +42,7 @@ export class CommentRepositoryImpl implements CommentRepository {
   async listByWord(wordId: string, params: ListCommentsParams): Promise<CursorPage<Comment>> {
     const where = and(
       eq(comments.wordId, wordId),
-      eq(comments.status, 'published'),
+      inArray(comments.status, PUBLIC_STATUSES),
       isNull(comments.deletedAt),
       params.cursor ? lt(comments.id, params.cursor) : undefined,
     );
@@ -56,8 +59,29 @@ export class CommentRepositoryImpl implements CommentRepository {
   async softDelete(id: string, actorId: string): Promise<boolean> {
     const updated = await this.db
       .update(comments)
-      .set({ deletedAt: new Date(), deletedBy: actorId })
+      .set({ deletedAt: new Date(), deletedBy: actorId, updatedAt: new Date() })
       .where(and(eq(comments.id, id), isNull(comments.deletedAt)))
+      .returning({ id: comments.id });
+    return updated.length > 0;
+  }
+
+  async markDeletedByAuthor(id: string, actorId: string): Promise<boolean> {
+    const updated = await this.db
+      .update(comments)
+      .set({
+        status: 'deleted_by_author',
+        updatedAt: new Date(),
+        // track actor in reviewed_* for consistency with moderation trail
+        reviewedBy: actorId,
+        reviewedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(comments.id, id),
+          eq(comments.status, 'published'),
+          isNull(comments.deletedAt),
+        ),
+      )
       .returning({ id: comments.id });
     return updated.length > 0;
   }
@@ -72,24 +96,49 @@ export class CommentRepositoryImpl implements CommentRepository {
     return this.page(where, params.limit);
   }
 
-  async review(id: string, decision: 'approve' | 'reject', reviewerId: string): Promise<boolean> {
-    // WHERE status = 'pending_review' = penjaga race double-review:
-    // dua moderator klik bersamaan → satu nge-update, satu dapat false → 409.
+  async listByUser(params: ListMyCommentsParams): Promise<CursorPage<Comment>> {
+    const where = and(
+      eq(comments.userId, params.userId),
+      params.status ? eq(comments.status, params.status) : undefined,
+      isNull(comments.deletedAt),
+      params.cursor ? lt(comments.id, params.cursor) : undefined,
+    );
+    const rows = await this.db
+      .select({
+        comment: comments,
+        wordLemma: words.lemma,
+        wordDeletedAt: words.deletedAt,
+      })
+      .from(comments)
+      .leftJoin(words, eq(words.id, comments.wordId))
+      .where(where)
+      .orderBy(desc(comments.id))
+      .limit(params.limit + 1);
+
+    const hasMore = rows.length > params.limit;
+    const page = hasMore ? rows.slice(0, params.limit) : rows;
+    const items = page.map((row) =>
+      this.toComment(row.comment, null, row.wordDeletedAt ? null : row.wordLemma),
+    );
+    return { items, nextCursor: hasMore ? items[items.length - 1].id : null, hasMore };
+  }
+
+  async takedown(id: string, reviewerId: string): Promise<boolean> {
     const updated = await this.db
       .update(comments)
-      .set({ status: STATUS_OF[decision], reviewedBy: reviewerId, reviewedAt: new Date() })
+      .set({
+        status: 'taken_down',
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+        updatedAt: new Date(),
+      })
       .where(
-        and(
-          eq(comments.id, id),
-          eq(comments.status, 'pending_review'),
-          isNull(comments.deletedAt),
-        ),
+        and(eq(comments.id, id), eq(comments.status, 'published'), isNull(comments.deletedAt)),
       )
       .returning({ id: comments.id });
     return updated.length > 0;
   }
 
-  /** Pola limit+1 (word repo): ambil sepotong lebih, hasMore dari sisanya */
   private async page(where: ReturnType<typeof and> | undefined, limit: number): Promise<CursorPage<Comment>> {
     const rows = await this.selectBase()
       .where(where)

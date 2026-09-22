@@ -26,6 +26,7 @@ export * from './search-misses.schema';
 export * from './audit-logs.schema';
 export * from './votes.schema';
 export * from './comments.schema';
+export * from './comment-blocklist-words.schema';
 export * from './bookmarks.schema';
 export * from './device-tokens.schema';
 export * from './notifications.schema';

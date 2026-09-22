@@ -9,10 +9,8 @@ export interface DeleteCommentCommand {
   requestId?: string | null;
 }
 
-// Hapus komentar (09-api-comment.md): PENULIS sendiri ATAU verifikator
-// (admin/root/reviewer). Otorisasi ada di use case (butuh data komentar),
-// bukan middleware - beda dari endpoint admin murni. Soft-delete;
-// admin tetap bisa lihat jejaknya di audit trail.
+// Hapus oleh penulis → status deleted_by_author (tetap di list publik,
+// body di-redact). Verifikator memakai takedown, bukan endpoint ini.
 export class DeleteCommentUseCase {
   constructor(
     private readonly commentRepo: CommentRepository,
@@ -25,13 +23,18 @@ export class DeleteCommentUseCase {
       throw new NotFoundError('COMMENT_NOT_FOUND', 'Komentar tidak ditemukan');
     }
 
-    const isAuthor = comment.userId === cmd.actorId;
-    const isVerifier = ['admin', 'root', 'reviewer'].includes(cmd.role);
-    if (!isAuthor && !isVerifier) {
-      throw new ForbiddenError();
+    if (comment.userId !== cmd.actorId) {
+      throw new ForbiddenError(
+        'FORBIDDEN',
+        'Hanya penulis yang dapat menghapus komentar ini. Verifikator memakai takedown.',
+      );
     }
 
-    const ok = await this.commentRepo.softDelete(cmd.commentId, cmd.actorId);
+    if (comment.status !== 'published') {
+      throw new NotFoundError('COMMENT_NOT_FOUND', 'Komentar tidak ditemukan');
+    }
+
+    const ok = await this.commentRepo.markDeletedByAuthor(cmd.commentId, cmd.actorId);
     if (!ok) {
       throw new NotFoundError('COMMENT_NOT_FOUND', 'Komentar tidak ditemukan');
     }
@@ -42,6 +45,7 @@ export class DeleteCommentUseCase {
       entityType: 'comment',
       entityId: comment.id,
       oldData: { word_id: comment.wordId, body: comment.body, status: comment.status },
+      newData: { status: 'deleted_by_author' },
       requestId: cmd.requestId ?? null,
     });
   }

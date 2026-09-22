@@ -5,8 +5,9 @@ import type { AppVariables, AuthUser } from '@/shared/types';
 import type { ToggleVoteUseCase } from '../../application/use-cases/toggle-vote.use-case';
 import type { GetVoteCountsUseCase } from '../../application/use-cases/get-vote-counts.use-case';
 import type { GetMyVotesUseCase } from '../../application/use-cases/get-my-votes.use-case';
+import type { ListMyVoteHistoryUseCase } from '../../application/use-cases/list-my-vote-history.use-case';
 import type { VoteTarget } from '../../domain/repositories/vote.repository';
-import type { ToggleVoteBody } from './validators/vote.validator';
+import type { ToggleVoteBody, VoteHistoryQuery } from './validators/vote.validator';
 
 // Semua role boleh vote (08-api-upvote-downvote.md) - tidak ada gate role
 // di controller; 401 sudah ditangani middleware authenticate.
@@ -16,6 +17,7 @@ export class VoteController {
       toggle: ToggleVoteUseCase;
       counts: GetVoteCountsUseCase;
       myVotes: GetMyVotesUseCase;
+      history: ListMyVoteHistoryUseCase;
     },
   ) {}
 
@@ -57,6 +59,36 @@ export class VoteController {
         upvotes: i.upvotes,
         downvotes: i.downvotes,
       })),
+    });
+  }
+
+  /** GET /api/v1/votes/history - riwayat vote milik user login */
+  async history(c: Context, query: VoteHistoryQuery) {
+    const user = this.requireUser(c);
+    const page = await this.deps.history.execute(user.user_id, {
+      limit: query.limit,
+      cursor: query.cursor,
+      targetType: query.target_type,
+      value: query.value === '1' ? 1 : query.value === '-1' ? -1 : undefined,
+    });
+    return c.json({
+      success: true as const,
+      data: page.items.map((item) => ({
+        id: item.id,
+        target_type: item.entityType,
+        target_id: item.entityId,
+        value: item.value,
+        voted_at: item.votedAt.toISOString(),
+        word: item.word
+          ? {
+              id: item.word.id,
+              lemma: item.word.lemma,
+              word_type: item.word.wordType,
+              is_verified: item.word.isVerified,
+            }
+          : null,
+      })),
+      meta: { limit: query.limit, next_cursor: page.nextCursor, has_more: page.hasMore },
     });
   }
 

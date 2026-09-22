@@ -1,22 +1,25 @@
 import { describe, it, expect, vi } from 'vitest';
+import { ConflictError, NotFoundError } from '@/shared/errors/app-error';
 import { CreateCommentUseCase } from '../../application/use-cases/create-comment.use-case';
-import type { CommentRepository } from '../../domain/repositories/comment.repository';
-import type { WordRepository } from '@/modules/word/domain/repositories/word.repository';
-import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
+import { DeleteCommentUseCase } from '../../application/use-cases/delete-comment.use-case';
+import { TakedownCommentUseCase } from '../../application/use-cases/takedown-comment.use-case';
 import type { Comment } from '../../domain/entities/comment.entity';
+import { applyBlocklistFilter } from '@/modules/comment-blocklist/application/utils/apply-blocklist-filter';
 
-const WORD_ID = '01JDWORDMAKATN0000000000A';
-const USER = '01JDUSERKONTRIB0000000000A';
+const WORD = '01JDWORDMAKATN0000000000A';
+const AUTHOR = '01JDUSERAUTHOR00000000000A';
+const ADMIN = '01JDUSERADMIN000000000000A';
+const OTHER = '01JDUSEROTHER000000000000A';
 
 function makeComment(overrides: Partial<Comment> = {}): Comment {
   return {
     id: '01JDCOMMENTMAKATN00000000A',
-    wordId: WORD_ID,
+    wordId: WORD,
     wordLemma: 'makatn',
-    userId: USER,
-    username: 'kontributor',
-    body: 'Kata ini sering saya dengar',
-    status: 'pending_review',
+    userId: AUTHOR,
+    username: 'budi',
+    body: 'halo',
+    status: 'published',
     reviewedBy: null,
     reviewedAt: null,
     createdAt: new Date('2026-09-18T10:00:00Z'),
@@ -24,67 +27,97 @@ function makeComment(overrides: Partial<Comment> = {}): Comment {
   };
 }
 
-function makeDeps(wordExists = true) {
-  const commentRepo = {
-    create: vi.fn().mockResolvedValue(makeComment({ username: null })),
-    findById: vi.fn().mockImplementation(async (id: string) =>
-      id === '01JDCOMMENTMAKATN00000000A' ? makeComment() : null,
-    ),
-    listByWord: vi.fn(),
-    softDelete: vi.fn(),
-    listAdmin: vi.fn(),
-    review: vi.fn(),
-  } as unknown as CommentRepository;
-  const wordRepo = {
-    findById: vi.fn().mockResolvedValue(wordExists ? { id: WORD_ID } : null),
-  } as unknown as WordRepository;
-  const auditRepo = { record: vi.fn().mockResolvedValue(undefined), list: vi.fn() };
-  return {
-    commentRepo,
-    wordRepo,
-    auditRepo,
-    useCase: new CreateCommentUseCase(
-      commentRepo,
-      wordRepo,
-      auditRepo as unknown as AuditLogRepository,
-    ),
-  };
-}
+describe('applyBlocklistFilter', () => {
+  it('mengganti whole-word case-insensitive dengan ***', () => {
+    expect(applyBlocklistFilter('Ini Bodoh sekali', ['bodoh'])).toBe('Ini *** sekali');
+    expect(applyBlocklistFilter('bodohan tetap', ['bodoh'])).toBe('bodohan tetap');
+  });
+});
 
 describe('CreateCommentUseCase', () => {
-  it('kata ada → create pending_review + audit create dengan new_data', async () => {
-    const { useCase, commentRepo, auditRepo } = makeDeps();
-    const comment = await useCase.execute({
-      wordId: WORD_ID,
-      userId: USER,
-      role: 'contributor',
-      requestId: 'req-1',
-      body: 'Kata ini sering saya dengar',
-    });
+  it('word hilang → 404; sukses → published + body terfilter + audit', async () => {
+    const commentRepo = {
+      create: vi.fn().mockResolvedValue(makeComment({ body: 'Ini *** sekali' })),
+      findById: vi.fn().mockResolvedValue(makeComment({ body: 'Ini *** sekali' })),
+    };
+    const wordRepo = { findById: vi.fn().mockResolvedValue(null) };
+    const auditRepo = { record: vi.fn() };
+    const blocklistRepo = { listAllActiveWords: vi.fn().mockResolvedValue(['bodoh']) };
 
-    expect(commentRepo.create).toHaveBeenCalledWith({
-      wordId: WORD_ID,
-      userId: USER,
-      body: 'Kata ini sering saya dengar',
-    });
-    expect(comment.status).toBe('pending_review');
-    expect(comment.username).toBe('kontributor'); // read-back ter-join
-    expect(auditRepo.record).toHaveBeenCalledWith({
-      userId: USER,
-      action: 'create',
-      entityType: 'comment',
-      entityId: comment.id,
-      newData: { word_id: WORD_ID, body: 'Kata ini sering saya dengar' },
-      requestId: 'req-1',
-    });
-  });
+    const uc = new CreateCommentUseCase(
+      commentRepo as never,
+      wordRepo as never,
+      auditRepo as never,
+      blocklistRepo as never,
+    );
 
-  it('kata tidak ada / soft-deleted → 404 WORD_NOT_FOUND, create TIDAK dipanggil', async () => {
-    const { useCase, commentRepo, auditRepo } = makeDeps(false);
     await expect(
-      useCase.execute({ wordId: WORD_ID, userId: USER, role: 'contributor', body: 'x' }),
-    ).rejects.toMatchObject({ errorCode: 'WORD_NOT_FOUND', statusCode: 404 });
-    expect(commentRepo.create).not.toHaveBeenCalled();
-    expect(auditRepo.record).not.toHaveBeenCalled();
+      uc.execute({ wordId: WORD, userId: AUTHOR, role: 'contributor', body: 'x' }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+
+    wordRepo.findById.mockResolvedValue({ id: WORD });
+    const created = await uc.execute({
+      wordId: WORD,
+      userId: AUTHOR,
+      role: 'contributor',
+      body: 'Ini Bodoh sekali',
+    });
+    expect(commentRepo.create).toHaveBeenCalledWith({
+      wordId: WORD,
+      userId: AUTHOR,
+      body: 'Ini *** sekali',
+    });
+    expect(created.status).toBe('published');
+    expect(auditRepo.record).toHaveBeenCalled();
+  });
+});
+
+describe('DeleteCommentUseCase', () => {
+  it('penulis OK; non-penulis 403; admin juga 403 (pakai takedown)', async () => {
+    const comment = makeComment();
+    const commentRepo = {
+      findById: vi.fn().mockResolvedValue(comment),
+      markDeletedByAuthor: vi.fn().mockResolvedValue(true),
+    };
+    const auditRepo = { record: vi.fn() };
+    const uc = new DeleteCommentUseCase(commentRepo as never, auditRepo as never);
+
+    await uc.execute({ commentId: comment.id, actorId: AUTHOR, role: 'contributor' });
+    expect(commentRepo.markDeletedByAuthor).toHaveBeenCalledWith(comment.id, AUTHOR);
+
+    await expect(
+      uc.execute({ commentId: comment.id, actorId: OTHER, role: 'contributor' }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+
+    await expect(
+      uc.execute({ commentId: comment.id, actorId: ADMIN, role: 'admin' }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe('TakedownCommentUseCase', () => {
+  it('sukses taken_down; race → 409 COMMENT_ALREADY_MODERATED', async () => {
+    const comment = makeComment();
+    const commentRepo = {
+      findById: vi
+        .fn()
+        .mockResolvedValueOnce(comment)
+        .mockResolvedValueOnce({ ...comment, status: 'taken_down', reviewedBy: ADMIN, reviewedAt: new Date() }),
+      takedown: vi.fn().mockResolvedValue(true),
+    };
+    const auditRepo = { record: vi.fn() };
+    const uc = new TakedownCommentUseCase(commentRepo as never, auditRepo as never);
+
+    const result = await uc.execute({ commentId: comment.id, reviewerId: ADMIN });
+    expect(result.status).toBe('taken_down');
+    expect(auditRepo.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'takedown', newData: { status: 'taken_down' } }),
+    );
+
+    commentRepo.takedown.mockResolvedValue(false);
+    commentRepo.findById.mockResolvedValue(comment);
+    await expect(uc.execute({ commentId: comment.id, reviewerId: ADMIN })).rejects.toBeInstanceOf(
+      ConflictError,
+    );
   });
 });

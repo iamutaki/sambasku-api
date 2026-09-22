@@ -1,6 +1,8 @@
 import { NotFoundError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { WordRepository } from '@/modules/word/domain/repositories/word.repository';
+import type { CommentBlocklistRepository } from '@/modules/comment-blocklist/domain/repositories/comment-blocklist.repository';
+import { applyBlocklistFilter } from '@/modules/comment-blocklist/application/utils/apply-blocklist-filter';
 import type { Comment } from '../../domain/entities/comment.entity';
 import type { CommentRepository } from '../../domain/repositories/comment.repository';
 
@@ -12,15 +14,14 @@ export interface CreateCommentCommand {
   body: string;
 }
 
-// Tulis komentar (09-api-comment.md). PRE-MODERATION: langsung
-// pending_review - tampil publik hanya setelah approve verifikator.
-// Cek kata: ada & belum soft-deleted saja (TIDAK memfilter status -
-// konsisten dengan vote 08).
+// Tulis komentar (09-api-comment.md). Post-moderation: langsung published.
+// Body difilter lewat blocklist sebelum disimpan.
 export class CreateCommentUseCase {
   constructor(
     private readonly commentRepo: CommentRepository,
     private readonly wordRepo: WordRepository,
     private readonly auditRepo: AuditLogRepository,
+    private readonly blocklistRepo: CommentBlocklistRepository,
   ) {}
 
   async execute(cmd: CreateCommentCommand): Promise<Comment> {
@@ -29,10 +30,13 @@ export class CreateCommentUseCase {
       throw new NotFoundError('WORD_NOT_FOUND', 'Kata dengan id tersebut tidak ditemukan');
     }
 
+    const blocked = await this.blocklistRepo.listAllActiveWords();
+    const filteredBody = applyBlocklistFilter(cmd.body, blocked);
+
     const comment = await this.commentRepo.create({
       wordId: cmd.wordId,
       userId: cmd.userId,
-      body: cmd.body,
+      body: filteredBody,
     });
 
     await this.auditRepo.record({
@@ -40,12 +44,10 @@ export class CreateCommentUseCase {
       action: 'create',
       entityType: 'comment',
       entityId: comment.id,
-      newData: { word_id: cmd.wordId, body: comment.body },
+      newData: { word_id: cmd.wordId, body: comment.body, status: 'published' },
       requestId: cmd.requestId ?? null,
     });
 
-    // Read-back untuk username ter-join (create tidak JOIN; path non-hot,
-    // satu query PK tambahan tidak masalah)
     return (await this.commentRepo.findById(comment.id)) ?? comment;
   }
 }

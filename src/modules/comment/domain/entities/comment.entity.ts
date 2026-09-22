@@ -1,6 +1,6 @@
 // Komentar pada lemma (09-api-comment.md). username di-resolve via LEFT
 // JOIN users saat baca (pola audit_logs) - null kalau penulis terhapus.
-export type CommentStatus = 'pending_review' | 'published' | 'rejected';
+export type CommentStatus = 'published' | 'taken_down' | 'deleted_by_author';
 
 export interface Comment {
   id: string;

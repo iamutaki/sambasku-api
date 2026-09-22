@@ -30,7 +30,9 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `TRANSLATION_CONFLICT` | 409 | Resolve-as-translation: teks terjemahan sudah ada pada makna |
 | `VOTE_TARGET_NOT_FOUND` | 404 | Target vote tidak ditemukan / sudah di-soft-delete (word, makna, contoh, pelafalan, gambar, komentar) |
 | `COMMENT_NOT_FOUND` | 404 | Komentar tidak ditemukan by id (hapus / moderasi) |
-| `COMMENT_ALREADY_REVIEWED` | 409 | Komentar sudah punya keputusan moderasi (approve/reject race) |
+| `COMMENT_ALREADY_MODERATED` | 409 | Komentar sudah di-takedown / bukan published (race takedown) |
+| `BLOCKLIST_WORD_EXISTS` | 409 | Kata blocklist sudah ada (aktif) |
+| `BLOCKLIST_WORD_NOT_FOUND` | 404 | Entry blocklist tidak ditemukan |
 | `EMAIL_ALREADY_EXISTS` | 409 | Registrasi dengan email yang sudah dipakai |
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan nama (username) yang sudah dipakai |
 | `PHONE_ALREADY_EXISTS` | 409 | Registrasi / pengajuan verifikator dengan nomor HP yang sudah dipakai user lain |

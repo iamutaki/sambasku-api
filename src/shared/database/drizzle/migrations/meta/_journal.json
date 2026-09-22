@@ -15,6 +15,20 @@
       "when": 1790100000000,
       "tag": "0001_word-audios",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790200000000,
+      "tag": "0002_comment-post-moderation",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790300000000,
+      "tag": "0003_user-activity-indexes",
+      "breakpoints": true
     }
   ]
 }

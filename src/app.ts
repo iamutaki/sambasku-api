@@ -133,6 +133,7 @@ import { VoteRepositoryImpl } from '@/modules/vote/infrastructure/vote.repositor
 import { ToggleVoteUseCase } from '@/modules/vote/application/use-cases/toggle-vote.use-case';
 import { GetVoteCountsUseCase } from '@/modules/vote/application/use-cases/get-vote-counts.use-case';
 import { GetMyVotesUseCase } from '@/modules/vote/application/use-cases/get-my-votes.use-case';
+import { ListMyVoteHistoryUseCase } from '@/modules/vote/application/use-cases/list-my-vote-history.use-case';
 import { VoteController } from '@/modules/vote/presentation/v1/vote.controller';
 import { createVoteRoutes } from '@/modules/vote/presentation/v1/vote.routes';
 import { AdminVotesController } from '@/modules/vote/presentation/v1/admin-vote.controller';
@@ -146,10 +147,17 @@ import { CreateCommentUseCase } from '@/modules/comment/application/use-cases/cr
 import { ListWordCommentsUseCase } from '@/modules/comment/application/use-cases/list-word-comments.use-case';
 import { DeleteCommentUseCase } from '@/modules/comment/application/use-cases/delete-comment.use-case';
 import { ListAdminCommentsUseCase } from '@/modules/comment/application/use-cases/list-admin-comments.use-case';
-import { ReviewCommentUseCase } from '@/modules/comment/application/use-cases/review-comment.use-case';
+import { ListMyCommentsUseCase } from '@/modules/comment/application/use-cases/list-my-comments.use-case';
+import { TakedownCommentUseCase } from '@/modules/comment/application/use-cases/takedown-comment.use-case';
 import { CommentController } from '@/modules/comment/presentation/v1/comment.controller';
 import { createCommentRoutes, createWordCommentRoutes } from '@/modules/comment/presentation/v1/comment.routes';
 import { createAdminCommentRoutes } from '@/modules/comment/presentation/v1/admin-comment.routes';
+import { CommentBlocklistRepositoryImpl } from '@/modules/comment-blocklist/infrastructure/comment-blocklist.repository.impl';
+import { CreateBlocklistWordUseCase } from '@/modules/comment-blocklist/application/use-cases/create-blocklist-word.use-case';
+import { ListBlocklistWordsUseCase } from '@/modules/comment-blocklist/application/use-cases/list-blocklist-words.use-case';
+import { DeleteBlocklistWordUseCase } from '@/modules/comment-blocklist/application/use-cases/delete-blocklist-word.use-case';
+import { CommentBlocklistController } from '@/modules/comment-blocklist/presentation/v1/comment-blocklist.controller';
+import { createAdminCommentBlocklistRoutes } from '@/modules/comment-blocklist/presentation/v1/admin-comment-blocklist.routes';
 import { BookmarkRepositoryImpl } from '@/modules/bookmark/infrastructure/bookmark.repository.impl';
 import { ToggleBookmarkUseCase } from '@/modules/bookmark/application/use-cases/toggle-bookmark.use-case';
 import { GetMyBookmarksUseCase } from '@/modules/bookmark/application/use-cases/get-my-bookmarks.use-case';
@@ -357,6 +365,7 @@ const voteController = new VoteController({
   toggle: new ToggleVoteUseCase(voteRepo),
   counts: new GetVoteCountsUseCase(voteRepo),
   myVotes: new GetMyVotesUseCase(voteRepo),
+  history: new ListMyVoteHistoryUseCase(voteRepo),
 });
 
 // Panel moderasi vote (hapus vote spam + reset massal anti-brigading) -
@@ -375,17 +384,21 @@ const dashboardController = new DashboardController({
   getStats: new GetDashboardStatsUseCase(new DashboardRepositoryImpl(db)),
 });
 
-// ---- Modul comment (09-api-comment.md) - komentar lemma, pre-moderation
-// (approval gate Section 22). Bergantung ke WordRepository (cek kata ada)
-// + VoteRepository (counts per komentar) lewat interface - preseden
-// auditRepo lintas modul. ----
+// ---- Modul comment (09-api-comment.md) - post-moderation + blocklist. ----
 const commentRepo = new CommentRepositoryImpl(db);
+const commentBlocklistRepo = new CommentBlocklistRepositoryImpl(db);
 const commentController = new CommentController({
-  create: new CreateCommentUseCase(commentRepo, wordRepo, auditRepo),
+  create: new CreateCommentUseCase(commentRepo, wordRepo, auditRepo, commentBlocklistRepo),
   listByWord: new ListWordCommentsUseCase(commentRepo, voteRepo),
   delete: new DeleteCommentUseCase(commentRepo, auditRepo),
   listAdmin: new ListAdminCommentsUseCase(commentRepo),
-  review: new ReviewCommentUseCase(commentRepo, auditRepo),
+  listMine: new ListMyCommentsUseCase(commentRepo),
+  takedown: new TakedownCommentUseCase(commentRepo, auditRepo),
+});
+const commentBlocklistController = new CommentBlocklistController({
+  create: new CreateBlocklistWordUseCase(commentBlocklistRepo, auditRepo),
+  list: new ListBlocklistWordsUseCase(commentBlocklistRepo),
+  delete: new DeleteBlocklistWordUseCase(commentBlocklistRepo, auditRepo),
 });
 
 // ---- Modul bookmark (16-api-bookmark.md) - kata tersimpan per user,
@@ -537,8 +550,7 @@ app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordContro
 // (publik) + my (login). Tanpa prefix bentrok, urutan mount bebas.
 app.route('/api/v1/votes', createVoteRoutes({ controller: voteController, authenticate }));
 
-// Komentar (09-api-comment.md): delete by id (publik-group) + antrean
-// moderasi admin (pre-moderation, approval gate Section 22)
+// Komentar (09-api-comment.md): my + delete by author; admin takedown
 app.route('/api/v1/comments', createCommentRoutes({ controller: commentController, authenticate }));
 
 // Bookmark kata per user (16-api-bookmark.md) - toggle + my (login, semua
@@ -562,6 +574,10 @@ app.route(
   }),
 );
 app.route('/api/v1/admin/comments', createAdminCommentRoutes({ controller: commentController, authenticate }));
+app.route(
+  '/api/v1/admin/comment-blocklist',
+  createAdminCommentBlocklistRoutes({ controller: commentBlocklistController, authenticate }),
+);
 
 // Moderasi vote (hapus vote spam individual + reset massal per target),
 // gate role + rate limit ada di routes factory (root/admin/reviewer)

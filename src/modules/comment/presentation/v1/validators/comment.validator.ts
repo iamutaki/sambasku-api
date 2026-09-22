@@ -1,15 +1,12 @@
 import { z } from 'zod';
 
-// Plain text, di-trim, tanpa markup - client bertanggung jawab escape saat
-// render (API tidak mengirim HTML)
 export const commentBodySchema = z.object({
   body: z.string().trim().min(1, 'Komentar tidak boleh kosong').max(1000, 'Komentar maksimal 1000 karakter'),
 });
 
 export type CreateCommentBody = z.infer<typeof commentBodySchema>;
 
-// Kosakata konten Section 22 (bukan kosakata workflow contributions)
-export const commentStatusSchema = z.enum(['pending_review', 'published', 'rejected']);
+export const commentStatusSchema = z.enum(['published', 'taken_down', 'deleted_by_author']);
 
 export const listCommentsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
@@ -19,10 +16,7 @@ export const listCommentsQuerySchema = z.object({
 export type ListCommentsQueryBody = z.infer<typeof listCommentsQuerySchema>;
 
 export const listAdminCommentsQuerySchema = z.object({
-  // Optional TANPA default: absen = semua status (embed detail kata);
-  // halaman antrean selalu mengirim status eksplisit (tab).
   status: commentStatusSchema.optional(),
-  // Filter per kata - untuk section komentar di halaman detail admin
   word_id: z.string().length(26).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   cursor: z.string().length(26).optional(),
@@ -36,13 +30,14 @@ const commentDataSchema = z.object({
   word_lemma: z.string().nullable(),
   user_id: z.string(),
   username: z.string().nullable(),
-  body: z.string(),
+  body: z.string().nullable(),
+  status: commentStatusSchema,
   created_at: z.string(),
 });
 
 export const createCommentResponseSchema = z.object({
   success: z.literal(true),
-  data: commentDataSchema.extend({ status: commentStatusSchema }),
+  data: commentDataSchema,
 });
 
 const cursorMetaSchema = z.object({
@@ -61,7 +56,8 @@ export const adminListCommentsResponseSchema = z.object({
   success: z.literal(true),
   data: z.array(
     commentDataSchema.extend({
-      status: commentStatusSchema,
+      // Admin selalu dapat body string (asli)
+      body: z.string(),
       reviewed_by: z.string().nullable(),
       reviewed_at: z.string().nullable(),
     }),
@@ -69,12 +65,36 @@ export const adminListCommentsResponseSchema = z.object({
   meta: cursorMetaSchema,
 });
 
-export const reviewCommentResponseSchema = z.object({
+export const takedownCommentResponseSchema = z.object({
   success: z.literal(true),
   data: z.object({
     id: z.string(),
-    status: commentStatusSchema,
+    status: z.literal('taken_down'),
     reviewed_by: z.string(),
     reviewed_at: z.string(),
   }),
+});
+
+export const listMyCommentsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  cursor: z.string().length(26).optional(),
+  status: commentStatusSchema.optional(),
+});
+
+export type ListMyCommentsQueryBody = z.infer<typeof listMyCommentsQuerySchema>;
+
+export const myCommentsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(
+    z.object({
+      id: z.string(),
+      word_id: z.string(),
+      word_lemma: z.string().nullable(),
+      body: z.string(),
+      status: commentStatusSchema,
+      created_at: z.string(),
+      reviewed_at: z.string().nullable(),
+    }),
+  ),
+  meta: cursorMetaSchema,
 });

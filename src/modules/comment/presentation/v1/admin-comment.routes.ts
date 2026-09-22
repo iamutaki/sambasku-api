@@ -10,7 +10,7 @@ import type { CommentController } from './comment.controller';
 import {
   adminListCommentsResponseSchema,
   listAdminCommentsQuerySchema,
-  reviewCommentResponseSchema,
+  takedownCommentResponseSchema,
 } from './validators/comment.validator';
 
 const json = <T extends z.ZodType>(schema: T) => ({
@@ -22,9 +22,6 @@ export interface AdminCommentRoutesDeps {
   authenticate: MiddlewareHandler<{ Variables: AppVariables }>;
 }
 
-// Antrean moderasi komentar (09-api-comment.md) - HANYA verifikator:
-// admin, root, reviewer (pola antrean contribution 03). Tier admin
-// Section 15: 500 request/menit.
 export function createAdminCommentRoutes(deps: AdminCommentRoutesDeps) {
   const routes = createOpenApiApp();
 
@@ -35,14 +32,13 @@ export function createAdminCommentRoutes(deps: AdminCommentRoutesDeps) {
   ] as const;
 
   routes.use('/', ...reviewer);
-  routes.use('/:id/approve', ...reviewer);
-  routes.use('/:id/reject', ...reviewer);
+  routes.use('/:id/takedown', ...reviewer);
 
   const listRoute = createRoute({
     method: 'get',
     path: '/',
     tags: ['Comments', 'Admin'],
-    summary: 'Antrean moderasi komentar (filter status opsional + word_id) - cursor pagination',
+    summary: 'List komentar admin (filter status + word_id) - cursor pagination',
     request: { query: listAdminCommentsQuerySchema },
     responses: {
       200: { description: 'Daftar komentar + username + info moderasi', content: json(adminListCommentsResponseSchema) },
@@ -51,39 +47,23 @@ export function createAdminCommentRoutes(deps: AdminCommentRoutesDeps) {
     },
   });
 
-  const approveRoute = createRoute({
+  const takedownRoute = createRoute({
     method: 'post',
-    path: '/:id/approve',
+    path: '/:id/takedown',
     tags: ['Comments', 'Admin'],
-    summary: 'Setujui komentar - satu-satunya jalur ke published (tampil publik)',
+    summary: 'Takedown komentar published → taken_down',
     request: { params: z.object({ id: z.string().length(26) }) },
     responses: {
-      200: { description: 'Komentar dipublikasikan', content: json(reviewCommentResponseSchema) },
+      200: { description: 'Komentar di-takedown', content: json(takedownCommentResponseSchema) },
       401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
       403: { description: 'Bukan verifikator', content: json(errorResponseSchema) },
       404: { description: 'Komentar tidak ditemukan', content: json(errorResponseSchema) },
-      409: { description: 'Sudah ada keputusan moderasi', content: json(errorResponseSchema) },
-    },
-  });
-
-  const rejectRoute = createRoute({
-    method: 'post',
-    path: '/:id/reject',
-    tags: ['Comments', 'Admin'],
-    summary: 'Tolak komentar - rejected (terminal, tanpa kolom alasan)',
-    request: { params: z.object({ id: z.string().length(26) }) },
-    responses: {
-      200: { description: 'Komentar ditolak', content: json(reviewCommentResponseSchema) },
-      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
-      403: { description: 'Bukan verifikator', content: json(errorResponseSchema) },
-      404: { description: 'Komentar tidak ditemukan', content: json(errorResponseSchema) },
-      409: { description: 'Sudah ada keputusan moderasi', content: json(errorResponseSchema) },
+      409: { description: 'Sudah di-takedown / bukan published', content: json(errorResponseSchema) },
     },
   });
 
   routes.openapi(listRoute, (c) => deps.controller.listAdmin(c, c.req.valid('query')) as never);
-  routes.openapi(approveRoute, (c) => deps.controller.review(c, c.req.param('id'), 'approve') as never);
-  routes.openapi(rejectRoute, (c) => deps.controller.review(c, c.req.param('id'), 'reject') as never);
+  routes.openapi(takedownRoute, (c) => deps.controller.takedown(c, c.req.param('id')) as never);
 
   return routes;
 }

@@ -93,6 +93,37 @@ export function decodeAdminCursor(s: string): AdminVoteCursor {
   return { createdAt: d, id };
 }
 
+/** Ringkasan kata induk untuk baris riwayat vote. Null di item jika hilang. */
+export interface VoteHistoryWord {
+  id: string;
+  lemma: string;
+  wordType: string;
+  isVerified: boolean;
+}
+
+export interface VoteHistoryItem {
+  id: string;
+  entityType: VoteTargetType;
+  entityId: string;
+  value: 1 | -1;
+  /** votes.created_at - waktu pasang pertama, bukan ganti arah. */
+  votedAt: Date;
+  word: VoteHistoryWord | null;
+}
+
+export interface VoteHistoryListOptions {
+  limit: number;
+  cursor?: string;
+  targetType?: VoteTargetType;
+  value?: 1 | -1;
+}
+
+export interface VoteHistoryListResult {
+  items: VoteHistoryItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 export interface VoteRepository {
   /**
    * Cek target ada & belum soft-deleted (per tabel by PK). TIDAK memfilter
@@ -117,6 +148,12 @@ export interface VoteRepository {
 
   /** Vote milik user untuk target batch - hanya target yang dipilih user. */
   findUserVotes(userId: string, targets: VoteTarget[]): Promise<Map<string, 1 | -1>>;
+
+  /**
+   * Riwayat vote satu user, terbaru dulu (id DESC). Page dulu (LIMIT+1),
+   * lalu resolve kata induk. Baris tetap ada walau kata hilang (`word` null).
+   */
+  listByUser(userId: string, opts: VoteHistoryListOptions): Promise<VoteHistoryListResult>;
 
   /**
    * List vote admin cursor pagination compound (created_at, id) desc.
