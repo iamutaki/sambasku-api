@@ -8,6 +8,7 @@
 #        npx wrangler secret put JWT_PRIVATE_KEY       # PEM
 #        npx wrangler secret put JWT_PUBLIC_KEY        # PEM
 #        npx wrangler secret put RESEND_API_KEY        # opsional
+#        npx wrangler secret put PRONUNCIACION_GITHUB_TOKEN
 #        …
 #   3. npx wrangler deploy
 #
@@ -34,6 +35,9 @@ RAF555_BASE_URL = "https://kbbi.raf555.dev"
 LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
 SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
 GOOGLE_CLIENT_ID = "497143924506-embip2d0er5te84t6cind855tlmsm0i1.apps.googleusercontent.com"
+# Audio pronunciation — TOKEN via wrangler secret (production).
+PRONUNCIACION_PROVIDER = "github"
+PRONUNCIACION_GITHUB_URL = "https://github.com/iamutaki/sambasku-pronunciation"
 
 [observability]
 enabled = true
@@ -62,6 +66,9 @@ SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
 GOOGLE_CLIENT_ID = "497143924506-rs7qao9as5jf95r5m1mgp51boc6rdrv7.apps.googleusercontent.com"
 FIREBASE_PROJECT_ID = "sambasku-staging"
 FIREBASE_CLIENT_EMAIL = "firebase-adminsdk-fbsvc@sambasku-staging.iam.gserviceaccount.com"
+# Audio pronunciation (GitHub Contents API) — TOKEN via wrangler secret.
+PRONUNCIACION_PROVIDER = "github"
+PRONUNCIACION_GITHUB_URL = "https://github.com/iamutaki/sambasku-pronunciation"
 
 [env.staging.observability]
 enabled = true
@@ -71,4 +78,5 @@ enabled = true
 #   npx wrangler secret put DATABASE_AUTH_TOKEN --env staging
 #   npx wrangler secret put JWT_PRIVATE_KEY --env staging
 #   npx wrangler secret put JWT_PUBLIC_KEY --env staging
+#   npx wrangler secret put PRONUNCIACION_GITHUB_TOKEN --env staging
 #   … (Resend, ImageKit, OAuth, FCM — sama seperti sebelumnya)
