@@ -894,7 +894,11 @@ export class WordRepositoryImpl implements WordRepository {
 
     if (meaningRows.length === 0) return;
 
-    const classIds = [...new Set(meaningRows.map((m) => m.wordClassId))];
+    // wordClassId nullable - inArray tidak menerima elemen nullable (pola
+    // sama seperti findDetailById di atas)
+    const classIds = [
+      ...new Set(meaningRows.map((m) => m.wordClassId).filter((x): x is string => !!x)),
+    ];
     const classRows = await this.db
       .select({ id: wordClasses.id, code: wordClasses.code })
       .from(wordClasses)
@@ -938,6 +942,7 @@ export class WordRepositoryImpl implements WordRepository {
       if (!wordMeanings) continue;
       const parts: string[] = [];
       for (const meaning of wordMeanings) {
+        if (!meaning.wordClassId) continue;
         const code = codeByClassId.get(meaning.wordClassId)?.trim();
         if (!code) continue;
         const texts = textsByMeaning.get(meaning.id);
