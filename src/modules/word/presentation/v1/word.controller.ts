@@ -272,6 +272,7 @@ export class WordController {
         // WAJIB untuk round-trip PUT edit (full-replace): tanpa ini form
         // edit tidak bisa mengirim ulang images[] → gambar terhapus senyap
         provider_file_id: img.providerFileId,
+        sha: img.sha,
         alt_text: img.altText,
         is_primary: img.isPrimary,
       })),
@@ -499,6 +500,7 @@ export class WordController {
         {
           url: body.url,
           providerFileId: body.provider_file_id,
+          sha: body.sha ?? null,
           altText: body.alt_text,
           isPrimary: body.is_primary,
         },

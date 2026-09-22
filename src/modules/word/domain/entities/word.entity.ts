@@ -101,6 +101,7 @@ export interface WordDetail extends Word {
     url: string;
     /** wajib dibawa form edit untuk round-trip PUT (full-replace images[]) */
     providerFileId: string;
+    sha?: string | null;
     altText: string | null;
     isPrimary: boolean;
     status?: ChildStatus;

@@ -439,6 +439,7 @@ export interface WordImageMedia {
   wordId: string;
   provider: string;
   providerFileId: string;
+  sha: string | null;
   url: string;
   altText: string | null;
   isPrimary: boolean;

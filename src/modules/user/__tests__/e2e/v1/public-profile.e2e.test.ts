@@ -120,6 +120,25 @@ describe.skipIf(!hasTestDb)('Public profile E2E v1 - GET /users/:username (19 do
     expect(body.data.stats.contributions_approved).toBe(1);
   });
 
+  it('GET /users/:username/activity → 200, max 20, bentuk item publik', async () => {
+    const res = await get(`/api/v1/users/${contributorUsername}/activity`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.data.items)).toBe(true);
+    expect(body.data.items.length).toBeLessThanOrEqual(20);
+    expect(body.data.items.length).toBeGreaterThanOrEqual(1);
+    const item = body.data.items[0];
+    expect(item).toMatchObject({
+      kind: expect.stringMatching(/^(contribution|comment|verification)$/),
+      occurred_at: expect.any(String),
+      summary: expect.any(String),
+    });
+    expect(item).toHaveProperty('word_id');
+    expect(item).toHaveProperty('lemma');
+    expect(item).not.toHaveProperty('user_id');
+    expect(item).not.toHaveProperty('email');
+  });
+
   it('GET username acak → 404 USER_NOT_FOUND', async () => {
     const res = await get('/api/v1/users/tidakada999');
     expect(res.status).toBe(404);

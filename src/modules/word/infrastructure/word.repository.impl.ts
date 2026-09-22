@@ -100,6 +100,7 @@ function toWordImage(row: typeof wordImages.$inferSelect): WordImageMedia {
     wordId: row.wordId,
     provider: row.provider,
     providerFileId: row.providerFileId,
+    sha: row.sha ?? null,
     url: row.url,
     altText: row.altText,
     isPrimary: row.isPrimary,
@@ -640,6 +641,7 @@ export class WordRepositoryImpl implements WordRepository {
         // Untuk round-trip PUT edit: provider_file_id WAJIB dikirim ulang
         // di images[] (full-replace) - tanpa ini gambar terhapus senyap
         providerFileId: i.providerFileId,
+        sha: i.sha ?? null,
         altText: i.altText,
         isPrimary: i.isPrimary,
         ...(includeAll
@@ -2155,6 +2157,7 @@ export class WordRepositoryImpl implements WordRepository {
           wordId,
           provider: img.provider,
           providerFileId: img.providerFileId,
+          sha: img.sha ?? null,
           url: img.url,
           altText: img.altText ?? null,
           isPrimary: img.isPrimary ?? false,

@@ -201,6 +201,7 @@ const inlineWordSchema = z
         z.object({
           url: z.url('URL gambar tidak valid'),
           provider_file_id: z.string().trim().min(1, 'provider_file_id wajib diisi'),
+          sha: z.string().trim().min(1).max(128).optional(),
           alt_text: z.string().trim().max(500).optional(),
           is_primary: z.boolean().default(false),
         }),
@@ -332,6 +333,7 @@ export const createWordBodySchema = z.object({
       z.object({
         url: z.url('URL gambar tidak valid'),
         provider_file_id: z.string().trim().min(1, 'provider_file_id wajib diisi'),
+        sha: z.string().trim().min(1).max(128).optional(),
         alt_text: z.string().trim().max(500).optional(),
         is_primary: z.boolean().default(false),
       }),
@@ -529,6 +531,7 @@ export const wordDetailResponseSchema = z.object({
         id: z.string(),
         url: z.string(),
         provider_file_id: z.string(),
+        sha: z.string().nullable().optional(),
         alt_text: z.string().nullable(),
         is_primary: z.boolean(),
       }),

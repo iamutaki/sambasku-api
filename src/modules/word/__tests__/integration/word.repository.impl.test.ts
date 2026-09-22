@@ -158,7 +158,14 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
 
     const img = await repo.addWordImage(
       word.id,
-      { url: 'https://x.test/a.jpg', providerFileId: 'pf-1', isPrimary: false, status: 'published', isVerified: true },
+      {
+        url: 'https://x.test/a.jpg',
+        provider: 'github',
+        providerFileId: 'pf-1',
+        isPrimary: false,
+        status: 'published',
+        isVerified: true,
+      },
       ACTOR,
     );
     const [imgContrib] = await db.select().from(contributions).where(eq(contributions.entityId, img.id));

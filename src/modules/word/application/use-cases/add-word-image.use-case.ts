@@ -7,6 +7,7 @@ import type { Actor } from './create-word.use-case';
 export interface AddWordImageDto {
   url: string;
   providerFileId: string;
+  sha?: string | null;
   altText?: string | null;
   isPrimary: boolean;
 }

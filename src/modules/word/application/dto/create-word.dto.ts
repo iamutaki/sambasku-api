@@ -29,6 +29,8 @@ export interface CreateWordImageDto {
   /** diisi presentation layer dari provider AKTIF (bukan dari client) */
   provider: string;
   providerFileId: string;
+  /** Blob sha GitHub — opsional; ImageKit lama null */
+  sha?: string | null;
   altText?: string;
   isPrimary?: boolean;
 }
