@@ -777,6 +777,61 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(tipe.items.map((w) => w.lemma)).toEqual(['kiasan']);
   });
 
+  it('listAtoZ: sense = [kode] terjemahan dipisah koma lintas makna', async () => {
+    const VERBA = ulid26('01TESTWCVERBA');
+    await db.insert(wordClasses).values({ id: VERBA, code: 'v', name: 'Verba' });
+
+    await repo.saveWithRelations(
+      baseWord({
+        lemma: 'makatn',
+        meanings: [
+          {
+            wordClassId: NOMINA,
+            definition: '-',
+            isHaveDefinition: false,
+            orderIndex: 1,
+            translations: [
+              { languageId: IDN, translationText: 'makan', translationType: 'direct' },
+            ],
+          },
+          {
+            wordClassId: VERBA,
+            definition: '-',
+            isHaveDefinition: false,
+            orderIndex: 2,
+            translations: [
+              { languageId: IDN, translationText: 'santap', translationType: 'direct' },
+            ],
+          },
+        ],
+      }),
+      ACTOR,
+    );
+    // Placeholder "-" tidak ikut gloss.
+    await repo.saveWithRelations(
+      baseWord({
+        lemma: 'polos',
+        meanings: [
+          {
+            wordClassId: NOMINA,
+            definition: '-',
+            isHaveDefinition: false,
+            orderIndex: 1,
+            translations: [
+              { languageId: IDN, translationText: '-', translationType: 'direct' },
+            ],
+          },
+        ],
+      }),
+      ACTOR,
+    );
+
+    const page = await repo.listAtoZ({ q: '', limit: 10 });
+    const byLemma = new Map(page.items.map((w) => [w.lemma, w]));
+    expect(byLemma.get('makatn')?.sense).toBe('[n] makan,[v] santap');
+    expect(byLemma.get('polos')?.sense).toBeNull();
+  });
+
   it('listLatest: urut persetujuan DESC, keyset tanpa duplikat, pending tidak ikut, sense terisi', async () => {
     const lama = await repo.saveWithRelations(baseWord({ lemma: 'lama' }), ACTOR);
     const tengah = await repo.saveWithRelations(baseWord({ lemma: 'tengah' }), ACTOR);

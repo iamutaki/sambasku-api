@@ -352,6 +352,22 @@ export function createPublicWordRoutes(deps: WordRoutesDeps) {
     },
   });
 
+  // URL publik web /words/<lemma> - WAJIB terdaftar sebelum '/:id' agar
+  // segmen literal 'lemma' tidak tertelan param id.
+  const wordByLemmaRoute = createRoute({
+    method: 'get',
+    path: '/lemma/:lemma',
+    tags: ['Words'],
+    summary: 'Detail kata published berdasarkan lemma (URL publik web)',
+    request: {
+      params: z.object({ lemma: z.string().trim().min(1).max(255) }),
+    },
+    responses: {
+      200: { description: 'Detail kata', content: json(wordDetailResponseSchema) },
+      404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
   const searchWordsRoute = createRoute({
     method: 'get',
     path: '/search',
@@ -368,6 +384,7 @@ export function createPublicWordRoutes(deps: WordRoutesDeps) {
   routes.openapi(listLatestRoute, (c) => deps.controller.listLatest(c, c.req.valid('query')) as never);
   routes.openapi(searchWordsRoute, (c) => deps.controller.search(c, c.req.valid('query')) as never);
   routes.openapi(wordOfDayRoute, (c) => deps.controller.wordOfDay(c) as never);
+  routes.openapi(wordByLemmaRoute, (c) => deps.controller.detailByLemma(c, c.req.param('lemma')) as never);
   routes.openapi(wordDetailRoute, (c) => deps.controller.detail(c, c.req.param('id')) as never);
 
   return routes;

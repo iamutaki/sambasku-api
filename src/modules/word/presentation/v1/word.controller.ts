@@ -5,6 +5,7 @@ import type { AppVariables } from '@/shared/types';
 import type { CreateWordUseCase } from '../../application/use-cases/create-word.use-case';
 import type { UpdateWordUseCase } from '../../application/use-cases/update-word.use-case';
 import type { GetWordByIdUseCase } from '../../application/use-cases/get-word-by-id.use-case';
+import type { GetWordByLemmaUseCase } from '../../application/use-cases/get-word-by-lemma.use-case';
 import type { GetWordOfDayUseCase } from '../../application/use-cases/get-word-of-day.use-case';
 import type { SearchWordsUseCase } from '../../application/use-cases/search-words.use-case';
 import type { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-case';
@@ -47,6 +48,7 @@ export class WordController {
       create: CreateWordUseCase;
       update: UpdateWordUseCase;
       getById: GetWordByIdUseCase;
+      getByLemma: GetWordByLemmaUseCase;
       wordOfDay: GetWordOfDayUseCase;
       search: SearchWordsUseCase;
       listAdmin: ListAdminWordsUseCase;
@@ -127,6 +129,12 @@ export class WordController {
 
   async detail(c: Context, id: string) {
     const word = await this.deps.getById.execute(id);
+    return c.json({ success: true as const, data: this.toDetailData(word) });
+  }
+
+  /** URL publik /words/<lemma> - resolusi homonim di repository. */
+  async detailByLemma(c: Context, lemma: string) {
+    const word = await this.deps.getByLemma.execute(lemma);
     return c.json({ success: true as const, data: this.toDetailData(word) });
   }
 
@@ -725,6 +733,7 @@ function toListItem(w: {
   status: string;
   matchedTranslation?: string;
   matchedVariant?: string;
+  sense?: string | null;
 }) {
   return {
     id: w.id,
@@ -736,6 +745,8 @@ function toListItem(w: {
     status: w.status,
     ...(w.matchedTranslation !== undefined ? { matched_translation: w.matchedTranslation } : {}),
     ...(w.matchedVariant !== undefined ? { matched_variant: w.matchedVariant } : {}),
+    // A-Z: `[n] makan,[v] santap`. Search tanpa sense → field tidak dikirim.
+    ...(w.sense !== undefined ? { sense: w.sense } : {}),
   };
 }
 

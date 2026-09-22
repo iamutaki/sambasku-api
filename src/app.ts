@@ -45,6 +45,7 @@ import { WordRepositoryImpl } from '@/modules/word/infrastructure/word.repositor
 import { CreateWordUseCase } from '@/modules/word/application/use-cases/create-word.use-case';
 import { UpdateWordUseCase } from '@/modules/word/application/use-cases/update-word.use-case';
 import { GetWordByIdUseCase } from '@/modules/word/application/use-cases/get-word-by-id.use-case';
+import { GetWordByLemmaUseCase } from '@/modules/word/application/use-cases/get-word-by-lemma.use-case';
 import { GetWordOfDayUseCase } from '@/modules/word/application/use-cases/get-word-of-day.use-case';
 import { SearchWordsUseCase } from '@/modules/word/application/use-cases/search-words.use-case';
 import { ListAdminWordsUseCase } from '@/modules/word/application/use-cases/list-admin-words.use-case';
@@ -314,6 +315,7 @@ const wordController = new WordController({
   create: new CreateWordUseCase(wordRepo, auditRepo, searchMissRepo),
   update: new UpdateWordUseCase(wordRepo, auditRepo),
   getById: new GetWordByIdUseCase(wordRepo),
+  getByLemma: new GetWordByLemmaUseCase(wordRepo),
   wordOfDay: new GetWordOfDayUseCase(wordRepo),
   search: new SearchWordsUseCase(wordRepo, searchMissRepo),
   listAdmin: new ListAdminWordsUseCase(wordRepo),

@@ -51,6 +51,12 @@ export interface WordSummary {
   matchedTranslation?: string;
   /** 11: terisi saat pencarian lemma cocok lewat variasi penulisan (formnya) */
   matchedVariant?: string;
+  /**
+   * Ringkas gloss A-Z: `[n] makan,[v] santap` (kode kelas + terjemahan).
+   * Hanya GET /words (listAtoZ). Feed /latest memakai `LatestWordSummary.sense`
+   * dengan semantik berbeda (satu baris definisi/terjemahan).
+   */
+  sense?: string | null;
 }
 
 /** Item feed beranda: kata published, urut waktu persetujuan. */

@@ -188,6 +188,9 @@ export interface WordRepository {
   findDuplicate(languageId: string, lemma: string, excludeWordId?: string): Promise<boolean>;
   /** hanya published + belum soft-deleted; includeAllStatuses = layar review */
   findDetailById(id: string, opts?: { includeAllStatuses?: boolean }): Promise<WordDetail | null>;
+  /** Resolusi URL publik /words/<lemma> → id entri published. Homonim
+   *  (lemma sama di >1 entri): terverifikasi & terlama menang (deterministik). */
+  findPublishedIdByLemma(lemma: string): Promise<string | null>;
   /**
    * 28-api-word-of-the-day.md: id kata published untuk tanggal WIB
    * ('YYYY-MM-DD'). Deterministik: ORDER BY md5(id || ':' || date) -

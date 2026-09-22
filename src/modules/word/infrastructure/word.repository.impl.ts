@@ -371,6 +371,23 @@ export class WordRepositoryImpl implements WordRepository {
     return !!row;
   }
 
+  async findPublishedIdByLemma(lemma: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ id: words.id })
+      .from(words)
+      .where(
+        and(
+          sql`lower(${words.lemma}) = lower(${lemma.trim()})`,
+          eq(words.status, 'published'),
+          isNull(words.deletedAt),
+        ),
+      )
+      // Homonim: entri terverifikasi duluan, lalu terlama (deterministik)
+      .orderBy(desc(words.isVerified), words.createdAt)
+      .limit(1);
+    return row?.id ?? null;
+  }
+
   async findDetailById(
     id: string,
     opts?: { includeAllStatuses?: boolean },
@@ -835,7 +852,10 @@ export class WordRepositoryImpl implements WordRepository {
       wordType: r.wordType as Word['wordType'],
       isVerified: r.isVerified,
       status: r.status as WordStatus,
+      sense: null,
     }));
+
+    await this.attachListGlosses(page);
 
     const last = page[page.length - 1];
     return {
@@ -843,6 +863,91 @@ export class WordRepositoryImpl implements WordRepository {
       nextCursor: hasMore && last ? encodeListCursor({ lemma: last.lemma, id: last.id }) : null,
       hasMore,
     };
+  }
+
+  /**
+   * Gloss daftar A-Z: `[n] makan,[v] santap`.
+   * Semua makna published × terjemahan valid, urut orderIndex makna lalu id terjemahan.
+   * Batch (bukan N+1) — pola sama attachSenses feed.
+   */
+  private async attachListGlosses(page: WordSummary[]): Promise<void> {
+    if (page.length === 0) return;
+
+    const meaningRows = await this.db
+      .select({
+        id: meanings.id,
+        wordId: meanings.wordId,
+        wordClassId: meanings.wordClassId,
+      })
+      .from(meanings)
+      .where(
+        and(
+          inArray(
+            meanings.wordId,
+            page.map((p) => p.id),
+          ),
+          isNull(meanings.deletedAt),
+          eq(meanings.status, 'published'),
+        ),
+      )
+      .orderBy(asc(meanings.orderIndex), asc(meanings.id));
+
+    if (meaningRows.length === 0) return;
+
+    const classIds = [...new Set(meaningRows.map((m) => m.wordClassId))];
+    const classRows = await this.db
+      .select({ id: wordClasses.id, code: wordClasses.code })
+      .from(wordClasses)
+      .where(inArray(wordClasses.id, classIds));
+    const codeByClassId = new Map(classRows.map((c) => [c.id, c.code]));
+
+    const meaningIds = meaningRows.map((m) => m.id);
+    const translationRows = await this.db
+      .select({
+        meaningId: meaningTranslations.meaningId,
+        translationText: meaningTranslations.translationText,
+      })
+      .from(meaningTranslations)
+      .where(
+        and(
+          inArray(meaningTranslations.meaningId, meaningIds),
+          isNull(meaningTranslations.deletedAt),
+          ne(meaningTranslations.translationText, '-'),
+        ),
+      )
+      .orderBy(asc(meaningTranslations.id));
+
+    const textsByMeaning = new Map<string, string[]>();
+    for (const row of translationRows) {
+      const text = row.translationText.trim();
+      if (!text) continue;
+      const list = textsByMeaning.get(row.meaningId);
+      if (list) list.push(text);
+      else textsByMeaning.set(row.meaningId, [text]);
+    }
+
+    const meaningsByWord = new Map<string, typeof meaningRows>();
+    for (const row of meaningRows) {
+      const list = meaningsByWord.get(row.wordId);
+      if (list) list.push(row);
+      else meaningsByWord.set(row.wordId, [row]);
+    }
+
+    for (const item of page) {
+      const wordMeanings = meaningsByWord.get(item.id);
+      if (!wordMeanings) continue;
+      const parts: string[] = [];
+      for (const meaning of wordMeanings) {
+        const code = codeByClassId.get(meaning.wordClassId)?.trim();
+        if (!code) continue;
+        const texts = textsByMeaning.get(meaning.id);
+        if (!texts) continue;
+        for (const text of texts) {
+          parts.push(`[${code}] ${text}`);
+        }
+      }
+      item.sense = parts.length > 0 ? parts.join(',') : null;
+    }
   }
 
   // Feed beranda: published, keyset (COALESCE(verified_at, created_at), id) DESC.
