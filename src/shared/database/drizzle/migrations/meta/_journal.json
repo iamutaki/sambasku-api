@@ -8,6 +8,13 @@
       "when": 1790017265849,
       "tag": "0000_init-turso",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790100000000,
+      "tag": "0001_word-audios",
+      "breakpoints": true
     }
   ]
 }

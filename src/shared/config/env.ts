@@ -53,6 +53,13 @@ const envSchema = z.object({
   IMAGEKIT_PUBLIC_KEY: z.string().optional(),
   IMAGEKIT_URL_ENDPOINT: z.string().optional(), // mis. https://ik.imagekit.io/akun
 
+  // Audio pronunciation storage - pola sama IMAGE_PROVIDER.
+  // Tanpa kredensial: endpoint upload audio balas 503
+  // PRONUNCIACION_UPLOAD_UNAVAILABLE.
+  PRONUNCIACION_PROVIDER: z.string().optional(), // 'github' (satu-satunya hari ini)
+  PRONUNCIACION_GITHUB_TOKEN: z.string().optional(),
+  PRONUNCIACION_GITHUB_URL: z.url().optional(),
+
   // KBBI lemma lookup (docs/api/13-api-kbbi-lemma-definition.md).
   // Pola sama IMAGE_PROVIDER + IMAGEKIT_*: pilih provider, kredensial/URL
   // spesifik per vendor. Default provider = raf555.

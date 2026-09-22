@@ -79,6 +79,7 @@ function makeDetail(overrides: Partial<WordDetail> = {}): WordDetail {
     categories: [],
     pronunciations: [],
     images: [],
+    audios: [],
     relatedWords: [],
     appearsIn: [],
     variants: [],

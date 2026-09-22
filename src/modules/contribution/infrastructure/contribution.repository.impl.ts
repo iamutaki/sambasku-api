@@ -8,6 +8,7 @@ import {
   pronunciations,
   searchMisses,
   users,
+  wordAudios,
   wordImages,
   words,
 } from '@/shared/database/drizzle/schema';
@@ -234,6 +235,16 @@ export class ContributionRepositoryImpl implements ContributionRepository {
       for (const r of rows) out.set(`word_image:${r.id}`, { lemma: r.lemma, wordId: r.wordId });
     }
 
+    const audioIds = idsOf('word_audio');
+    if (audioIds.length > 0) {
+      const rows = await this.db
+        .select({ id: wordAudios.id, lemma: words.lemma, wordId: wordAudios.wordId })
+        .from(wordAudios)
+        .innerJoin(words, eq(words.id, wordAudios.wordId))
+        .where(inArray(wordAudios.id, audioIds));
+      for (const r of rows) out.set(`word_audio:${r.id}`, { lemma: r.lemma, wordId: r.wordId });
+    }
+
     const meaningIds = idsOf('meaning');
     if (meaningIds.length > 0) {
       const rows = await this.db
@@ -304,7 +315,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
   }
 
   async findChildWithParent(
-    entityType: 'pronunciation' | 'word_image' | 'example' | 'meaning',
+    entityType: 'pronunciation' | 'word_image' | 'word_audio' | 'example' | 'meaning',
     entityId: string,
   ): Promise<ChildEntityWithParent | null> {
     if (entityType === 'pronunciation') {
@@ -366,6 +377,66 @@ export class ContributionRepositoryImpl implements ContributionRepository {
         wordId,
         wordLemma,
         data: { provider, provider_file_id: providerFileId, url, alt_text: altText, is_primary: isPrimary },
+        status,
+        isVerified,
+        isCorrected,
+      };
+    }
+
+    if (entityType === 'word_audio') {
+      const [row] = await this.db
+        .select({
+          id: wordAudios.id,
+          wordId: wordAudios.wordId,
+          wordLemma: words.lemma,
+          exampleId: wordAudios.exampleId,
+          dialectId: wordAudios.dialectId,
+          url: wordAudios.url,
+          mimeType: wordAudios.mimeType,
+          fileSize: wordAudios.fileSize,
+          durationMs: wordAudios.durationMs,
+          speakerName: wordAudios.speakerName,
+          isPrimary: wordAudios.isPrimary,
+          status: wordAudios.status,
+          isVerified: wordAudios.isVerified,
+          isCorrected: wordAudios.isCorrected,
+        })
+        .from(wordAudios)
+        .innerJoin(words, eq(words.id, wordAudios.wordId))
+        .where(and(eq(wordAudios.id, entityId), isNull(wordAudios.deletedAt)))
+        .limit(1);
+      if (!row) return null;
+      const {
+        id,
+        wordId,
+        wordLemma,
+        exampleId,
+        dialectId,
+        url,
+        mimeType,
+        fileSize,
+        durationMs,
+        speakerName,
+        isPrimary,
+        status,
+        isVerified,
+        isCorrected,
+      } = row;
+      return {
+        id,
+        wordId,
+        wordLemma,
+        data: {
+          word_id: wordId,
+          example_id: exampleId,
+          url,
+          speaker_name: speakerName,
+          dialect_id: dialectId,
+          is_primary: isPrimary,
+          duration_ms: durationMs,
+          mime_type: mimeType,
+          file_size: fileSize,
+        },
         status,
         isVerified,
         isCorrected,
@@ -520,6 +591,9 @@ export class ContributionRepositoryImpl implements ContributionRepository {
         case 'word_image':
           await this.reviewWordImage(tx, contrib.entityId, cmd);
           break;
+        case 'word_audio':
+          await this.reviewWordAudio(tx, contrib.entityId, cmd);
+          break;
         case 'example':
           await this.reviewExample(tx, contrib.entityId, cmd, now);
           break;
@@ -591,6 +665,22 @@ export class ContributionRepositoryImpl implements ContributionRepository {
               isCorrected: true,
             })
             .where(and(eq(wordImages.id, cmd.entityId), isNull(wordImages.deletedAt)));
+          break;
+        }
+        case 'word_audio': {
+          const p = cmd.wordAudio;
+          if (!p) throw new Error('patch word_audio hilang pada koreksi tanpa publish');
+          await tx
+            .update(wordAudios)
+            .set({
+              speakerName: p.speakerName,
+              dialectId: p.dialectId,
+              isPrimary: p.isPrimary,
+              status: 'pending_review',
+              isVerified: false,
+              isCorrected: true,
+            })
+            .where(and(eq(wordAudios.id, cmd.entityId), isNull(wordAudios.deletedAt)));
           break;
         }
         case 'example': {
@@ -677,8 +767,9 @@ export class ContributionRepositoryImpl implements ContributionRepository {
       .update(pronunciations)
       .set({ status, isVerified, updatedBy: reviewerId, updatedAt: now })
       .where(eq(pronunciations.wordId, wordId));
-    // word_images tidak punya kolom updated_by/updated_at (lihat schema)
+    // word_images / word_audios tidak punya kolom updated_by/updated_at (lihat schema)
     await tx.update(wordImages).set({ status, isVerified }).where(eq(wordImages.wordId, wordId));
+    await tx.update(wordAudios).set({ status, isVerified }).where(eq(wordAudios.wordId, wordId));
   }
 
   // ponytail: patch koreksi anak tidak memvalidasi FK baru (dialect dsb) -
@@ -728,6 +819,30 @@ export class ContributionRepositoryImpl implements ContributionRepository {
           url: p.url,
           providerFileId: p.providerFileId,
           altText: p.altText,
+          isPrimary: p.isPrimary,
+          status: 'published',
+          isVerified: true,
+          isCorrected: true,
+        })
+        .where(where);
+    }
+  }
+
+  // word_audios tidak punya updated_by/updated_at (lihat schema) - tanpa param now
+  private async reviewWordAudio(tx: Tx, entityId: string, cmd: ReviewCommand): Promise<void> {
+    const where = and(eq(wordAudios.id, entityId), isNull(wordAudios.deletedAt));
+    if (cmd.decision === 'approve') {
+      await tx.update(wordAudios).set({ status: 'published', isVerified: true }).where(where);
+    } else if (cmd.decision === 'reject') {
+      await tx.update(wordAudios).set({ status: 'rejected', isVerified: false }).where(where);
+    } else {
+      const p = cmd.childPatch?.wordAudio;
+      if (!p) throw new Error('childPatch.wordAudio hilang pada decision correct');
+      await tx
+        .update(wordAudios)
+        .set({
+          speakerName: p.speakerName,
+          dialectId: p.dialectId,
           isPrimary: p.isPrimary,
           status: 'published',
           isVerified: true,

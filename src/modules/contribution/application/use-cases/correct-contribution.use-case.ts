@@ -14,6 +14,7 @@ import type {
   ContributionRepository,
   ExamplePatch,
   PronunciationPatch,
+  WordAudioPatch,
   WordImagePatch,
 } from '../../domain/repositories/contribution.repository';
 
@@ -22,6 +23,7 @@ export interface CorrectContributionInput {
   word?: CreateWordDto;
   pronunciation?: PronunciationPatch;
   wordImage?: WordImagePatch;
+  wordAudio?: WordAudioPatch;
   example?: ExamplePatch;
 }
 
@@ -71,6 +73,7 @@ export class CorrectContributionUseCase {
       word: !!input.word,
       pronunciation: !!input.pronunciation,
       word_image: !!input.wordImage,
+      word_audio: !!input.wordAudio,
       example: !!input.example,
     };
     if (!patchPresent[contrib.entityType]) {
@@ -96,6 +99,7 @@ export class CorrectContributionUseCase {
         childPatch: {
           pronunciation: input.pronunciation,
           wordImage: input.wordImage,
+          wordAudio: input.wordAudio,
           example: input.example,
         },
       });
@@ -104,11 +108,12 @@ export class CorrectContributionUseCase {
       // (word sudah ditangani applyWordCorrection di atas)
       if (contrib.entityType !== 'word') {
         await this.contributionRepo.applyChildCorrection({
-          entityType: contrib.entityType as 'pronunciation' | 'word_image' | 'example',
+          entityType: contrib.entityType as 'pronunciation' | 'word_image' | 'word_audio' | 'example',
           entityId: contrib.entityId,
           actorId: cmd.actorId,
           pronunciation: input.pronunciation,
           wordImage: input.wordImage,
+          wordAudio: input.wordAudio,
           example: input.example,
         });
       }
@@ -157,7 +162,7 @@ export class CorrectContributionUseCase {
       return { lemma: detail.lemma, status: detail.status, is_verified: detail.isVerified };
     }
     const child = await this.contributionRepo.findChildWithParent(
-      entityType as 'pronunciation' | 'word_image' | 'example',
+      entityType as 'pronunciation' | 'word_image' | 'word_audio' | 'example',
       entityId,
     );
     if (!child) return null;

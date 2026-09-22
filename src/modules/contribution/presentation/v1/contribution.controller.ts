@@ -167,6 +167,24 @@ export class ContributionController {
       return decisionResponse(c, outcome, true);
     }
 
+    if (body.entity_type === 'word_audio') {
+      const outcome = await this.deps.correct.execute({
+        contributionId: id,
+        actorId: actor.userId,
+        requestId: actor.requestId,
+        comment,
+        publish,
+        input: {
+          wordAudio: {
+            speakerName: body.speaker_name ?? null,
+            dialectId: body.dialect_id ?? null,
+            isPrimary: body.is_primary,
+          },
+        },
+      });
+      return decisionResponse(c, outcome, true);
+    }
+
     const outcome = await this.deps.correct.execute({
       contributionId: id,
       actorId: actor.userId,

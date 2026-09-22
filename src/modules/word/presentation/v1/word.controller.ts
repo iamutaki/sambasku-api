@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { logger } from '@/shared/logging/logger';
-import { UnauthorizedError } from '@/shared/errors/app-error';
+import { UnauthorizedError, BadRequestError } from '@/shared/errors/app-error';
 import type { AppVariables } from '@/shared/types';
 import type { CreateWordUseCase } from '../../application/use-cases/create-word.use-case';
 import type { UpdateWordUseCase } from '../../application/use-cases/update-word.use-case';
@@ -14,6 +14,8 @@ import type { AddPronunciationUseCase } from '../../application/use-cases/add-pr
 import type { AddWordImageUseCase } from '../../application/use-cases/add-word-image.use-case';
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
 import type { AddMeaningUseCase } from '../../application/use-cases/add-meaning.use-case';
+import type { UploadPronunciationAudioUseCase } from '../../application/use-cases/upload-pronunciation-audio.use-case';
+import type { DeletePronunciationAudioUseCase } from '../../application/use-cases/delete-pronunciation-audio.use-case';
 import type {
   CreateWordBody,
   SearchWordsQueryBody,
@@ -32,6 +34,7 @@ import { ANONIM_USER_ID } from '@/shared/constants/anonim';
 import type { WordClassSummary, WordDetail } from '../../domain/entities/word.entity';
 import type { ListAdminWordsUseCase } from '../../application/use-cases/list-admin-words.use-case';
 import type { ListWordsUseCase } from '../../application/use-cases/list-words.use-case';
+import { MAX_AUDIO_BYTES } from '../../application/utils/validate-audio-file';
 
 export class WordController {
   constructor(
@@ -50,6 +53,8 @@ export class WordController {
       addWordImage: AddWordImageUseCase;
       addExample: AddExampleUseCase;
       addMeaning: AddMeaningUseCase;
+      uploadPronunciationAudio: UploadPronunciationAudioUseCase;
+      deletePronunciationAudio: DeletePronunciationAudioUseCase;
       listWordClasses: () => Promise<WordClassSummary[]>;
       /** provider gambar aktif - dari composition root, bukan hardcode */
       imageProviderName: string;
@@ -224,6 +229,15 @@ export class WordController {
           target_language_id: e.targetLanguageId,
           target_sentence: e.targetSentence,
           source_type: e.sourceType,
+          audios: (e.audios ?? []).map((a) => ({
+            id: a.id,
+            url: a.url,
+            dialect_id: a.dialectId,
+            speaker_name: a.speakerName,
+            duration_ms: a.durationMs,
+            is_primary: a.isPrimary,
+            mime_type: a.mimeType,
+          })),
         })),
       })),
       categories: word.categories,
@@ -241,6 +255,15 @@ export class WordController {
         provider_file_id: img.providerFileId,
         alt_text: img.altText,
         is_primary: img.isPrimary,
+      })),
+      audios: word.audios.map((a) => ({
+        id: a.id,
+        url: a.url,
+        dialect_id: a.dialectId,
+        speaker_name: a.speakerName,
+        duration_ms: a.durationMs,
+        is_primary: a.isPrimary,
+        mime_type: a.mimeType,
       })),
       related_words: word.relatedWords.map((rel) => ({
         word_id: rel.wordId,
@@ -469,6 +492,72 @@ export class WordController {
     );
   }
 
+  async uploadPronunciationAudio(c: Context, wordId: string) {
+    const contentLength = Number(c.req.header('content-length') ?? 0);
+    // bodyLimit middleware menangani hard cap; cek cepat sebelum parse
+    if (contentLength > MAX_AUDIO_BYTES + 1024 * 1024) {
+      throw new BadRequestError('AUDIO_TOO_LARGE', 'File audio terlalu besar (maks 5 MB)', [
+        { field: 'audio', message: 'Ukuran maksimal 5 MB' },
+      ]);
+    }
+
+    const body = await c.req.parseBody({ all: true });
+    const audioPart = body['audio'];
+    if (!audioPart || typeof audioPart === 'string') {
+      throw new BadRequestError('VALIDATION_ERROR', 'File audio wajib diunggah', [
+        { field: 'audio', message: 'Field multipart `audio` wajib berisi file' },
+      ]);
+    }
+
+    const file = audioPart as File;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+
+    const media = await this.withActor(c, (actor) =>
+      this.deps.uploadPronunciationAudio.execute(
+        wordId,
+        {
+          bytes,
+          mimeType: file.type || null,
+          filename: file.name || null,
+          dialectId: strField(body['dialect_id']),
+          exampleId: strField(body['example_id']),
+          speakerName: strField(body['speaker_name']),
+          durationMs: body['duration_ms'],
+        },
+        actor,
+      ),
+    );
+
+    return c.json(
+      {
+        success: true as const,
+        data: {
+          id: media.id,
+          word_id: media.wordId,
+          example_id: media.exampleId,
+          dialect_id: media.dialectId,
+          url: media.url,
+          mime_type: media.mimeType,
+          file_size: media.fileSize,
+          duration_ms: media.durationMs,
+          speaker_name: media.speakerName,
+          is_primary: media.isPrimary,
+          status: media.status,
+          is_verified: media.isVerified,
+          is_corrected: media.isCorrected,
+        },
+      },
+      201,
+    );
+  }
+
+  async deletePronunciationAudio(c: Context, wordId: string, audioId: string) {
+    await this.withActor(c, (actor) =>
+      this.deps.deletePronunciationAudio.execute(wordId, audioId, actor),
+    );
+    return c.body(null, 204);
+  }
+
   async addExample(c: Context, meaningId: string, body: AddExampleBody) {
     const media = await this.withActor(c, (actor) =>
       this.deps.addExample.execute(
@@ -600,4 +689,10 @@ function toListItem(w: {
     ...(w.matchedTranslation !== undefined ? { matched_translation: w.matchedTranslation } : {}),
     ...(w.matchedVariant !== undefined ? { matched_variant: w.matchedVariant } : {}),
   };
+}
+
+function strField(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t.length > 0 ? t : null;
 }

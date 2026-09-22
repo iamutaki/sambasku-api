@@ -62,7 +62,7 @@ export function refineMeaningPadanan(
       code: 'custom',
       path: [...pathPrefix, 'translations'],
       message:
-        'Padanan kata wajib jika definisi belum diisi. Isi definisi dulu, atau isi padanan.',
+        'Terjemahan kata wajib jika definisi belum diisi. Isi definisi dulu, atau isi terjemahan.',
     });
   }
 }

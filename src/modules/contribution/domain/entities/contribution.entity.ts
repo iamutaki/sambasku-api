@@ -4,7 +4,13 @@
 /** Status antrean di tabel contributions */
 export type ContributionStatus = 'pending' | 'approved' | 'rejected' | 'corrected';
 /** Entity yang bisa dikontribusikan + direview */
-export type ContributionEntityType = 'word' | 'pronunciation' | 'word_image' | 'example' | 'meaning';
+export type ContributionEntityType =
+  | 'word'
+  | 'pronunciation'
+  | 'word_image'
+  | 'word_audio'
+  | 'example'
+  | 'meaning';
 /** Keputusan verifikator */
 export type ReviewDecision = 'approve' | 'reject' | 'correct';
 

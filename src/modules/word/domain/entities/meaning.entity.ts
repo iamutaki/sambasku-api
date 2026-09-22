@@ -30,6 +30,19 @@ export interface MeaningDetail extends Meaning {
     targetLanguageId: string | null;
     targetSentence: string | null;
     sourceType: string | null;
+    /** Audio pelafalan kalimat contoh (word_audios.example_id = id ini) */
+    audios?: {
+      id: string;
+      url: string;
+      dialectId: string | null;
+      speakerName: string | null;
+      durationMs: number | null;
+      isPrimary: boolean;
+      mimeType: string;
+      status?: import('./word.entity').ChildStatus;
+      isVerified?: boolean;
+      isCorrected?: boolean;
+    }[];
     /** terisi saat includeAllStatuses (layar review); publik selalu published */
     status?: import('./word.entity').ChildStatus;
     isVerified?: boolean;

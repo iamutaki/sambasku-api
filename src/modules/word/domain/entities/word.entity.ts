@@ -78,6 +78,19 @@ export interface WordDetail extends Word {
     isVerified?: boolean;
     isCorrected?: boolean;
   }[];
+  /** Audio pelafalan lemma (example_id IS NULL). Multi-take. */
+  audios: {
+    id: string;
+    url: string;
+    dialectId: string | null;
+    speakerName: string | null;
+    durationMs: number | null;
+    isPrimary: boolean;
+    mimeType: string;
+    status?: ChildStatus;
+    isVerified?: boolean;
+    isCorrected?: boolean;
+  }[];
   /** relasi keluar (mis. peribahasa → komponen; kata → sinonim/antonim) */
   relatedWords: RelatedWordRef[];
   /** relasi masuk (mis. komponen → "muncul dalam" peribahasa) - derived, tak disimpan */

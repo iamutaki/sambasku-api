@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
-import { examples, meanings, pronunciations, wordImages, words } from '@/shared/database/drizzle/schema';
+import { examples, meanings, pronunciations, wordAudios, wordImages, words } from '@/shared/database/drizzle/schema';
 
 export type PublishOrMergeResult = {
   wordId: string;
@@ -111,6 +111,10 @@ export async function publishOrMergeMeaningsInTx(
     .update(wordImages)
     .set({ status: 'rejected', isVerified: false })
     .where(and(eq(wordImages.wordId, wordId), isNull(wordImages.deletedAt)));
+  await tx
+    .update(wordAudios)
+    .set({ status: 'rejected', isVerified: false })
+    .where(and(eq(wordAudios.wordId, wordId), isNull(wordAudios.deletedAt)));
 
   return { wordId: twin.id, mergedIntoWordId: twin.id };
 }
@@ -138,4 +142,5 @@ async function publishWordChildren(tx: any, wordId: string, actorId: string, now
     .set({ status: 'published', isVerified: true, updatedBy: actorId, updatedAt: now })
     .where(eq(pronunciations.wordId, wordId));
   await tx.update(wordImages).set({ status: 'published', isVerified: true }).where(eq(wordImages.wordId, wordId));
+  await tx.update(wordAudios).set({ status: 'published', isVerified: true }).where(eq(wordAudios.wordId, wordId));
 }

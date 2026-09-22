@@ -264,6 +264,50 @@ export interface WordRepository {
     actorId: string,
   ): Promise<WordImageMedia>;
 
+  /**
+   * Insert audio pelafalan (multi) pada kata / contoh + contributions.
+   * exampleId null = pelafalan lemma; terisi = pelafalan contoh.
+   */
+  addWordAudio(
+    wordId: string,
+    data: {
+      exampleId?: string | null;
+      dialectId?: string | null;
+      provider: string;
+      providerFileId: string;
+      sha: string | null;
+      url: string;
+      mimeType: string;
+      fileSize: number;
+      durationMs?: number | null;
+      speakerName?: string | null;
+      isPrimary: boolean;
+      status: ChildStatus;
+      isVerified: boolean;
+    },
+    actorId: string,
+  ): Promise<WordAudioMedia>;
+
+  /** Soft-delete audio + return metadata untuk best-effort storage.delete */
+  softDeleteWordAudio(
+    wordId: string,
+    audioId: string,
+  ): Promise<WordAudioMedia | null>;
+
+  /** Hitung audio aktif (belum soft-delete) untuk target word/example — is_primary */
+  countWordAudios(
+    wordId: string,
+    exampleId?: string | null,
+  ): Promise<number>;
+
+  /** Example by id + wordId induk (lewat meaning) — validasi upload audio example */
+  findExampleWithWord(
+    exampleId: string,
+  ): Promise<{ id: string; meaningId: string; wordId: string } | null>;
+
+  /** Dialect code by id (untuk path storage); null jika tidak ada */
+  findDialectCode(dialectId: string): Promise<string | null>;
+
   /** Insert contoh kalimat pada makna existing + baris contributions - satu transaksi */
   addExample(
     meaningId: string,
@@ -352,6 +396,25 @@ export interface WordImageMedia {
   providerFileId: string;
   url: string;
   altText: string | null;
+  isPrimary: boolean;
+  status: ChildStatus;
+  isVerified: boolean;
+  isCorrected: boolean;
+}
+
+export interface WordAudioMedia {
+  id: string;
+  wordId: string;
+  exampleId: string | null;
+  dialectId: string | null;
+  provider: string;
+  providerFileId: string;
+  sha: string | null;
+  url: string;
+  mimeType: string;
+  fileSize: number;
+  durationMs: number | null;
+  speakerName: string | null;
   isPrimary: boolean;
   status: ChildStatus;
   isVerified: boolean;

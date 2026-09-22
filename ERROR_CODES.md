@@ -49,6 +49,16 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `RATE_LIMITED` | 429 | Terlalu banyak percobaan (lihat tabel limit di api-base-stack.md Section 15). Resend OTP: 1/2 menit per IP, dan cooldown 2 menit per email |
 | `INTERNAL_ERROR` | 500 | Error tak terduga (bug, koneksi DB putus, dst) |
 | `IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider penyimpanan gambar belum dikonfigurasi (env `IMAGEKIT_*`) |
+| `PRONUNCIACION_UPLOAD_UNAVAILABLE` | 503 | Provider audio pelafalan belum dikonfigurasi / token GitHub invalid (`PRONUNCIACION_GITHUB_*`) |
+| `PRONUNCIACION_UPLOAD_FAILED` | 502 | Upload ke GitHub Contents API gagal (network / 5xx) |
+| `WORD_AUDIO_NOT_FOUND` | 404 | Audio pelafalan tidak ditemukan / sudah soft-deleted |
+| `EXAMPLE_NOT_FOUND` | 404 | Contoh kalimat tidak ditemukan pada kata (upload audio example) |
+| `DIALECT_NOT_FOUND` | 404 | Dialek tidak ditemukan (upload audio) |
+| `INVALID_AUDIO_MIME` | 400 | MIME audio tidak didukung |
+| `INVALID_AUDIO_FILENAME` | 400 | Nama file audio mengandung karakter terlarang |
+| `EMPTY_AUDIO_FILE` | 400 | File audio 0 byte |
+| `AUDIO_TOO_LARGE` | 400 | File audio > 5 MB |
+| `INVALID_AUDIO_CONTENT` | 400 | Magic-byte tidak cocok dengan MIME yang diklaim |
 | `GOOGLE_AUTH_UNAVAILABLE` | 503 | `GOOGLE_CLIENT_ID` belum di-set; masuk dengan Google dimatikan |
 | `FACEBOOK_AUTH_UNAVAILABLE` | 503 | `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` belum di-set; masuk dengan Facebook dimatikan |
 | `LEMMA_DEFINITION_PROVIDER_ERROR` | 502 | Provider KBBI gagal (timeout, non-OK, payload tak terparse) |

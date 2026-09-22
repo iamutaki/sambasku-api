@@ -15,6 +15,7 @@ import {
   wordCategories,
   wordClasses,
   wordImages,
+  wordAudios,
   wordVariants,
   words,
 } from '@/shared/database/drizzle/schema';
@@ -34,6 +35,7 @@ import type {
   ResolvedInlineRelation,
   SaveWithInlineResult,
   SearchParams,
+  WordAudioMedia,
   WordImageMedia,
   WordRepository,
   WordToSave,
@@ -95,6 +97,27 @@ function toWordImage(row: typeof wordImages.$inferSelect): WordImageMedia {
     providerFileId: row.providerFileId,
     url: row.url,
     altText: row.altText,
+    isPrimary: row.isPrimary,
+    status: row.status as ChildStatus,
+    isVerified: row.isVerified,
+    isCorrected: row.isCorrected,
+  };
+}
+
+function toWordAudio(row: typeof wordAudios.$inferSelect): WordAudioMedia {
+  return {
+    id: row.id,
+    wordId: row.wordId,
+    exampleId: row.exampleId,
+    dialectId: row.dialectId,
+    provider: row.provider,
+    providerFileId: row.providerFileId,
+    sha: row.sha,
+    url: row.url,
+    mimeType: row.mimeType,
+    fileSize: row.fileSize,
+    durationMs: row.durationMs,
+    speakerName: row.speakerName,
     isPrimary: row.isPrimary,
     status: row.status as ChildStatus,
     isVerified: row.isVerified,
@@ -442,6 +465,17 @@ export class WordRepositoryImpl implements WordRepository {
         ),
       );
 
+    const audioRows = await this.db
+      .select()
+      .from(wordAudios)
+      .where(
+        and(
+          eq(wordAudios.wordId, id),
+          isNull(wordAudios.deletedAt),
+          includeAll ? undefined : eq(wordAudios.status, 'published'),
+        ),
+      );
+
     // Relasi maju (entri ini → entri lain) + lemma target. Hanya tampil saat
     // TARGET juga published (Section 7.7: sinonim pending_review belum muncul).
     const relatedRows = await this.db
@@ -526,18 +560,47 @@ export class WordRepositoryImpl implements WordRepository {
           })),
         examples: exampleRows
           .filter((e) => e.meaningId === m.id)
-          .map((e) => ({
-            id: e.id,
-            sourceLanguageId: e.sourceLanguageId,
-            sourceSentence: e.sourceSentence,
-            targetLanguageId: e.targetLanguageId,
-            targetSentence: e.targetSentence,
-            sourceType: e.sourceType,
-            // status/flag anak hanya diekspos untuk layar review
-            ...(includeAll
-              ? { status: e.status as ChildStatus, isVerified: e.isVerified, isCorrected: e.isCorrected }
-              : {}),
-          })),
+          .map((e) => {
+            const exampleAudios = audioRows
+              .filter((a) => a.exampleId === e.id)
+              .map((a) => ({
+                id: a.id,
+                url: a.url,
+                dialectId: a.dialectId,
+                speakerName: a.speakerName,
+                durationMs: a.durationMs,
+                isPrimary: a.isPrimary,
+                mimeType: a.mimeType,
+                ...(includeAll
+                  ? {
+                      status: a.status as ChildStatus,
+                      isVerified: a.isVerified,
+                      isCorrected: a.isCorrected,
+                    }
+                  : {}),
+              }));
+            // Primary dulu, lalu terbaru (createdAt desc via ULID id)
+            exampleAudios.sort((x, y) => {
+              if (x.isPrimary !== y.isPrimary) return x.isPrimary ? -1 : 1;
+              return y.id.localeCompare(x.id);
+            });
+            return {
+              id: e.id,
+              sourceLanguageId: e.sourceLanguageId,
+              sourceSentence: e.sourceSentence,
+              targetLanguageId: e.targetLanguageId,
+              targetSentence: e.targetSentence,
+              sourceType: e.sourceType,
+              audios: exampleAudios,
+              ...(includeAll
+                ? {
+                    status: e.status as ChildStatus,
+                    isVerified: e.isVerified,
+                    isCorrected: e.isCorrected,
+                  }
+                : {}),
+            };
+          }),
       })),
       categories: categoryRows,
       pronunciations: pronRows.map((p) => ({
@@ -561,6 +624,31 @@ export class WordRepositoryImpl implements WordRepository {
           ? { status: i.status as ChildStatus, isVerified: i.isVerified, isCorrected: i.isCorrected }
           : {}),
       })),
+      audios: (() => {
+        const wordLevel = audioRows
+          .filter((a) => a.exampleId == null)
+          .map((a) => ({
+            id: a.id,
+            url: a.url,
+            dialectId: a.dialectId,
+            speakerName: a.speakerName,
+            durationMs: a.durationMs,
+            isPrimary: a.isPrimary,
+            mimeType: a.mimeType,
+            ...(includeAll
+              ? {
+                  status: a.status as ChildStatus,
+                  isVerified: a.isVerified,
+                  isCorrected: a.isCorrected,
+                }
+              : {}),
+          }));
+        wordLevel.sort((x, y) => {
+          if (x.isPrimary !== y.isPrimary) return x.isPrimary ? -1 : 1;
+          return y.id.localeCompare(x.id);
+        });
+        return wordLevel;
+      })(),
       relatedWords: relatedRows,
       appearsIn: appearsRows,
       variants: variantRows.map((v) => ({
@@ -1045,6 +1133,121 @@ export class WordRepositoryImpl implements WordRepository {
     }
   }
 
+  async addWordAudio(
+    wordId: string,
+    data: {
+      exampleId?: string | null;
+      dialectId?: string | null;
+      provider: string;
+      providerFileId: string;
+      sha: string | null;
+      url: string;
+      mimeType: string;
+      fileSize: number;
+      durationMs?: number | null;
+      speakerName?: string | null;
+      isPrimary: boolean;
+      status: ChildStatus;
+      isVerified: boolean;
+    },
+    actorId: string,
+  ): Promise<WordAudioMedia> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(wordAudios)
+          .values({
+            wordId,
+            exampleId: data.exampleId ?? null,
+            dialectId: data.dialectId ?? null,
+            provider: data.provider,
+            providerFileId: data.providerFileId,
+            sha: data.sha,
+            url: data.url,
+            mimeType: data.mimeType,
+            fileSize: data.fileSize,
+            durationMs: data.durationMs ?? null,
+            speakerName: data.speakerName ?? null,
+            isPrimary: data.isPrimary,
+            status: data.status,
+            isVerified: data.isVerified,
+            createdBy: actorId,
+          })
+          .returning();
+        await tx.insert(contributions).values({
+          userId: actorId,
+          entityType: 'word_audio',
+          entityId: row.id,
+          action: 'create',
+          status: contributionStatusOf(data.status),
+        });
+        return toWordAudio(row);
+      });
+    } catch (err) {
+      mapMediaViolation(err, 'provider_file_id');
+      throw err;
+    }
+  }
+
+  async softDeleteWordAudio(wordId: string, audioId: string): Promise<WordAudioMedia | null> {
+    const [existing] = await this.db
+      .select()
+      .from(wordAudios)
+      .where(
+        and(
+          eq(wordAudios.id, audioId),
+          eq(wordAudios.wordId, wordId),
+          isNull(wordAudios.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!existing) return null;
+
+    const [row] = await this.db
+      .update(wordAudios)
+      .set({ deletedAt: new Date() })
+      .where(eq(wordAudios.id, audioId))
+      .returning();
+    return row ? toWordAudio(row) : null;
+  }
+
+  async countWordAudios(wordId: string, exampleId?: string | null): Promise<number> {
+    const exampleFilter =
+      exampleId == null || exampleId === undefined
+        ? isNull(wordAudios.exampleId)
+        : eq(wordAudios.exampleId, exampleId);
+    const rows = await this.db
+      .select({ id: wordAudios.id })
+      .from(wordAudios)
+      .where(and(eq(wordAudios.wordId, wordId), isNull(wordAudios.deletedAt), exampleFilter));
+    return rows.length;
+  }
+
+  async findExampleWithWord(
+    exampleId: string,
+  ): Promise<{ id: string; meaningId: string; wordId: string } | null> {
+    const [row] = await this.db
+      .select({
+        id: examples.id,
+        meaningId: examples.meaningId,
+        wordId: meanings.wordId,
+      })
+      .from(examples)
+      .innerJoin(meanings, eq(meanings.id, examples.meaningId))
+      .where(and(eq(examples.id, exampleId), isNull(examples.deletedAt), isNull(meanings.deletedAt)))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async findDialectCode(dialectId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ code: dialects.code })
+      .from(dialects)
+      .where(and(eq(dialects.id, dialectId), isNull(dialects.deletedAt)))
+      .limit(1);
+    return row?.code ?? null;
+  }
+
   async addExample(
     meaningId: string,
     data: {
@@ -1401,6 +1604,7 @@ export class WordRepositoryImpl implements WordRepository {
         await tx.delete(lexicalRelations).where(eq(lexicalRelations.sourceWordId, id));
         await tx.delete(wordVariants).where(eq(wordVariants.wordId, id));
         await tx.delete(wordImages).where(eq(wordImages.wordId, id));
+        await tx.delete(wordAudios).where(eq(wordAudios.wordId, id));
         await tx.delete(pronunciations).where(eq(pronunciations.wordId, id));
 
         // Insert children baru (pola sama dengan saveWithRelations)

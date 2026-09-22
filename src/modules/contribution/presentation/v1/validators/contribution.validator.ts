@@ -1,4 +1,4 @@
-import { opaqueId } from '@/shared/validation/id';
+import { choiceId, opaqueId } from '@/shared/validation/id';
 import { z } from 'zod';
 import {
   createWordBodySchema,
@@ -7,7 +7,14 @@ import {
 import { addPronunciationSchema, addWordImageSchema } from '@/modules/word/presentation/v1/validators/word-media.validator';
 
 export const contributionStatusSchema = z.enum(['pending', 'approved', 'rejected', 'corrected']);
-export const entityTypeSchema = z.enum(['word', 'pronunciation', 'word_image', 'example', 'meaning']);
+export const entityTypeSchema = z.enum([
+  'word',
+  'pronunciation',
+  'word_image',
+  'word_audio',
+  'example',
+  'meaning',
+]);
 
 export const listContributionsQuerySchema = z.object({
   status: contributionStatusSchema.optional(),
@@ -57,6 +64,14 @@ export const correctContributionSchema = z.discriminatedUnion('entity_type', [
     entity_type: z.literal('word_image'),
     comment: commentField,
     publish: publishField,
+  }),
+  z.object({
+    entity_type: z.literal('word_audio'),
+    comment: commentField,
+    publish: publishField,
+    speaker_name: z.string().trim().max(255).nullable().optional(),
+    dialect_id: choiceId('Dialek').nullable().optional(),
+    is_primary: z.boolean().default(false),
   }),
   z.object({
     entity_type: z.literal('example'),
@@ -144,6 +159,7 @@ export const mySubmissionItemSchema = z.object({
     'word',
     'pronunciation',
     'word_image',
+    'word_audio',
     'example',
     'meaning',
     'word_suggestion',

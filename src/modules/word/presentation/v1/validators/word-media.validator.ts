@@ -117,3 +117,22 @@ export const addMeaningResponseSchema = z.object({
     is_corrected: z.boolean(),
   }),
 });
+
+export const wordAudioResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    id: z.string(),
+    word_id: z.string(),
+    example_id: z.string().nullable(),
+    dialect_id: z.string().nullable(),
+    url: z.string(),
+    mime_type: z.string(),
+    file_size: z.number().int(),
+    duration_ms: z.number().int().nullable(),
+    speaker_name: z.string().nullable(),
+    is_primary: z.boolean(),
+    status: childStatusSchema,
+    is_verified: z.boolean(),
+    is_corrected: z.boolean(),
+  }),
+});

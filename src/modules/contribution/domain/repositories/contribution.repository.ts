@@ -42,6 +42,13 @@ export interface WordImagePatch {
   isPrimary: boolean;
 }
 
+/** Koreksi metadata audio (bukan ganti file upload) */
+export interface WordAudioPatch {
+  speakerName: string | null;
+  dialectId: string | null;
+  isPrimary: boolean;
+}
+
 export interface ExamplePatch {
   sourceSentence: string;
   targetSentence: string | null;
@@ -58,6 +65,7 @@ export interface ReviewCommand {
   childPatch?: {
     pronunciation?: PronunciationPatch;
     wordImage?: WordImagePatch;
+    wordAudio?: WordAudioPatch;
     example?: ExamplePatch;
   };
 }
@@ -66,11 +74,12 @@ export interface ReviewCommand {
 // patch diterapkan, is_corrected=true, tapi status tetap 'pending_review'
 // dan tidak ada keputusan review (kontribusi tetap di antrean).
 export interface ApplyChildCorrectionCommand {
-  entityType: 'pronunciation' | 'word_image' | 'example';
+  entityType: 'pronunciation' | 'word_image' | 'word_audio' | 'example';
   entityId: string;
   actorId: string;
   pronunciation?: PronunciationPatch;
   wordImage?: WordImagePatch;
+  wordAudio?: WordAudioPatch;
   example?: ExamplePatch;
 }
 
@@ -104,7 +113,7 @@ export interface ContributionRepository {
   /** baris review terakhir untuk kontribsi (null kalau belum ada keputusan) */
   findReview(contributionId: string): Promise<ContributionReview | null>;
   findChildWithParent(
-    entityType: 'pronunciation' | 'word_image' | 'example' | 'meaning',
+    entityType: 'pronunciation' | 'word_image' | 'word_audio' | 'example' | 'meaning',
     entityId: string,
   ): Promise<ChildEntityWithParent | null>;
   review(cmd: ReviewCommand): Promise<ReviewOutcome>;

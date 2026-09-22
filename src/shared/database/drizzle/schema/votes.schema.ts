@@ -15,7 +15,7 @@ export const votes = sqliteTable(
       .notNull()
       .references(() => users.id),
     // 'word' | 'meaning' | 'example' | 'pronunciation' | 'word_image' |
-    // 'comment' (09-api-comment.md)
+    // 'word_audio' | 'comment' (09-api-comment.md)
     entityType: text('entity_type').notNull(),
     entityId: text('entity_id').notNull(),
     // 1 = upvote, -1 = downvote. integer bukan boolean: arah eksplisit.

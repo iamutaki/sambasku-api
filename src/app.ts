@@ -56,6 +56,9 @@ import { AddPronunciationUseCase } from '@/modules/word/application/use-cases/ad
 import { AddMeaningUseCase } from '@/modules/word/application/use-cases/add-meaning.use-case';
 import { AddWordImageUseCase } from '@/modules/word/application/use-cases/add-word-image.use-case';
 import { AddExampleUseCase } from '@/modules/word/application/use-cases/add-example.use-case';
+import { UploadPronunciationAudioUseCase } from '@/modules/word/application/use-cases/upload-pronunciation-audio.use-case';
+import { DeletePronunciationAudioUseCase } from '@/modules/word/application/use-cases/delete-pronunciation-audio.use-case';
+import { createPronunciationStorage } from '@/modules/word/infrastructure/pronunciation-storage.factory';
 import { WordController } from '@/modules/word/presentation/v1/word.controller';
 import {
   createAdminWordRoutes,
@@ -278,6 +281,7 @@ const wordRepo = new WordRepositoryImpl(db);
 // Provider gambar dipilih via env IMAGE_PROVIDER (default imagekit) -
 // pola factory yang sama dengan createMailer (Section 8)
 const imageStorage = createImageStorage();
+const pronunciationStorage = createPronunciationStorage();
 // Search miss: pencarian kosong → peluang kontribusi (03 doc) - direcord
 // dari SearchWordsUseCase lewat interface modul search-miss (Section 4)
 const searchMissRepo = new SearchMissRepositoryImpl(db);
@@ -296,6 +300,16 @@ const wordController = new WordController({
   addWordImage: new AddWordImageUseCase(wordRepo, auditRepo),
   addExample: new AddExampleUseCase(wordRepo, auditRepo),
   addMeaning: new AddMeaningUseCase(wordRepo, auditRepo),
+  uploadPronunciationAudio: new UploadPronunciationAudioUseCase(
+    wordRepo,
+    pronunciationStorage,
+    auditRepo,
+  ),
+  deletePronunciationAudio: new DeletePronunciationAudioUseCase(
+    wordRepo,
+    pronunciationStorage,
+    auditRepo,
+  ),
   listWordClasses: () => wordRepo.listWordClasses(),
   imageProviderName: imageStorage.providerName,
 });
