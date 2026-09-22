@@ -9,7 +9,10 @@ export interface Comment {
   wordLemma: string | null;
   userId: string;
   username: string | null;
+  /** Body tayang (terfilter blocklist jika ada) */
   body: string;
+  /** Teks asli sebelum sensor; null jika tidak disensor / sudah di-uncensor */
+  bodyOriginal: string | null;
   status: CommentStatus;
   reviewedBy: string | null;
   reviewedAt: Date | null;
@@ -20,6 +23,7 @@ export interface NewComment {
   wordId: string;
   userId: string;
   body: string;
+  bodyOriginal?: string | null;
 }
 
 export interface CursorPage<T> {

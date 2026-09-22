@@ -56,8 +56,9 @@ export const adminListCommentsResponseSchema = z.object({
   success: z.literal(true),
   data: z.array(
     commentDataSchema.extend({
-      // Admin selalu dapat body string (asli)
       body: z.string(),
+      body_original: z.string().nullable(),
+      is_censored: z.boolean(),
       reviewed_by: z.string().nullable(),
       reviewed_at: z.string().nullable(),
     }),
@@ -72,6 +73,16 @@ export const takedownCommentResponseSchema = z.object({
     status: z.literal('taken_down'),
     reviewed_by: z.string(),
     reviewed_at: z.string(),
+  }),
+});
+
+export const uncensorCommentResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    id: z.string(),
+    body: z.string(),
+    body_original: z.null(),
+    is_censored: z.literal(false),
   }),
 });
 

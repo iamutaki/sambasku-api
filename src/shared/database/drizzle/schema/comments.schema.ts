@@ -17,6 +17,8 @@ export const comments = sqliteTable(
       .notNull()
       .references(() => users.id),
     body: text('body').notNull(),
+    /** Teks asli sebelum blocklist; null jika tidak disensor / sudah di-uncensor */
+    bodyOriginal: text('body_original'),
     // published | taken_down | deleted_by_author
     status: text('status').notNull().default('published'),
     reviewedBy: text('reviewed_by').references(() => users.id),

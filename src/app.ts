@@ -149,6 +149,7 @@ import { DeleteCommentUseCase } from '@/modules/comment/application/use-cases/de
 import { ListAdminCommentsUseCase } from '@/modules/comment/application/use-cases/list-admin-comments.use-case';
 import { ListMyCommentsUseCase } from '@/modules/comment/application/use-cases/list-my-comments.use-case';
 import { TakedownCommentUseCase } from '@/modules/comment/application/use-cases/takedown-comment.use-case';
+import { UncensorCommentUseCase } from '@/modules/comment/application/use-cases/uncensor-comment.use-case';
 import { CommentController } from '@/modules/comment/presentation/v1/comment.controller';
 import { createCommentRoutes, createWordCommentRoutes } from '@/modules/comment/presentation/v1/comment.routes';
 import { createAdminCommentRoutes } from '@/modules/comment/presentation/v1/admin-comment.routes';
@@ -394,6 +395,7 @@ const commentController = new CommentController({
   listAdmin: new ListAdminCommentsUseCase(commentRepo),
   listMine: new ListMyCommentsUseCase(commentRepo),
   takedown: new TakedownCommentUseCase(commentRepo, auditRepo),
+  uncensor: new UncensorCommentUseCase(commentRepo, auditRepo),
 });
 const commentBlocklistController = new CommentBlocklistController({
   create: new CreateBlocklistWordUseCase(commentBlocklistRepo, auditRepo),

@@ -26,13 +26,19 @@ export class CommentRepositoryImpl implements CommentRepository {
       .leftJoin(words, eq(words.id, comments.wordId));
   }
 
-  async create(data: { wordId: string; userId: string; body: string }): Promise<Comment> {
+  async create(data: {
+    wordId: string;
+    userId: string;
+    body: string;
+    bodyOriginal?: string | null;
+  }): Promise<Comment> {
     const [row] = await this.db
       .insert(comments)
       .values({
         wordId: data.wordId,
         userId: data.userId,
         body: data.body,
+        bodyOriginal: data.bodyOriginal ?? null,
         status: 'published',
       })
       .returning();
@@ -139,6 +145,22 @@ export class CommentRepositoryImpl implements CommentRepository {
     return updated.length > 0;
   }
 
+  async uncensor(id: string): Promise<boolean> {
+    const existing = await this.findById(id);
+    if (!existing?.bodyOriginal) return false;
+
+    const updated = await this.db
+      .update(comments)
+      .set({
+        body: existing.bodyOriginal,
+        bodyOriginal: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(comments.id, id), isNull(comments.deletedAt)))
+      .returning({ id: comments.id });
+    return updated.length > 0;
+  }
+
   private async page(where: ReturnType<typeof and> | undefined, limit: number): Promise<CursorPage<Comment>> {
     const rows = await this.selectBase()
       .where(where)
@@ -164,6 +186,7 @@ export class CommentRepositoryImpl implements CommentRepository {
       userId: row.userId,
       username,
       body: row.body,
+      bodyOriginal: row.bodyOriginal ?? null,
       status: row.status as CommentStatus,
       reviewedBy: row.reviewedBy,
       reviewedAt: row.reviewedAt,

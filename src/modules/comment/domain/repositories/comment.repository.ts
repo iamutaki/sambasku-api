@@ -40,4 +40,10 @@ export interface CommentRepository {
   listByUser(params: ListMyCommentsParams): Promise<CursorPage<Comment>>;
 
   takedown(id: string, reviewerId: string): Promise<boolean>;
+
+  /**
+   * Pulihkan teks asli: body = body_original, body_original = null.
+   * WHERE body_original IS NOT NULL AND deleted_at IS NULL.
+   */
+  uncensor(id: string): Promise<boolean>;
 }

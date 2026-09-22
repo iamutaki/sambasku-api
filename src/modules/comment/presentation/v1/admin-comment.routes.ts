@@ -11,6 +11,7 @@ import {
   adminListCommentsResponseSchema,
   listAdminCommentsQuerySchema,
   takedownCommentResponseSchema,
+  uncensorCommentResponseSchema,
 } from './validators/comment.validator';
 
 const json = <T extends z.ZodType>(schema: T) => ({
@@ -33,6 +34,7 @@ export function createAdminCommentRoutes(deps: AdminCommentRoutesDeps) {
 
   routes.use('/', ...reviewer);
   routes.use('/:id/takedown', ...reviewer);
+  routes.use('/:id/uncensor', ...reviewer);
 
   const listRoute = createRoute({
     method: 'get',
@@ -62,8 +64,24 @@ export function createAdminCommentRoutes(deps: AdminCommentRoutesDeps) {
     },
   });
 
+  const uncensorRoute = createRoute({
+    method: 'post',
+    path: '/:id/uncensor',
+    tags: ['Comments', 'Admin'],
+    summary: 'Pulihkan teks asli yang disensor blocklist',
+    request: { params: z.object({ id: z.string().length(26) }) },
+    responses: {
+      200: { description: 'Teks asli dipulihkan', content: json(uncensorCommentResponseSchema) },
+      400: { description: 'Tidak ada teks tersensor', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Bukan verifikator', content: json(errorResponseSchema) },
+      404: { description: 'Komentar tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
   routes.openapi(listRoute, (c) => deps.controller.listAdmin(c, c.req.valid('query')) as never);
   routes.openapi(takedownRoute, (c) => deps.controller.takedown(c, c.req.param('id')) as never);
+  routes.openapi(uncensorRoute, (c) => deps.controller.uncensor(c, c.req.param('id')) as never);
 
   return routes;
 }

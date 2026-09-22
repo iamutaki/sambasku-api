@@ -7,6 +7,7 @@ import type { ListWordCommentsUseCase } from '../../application/use-cases/list-w
 import type { DeleteCommentUseCase } from '../../application/use-cases/delete-comment.use-case';
 import type { ListAdminCommentsUseCase } from '../../application/use-cases/list-admin-comments.use-case';
 import type { TakedownCommentUseCase } from '../../application/use-cases/takedown-comment.use-case';
+import type { UncensorCommentUseCase } from '../../application/use-cases/uncensor-comment.use-case';
 import type { ListMyCommentsUseCase } from '../../application/use-cases/list-my-comments.use-case';
 import type { Comment } from '../../domain/entities/comment.entity';
 import type {
@@ -29,6 +30,7 @@ export class CommentController {
       listAdmin: ListAdminCommentsUseCase;
       listMine: ListMyCommentsUseCase;
       takedown: TakedownCommentUseCase;
+      uncensor: UncensorCommentUseCase;
     },
   ) {}
 
@@ -134,6 +136,8 @@ export class CommentController {
         user_id: cm.userId,
         username: cm.username,
         body: cm.body,
+        body_original: cm.bodyOriginal,
+        is_censored: cm.bodyOriginal != null,
         status: cm.status,
         reviewed_by: cm.reviewedBy,
         reviewed_at: cm.reviewedAt ? cm.reviewedAt.toISOString() : null,
@@ -160,6 +164,27 @@ export class CommentController {
         status: 'taken_down' as const,
         reviewed_by: reviewed.reviewedBy!,
         reviewed_at: reviewed.reviewedAt!.toISOString(),
+      },
+    });
+  }
+
+  async uncensor(c: Context, id: string) {
+    const actor = this.requireUser(c);
+    const updated = await this.deps.uncensor.execute({
+      commentId: id,
+      actorId: actor.user_id,
+      requestId: this.requestId(c),
+    });
+
+    logger.info({ request_id: this.requestId(c), comment_id: id }, 'comment uncensored');
+
+    return c.json({
+      success: true as const,
+      data: {
+        id: updated.id,
+        body: updated.body,
+        body_original: updated.bodyOriginal,
+        is_censored: false as const,
       },
     });
   }

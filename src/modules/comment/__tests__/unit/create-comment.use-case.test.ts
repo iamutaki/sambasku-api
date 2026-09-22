@@ -19,6 +19,7 @@ function makeComment(overrides: Partial<Comment> = {}): Comment {
     userId: AUTHOR,
     username: 'budi',
     body: 'halo',
+    bodyOriginal: null,
     status: 'published',
     reviewedBy: null,
     reviewedAt: null,
@@ -66,6 +67,7 @@ describe('CreateCommentUseCase', () => {
       wordId: WORD,
       userId: AUTHOR,
       body: 'Ini *** sekali',
+      bodyOriginal: 'Ini Bodoh sekali',
     });
     expect(created.status).toBe('published');
     expect(auditRepo.record).toHaveBeenCalled();

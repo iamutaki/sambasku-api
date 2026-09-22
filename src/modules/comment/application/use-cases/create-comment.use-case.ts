@@ -15,7 +15,7 @@ export interface CreateCommentCommand {
 }
 
 // Tulis komentar (09-api-comment.md). Post-moderation: langsung published.
-// Body difilter lewat blocklist sebelum disimpan.
+// Body difilter lewat blocklist; jika berubah, body_original disimpan.
 export class CreateCommentUseCase {
   constructor(
     private readonly commentRepo: CommentRepository,
@@ -32,11 +32,13 @@ export class CreateCommentUseCase {
 
     const blocked = await this.blocklistRepo.listAllActiveWords();
     const filteredBody = applyBlocklistFilter(cmd.body, blocked);
+    const wasFiltered = filteredBody !== cmd.body;
 
     const comment = await this.commentRepo.create({
       wordId: cmd.wordId,
       userId: cmd.userId,
       body: filteredBody,
+      bodyOriginal: wasFiltered ? cmd.body : null,
     });
 
     await this.auditRepo.record({
@@ -44,7 +46,13 @@ export class CreateCommentUseCase {
       action: 'create',
       entityType: 'comment',
       entityId: comment.id,
-      newData: { word_id: cmd.wordId, body: comment.body, status: 'published' },
+      newData: {
+        word_id: cmd.wordId,
+        body: comment.body,
+        body_original: comment.bodyOriginal,
+        status: 'published',
+        censored: wasFiltered,
+      },
       requestId: cmd.requestId ?? null,
     });
 
