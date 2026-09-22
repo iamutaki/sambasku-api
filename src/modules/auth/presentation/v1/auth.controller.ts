@@ -206,6 +206,13 @@ export class AuthController {
   // Dua kanal refresh token: web via httpOnly cookie (XSS-safe),
   // mobile via response body (client simpan di Keychain/Keystore)
   private loginJson(c: Context, clientType: 'web' | 'mobile', result: LoginResult) {
+    const user = {
+      id: result.user.id,
+      username: result.user.username,
+      role: result.user.role,
+      avatar_url: result.user.avatarUrl,
+    };
+
     if (clientType === 'mobile') {
       return c.json({
         success: true as const,
@@ -213,7 +220,7 @@ export class AuthController {
           access_token: result.accessToken,
           expires_in: result.expiresIn,
           refresh_token: result.refreshToken,
-          user: result.user,
+          user,
         },
       });
     }
@@ -224,7 +231,7 @@ export class AuthController {
       data: {
         access_token: result.accessToken,
         expires_in: result.expiresIn,
-        user: result.user,
+        user,
       },
     });
   }

@@ -12,6 +12,10 @@ export interface User {
   role: UserRole;
   isActive: boolean;
   emailVerified: boolean;
+  avatarUrl: string | null;
+  avatarProvider: string | null;
+  avatarProviderFileId: string | null;
+  avatarSha: string | null;
   createdAt: Date;
   updatedAt: Date | null;
   deletedAt: Date | null; // soft delete - tidak boleh bisa login lagi

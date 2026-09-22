@@ -9,7 +9,15 @@ function makeRepo(user: Awaited<ReturnType<PublicUserRepository['findPublicByUse
     findPublicByUsername: vi.fn().mockResolvedValue(user),
     countApprovedContributions: vi.fn(),
     countVerificationsDone: vi.fn(),
-    loadStats: vi.fn().mockResolvedValue({ contributionsApproved: 12, verificationsDone: 34 }),
+    countPublishedComments: vi.fn(),
+    loadStats: vi.fn().mockResolvedValue({
+      contributionsApproved: 12,
+      verificationsDone: 34,
+      commentsPublished: 5,
+    }),
+    listRecentApprovedContributions: vi.fn(),
+    listRecentPublishedComments: vi.fn(),
+    listRecentVerifications: vi.fn(),
   } as unknown as PublicUserRepository;
 }
 
@@ -20,6 +28,7 @@ describe('GetPublicProfileUseCase', () => {
       username: 'budi',
       role: 'reviewer',
       joinedAt: JOINED,
+      avatarUrl: null,
     });
     const profile = await new GetPublicProfileUseCase(repo).execute('budi');
 
@@ -29,7 +38,8 @@ describe('GetPublicProfileUseCase', () => {
       role: 'reviewer',
       isVerifier: true,
       joinedAt: JOINED,
-      stats: { contributionsApproved: 12, verificationsDone: 34 },
+      avatarUrl: null,
+      stats: { contributionsApproved: 12, verificationsDone: 34, commentsPublished: 5 },
     });
   });
 
@@ -39,9 +49,11 @@ describe('GetPublicProfileUseCase', () => {
       username: 'siti',
       role: 'contributor',
       joinedAt: JOINED,
+      avatarUrl: 'https://cdn.jsdelivr.net/gh/x/y@main/a.jpg',
     });
     const profile = await new GetPublicProfileUseCase(repo).execute('siti');
     expect(profile.isVerifier).toBe(false);
+    expect(profile.avatarUrl).toContain('jsdelivr');
   });
 
   it('repo null (tidak ada / deleted / inactive) → 404 USER_NOT_FOUND', async () => {

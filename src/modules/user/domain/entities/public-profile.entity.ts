@@ -1,6 +1,7 @@
 export interface PublicProfileStats {
   contributionsApproved: number;
   verificationsDone: number;
+  commentsPublished: number;
 }
 
 export interface PublicProfile {
@@ -8,6 +9,7 @@ export interface PublicProfile {
   role: string;
   isVerifier: boolean;
   joinedAt: Date;
+  avatarUrl: string | null;
   stats: PublicProfileStats;
 }
 
@@ -17,4 +19,15 @@ export interface PublicUserRow {
   username: string;
   role: string;
   joinedAt: Date;
+  avatarUrl: string | null;
+}
+
+export type PublicActivityKind = 'contribution' | 'comment' | 'verification';
+
+export interface PublicActivityItem {
+  kind: PublicActivityKind;
+  occurredAt: Date;
+  wordId: string | null;
+  lemma: string | null;
+  summary: string;
 }

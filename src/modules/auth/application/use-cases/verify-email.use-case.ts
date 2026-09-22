@@ -61,7 +61,7 @@ export class VerifyEmailUseCase {
     await this.userRepo.markEmailVerified(user.id);
 
     return issueLoginSession(
-      { id: user.id, username: user.username, role: user.role },
+      { id: user.id, username: user.username, role: user.role, avatarUrl: user.avatarUrl },
       {
         tokenService: this.tokenService,
         refreshTokenRepo: this.refreshTokenRepo,

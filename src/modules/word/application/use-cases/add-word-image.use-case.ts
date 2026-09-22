@@ -17,6 +17,7 @@ export class AddWordImageUseCase {
   constructor(
     private readonly wordRepo: WordRepository,
     private readonly auditRepo: AuditLogRepository,
+    private readonly imageProviderName: string,
   ) {}
 
   async execute(wordId: string, dto: AddWordImageDto, actor: Actor): Promise<WordImageMedia> {
@@ -26,7 +27,11 @@ export class AddWordImageUseCase {
     }
 
     const publication = resolveChildPublication(actor.role);
-    const media = await this.wordRepo.addWordImage(wordId, { ...dto, ...publication }, actor.userId);
+    const media = await this.wordRepo.addWordImage(
+      wordId,
+      { ...dto, provider: this.imageProviderName, ...publication },
+      actor.userId,
+    );
 
     await this.auditRepo.record({
       userId: actor.userId,

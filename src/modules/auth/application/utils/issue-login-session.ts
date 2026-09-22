@@ -7,11 +7,11 @@ export interface LoginResult {
   accessToken: string;
   expiresIn: number;
   refreshToken: string; // plain - di-hash hanya saat disimpan
-  user: { id: string; username: string; role: string };
+  user: { id: string; username: string; role: string; avatarUrl: string | null };
 }
 
 export async function issueLoginSession(
-  user: { id: string; username: string; role: string },
+  user: { id: string; username: string; role: string; avatarUrl?: string | null },
   deps: {
     tokenService: TokenServicePort;
     refreshTokenRepo: RefreshTokenRepository;
@@ -39,6 +39,11 @@ export async function issueLoginSession(
     accessToken,
     expiresIn: deps.accessTokenTtlSeconds,
     refreshToken: token,
-    user: { id: user.id, username: user.username, role: user.role },
+    user: {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      avatarUrl: user.avatarUrl ?? null,
+    },
   };
 }

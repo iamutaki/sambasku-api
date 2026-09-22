@@ -53,6 +53,14 @@ const envSchema = z.object({
   IMAGEKIT_PUBLIC_KEY: z.string().optional(),
   IMAGEKIT_URL_ENDPOINT: z.string().optional(), // mis. https://ik.imagekit.io/akun
 
+  // Gambar publik (kata + avatar) — GitHub Contents API + jsDelivr.
+  // Terpisah dari IMAGEKIT_* (laporan bug / bukti verifikator tetap ImageKit).
+  // Tanpa kredensial: POST /api/v1/images dan avatar balas 503
+  // PUBLIC_IMAGE_UPLOAD_UNAVAILABLE.
+  PUBLIC_IMAGE_PROVIDER: z.string().optional(), // 'github' (satu-satunya hari ini)
+  PUBLIC_IMAGE_GITHUB_TOKEN: z.string().optional(),
+  PUBLIC_IMAGE_GITHUB_URL: z.url().optional(),
+
   // Audio pronunciation storage - pola sama IMAGE_PROVIDER.
   // Tanpa kredensial: endpoint upload audio balas 503
   // PRONUNCIACION_UPLOAD_UNAVAILABLE.

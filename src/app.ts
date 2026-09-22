@@ -180,8 +180,15 @@ import { BookmarkController } from '@/modules/bookmark/presentation/v1/bookmark.
 import { createBookmarkRoutes } from '@/modules/bookmark/presentation/v1/bookmark.routes';
 import { PublicUserRepositoryImpl } from '@/modules/user/infrastructure/public-user.repository.impl';
 import { GetPublicProfileUseCase } from '@/modules/user/application/use-cases/get-public-profile.use-case';
+import { GetPublicActivityUseCase } from '@/modules/user/application/use-cases/get-public-activity.use-case';
+import { UploadAvatarUseCase } from '@/modules/user/application/use-cases/upload-avatar.use-case';
+import { DeleteAvatarUseCase } from '@/modules/user/application/use-cases/delete-avatar.use-case';
 import { UserController } from '@/modules/user/presentation/v1/user.controller';
-import { createPublicUserRoutes } from '@/modules/user/presentation/v1/user.routes';
+import { createMeAvatarRoutes, createPublicUserRoutes } from '@/modules/user/presentation/v1/user.routes';
+import { createPublicImageStorage } from '@/modules/public-image/infrastructure/public-image-storage.factory';
+import { UploadPublicImageUseCase } from '@/modules/public-image/application/use-cases/upload-public-image.use-case';
+import { PublicImageController } from '@/modules/public-image/presentation/v1/public-image.controller';
+import { createPublicImageRoutes } from '@/modules/public-image/presentation/v1/public-image.routes';
 import { DeviceTokenRepositoryImpl } from '@/modules/device/infrastructure/device-token.repository.impl';
 import { RegisterDeviceTokenUseCase } from '@/modules/device/application/use-cases/register-device-token.use-case';
 import { RevokeDeviceTokenUseCase } from '@/modules/device/application/use-cases/revoke-device-token.use-case';
@@ -308,6 +315,7 @@ const restoreWord = new RestoreWordUseCase(wordRepo, auditRepo);
 // pola factory yang sama dengan createMailer (Section 8)
 const imageStorage = createImageStorage();
 const pronunciationStorage = createPronunciationStorage();
+const publicImageStorage = createPublicImageStorage();
 // Search miss: pencarian kosong → peluang kontribusi (03 doc) - direcord
 // dari SearchWordsUseCase lewat interface modul search-miss (Section 4)
 const searchMissRepo = new SearchMissRepositoryImpl(db);
@@ -327,7 +335,7 @@ const wordController = new WordController({
   takedownWord,
   restoreWord,
   addPronunciation: new AddPronunciationUseCase(wordRepo, auditRepo),
-  addWordImage: new AddWordImageUseCase(wordRepo, auditRepo),
+  addWordImage: new AddWordImageUseCase(wordRepo, auditRepo, publicImageStorage.providerName),
   addExample: new AddExampleUseCase(wordRepo, auditRepo),
   addMeaning: new AddMeaningUseCase(wordRepo, auditRepo),
   uploadPronunciationAudio: new UploadPronunciationAudioUseCase(
@@ -341,7 +349,8 @@ const wordController = new WordController({
     auditRepo,
   ),
   listWordClasses: () => wordRepo.listWordClasses(),
-  imageProviderName: imageStorage.providerName,
+  // Stempel provider gambar kata = GitHub publik (bukan ImageKit)
+  imageProviderName: publicImageStorage.providerName,
 });
 
 // ---- Modul contribution - antrean review (Section 22 approval gate,
@@ -353,7 +362,7 @@ const contributionController = new ContributionController({
   getDetail: new GetContributionDetailUseCase(contributionRepo, wordRepo),
   review: new ReviewContributionUseCase(contributionRepo, auditRepo, notifyUser, recordInbox),
   correct: new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo, recordInbox),
-  imageProviderName: imageStorage.providerName,
+  imageProviderName: publicImageStorage.providerName,
 });
 
 const languageRepo = new LanguageRepositoryImpl(db);
@@ -435,6 +444,9 @@ const bookmarkController = new BookmarkController({
 const publicUserRepo = new PublicUserRepositoryImpl(db);
 const userController = new UserController({
   getPublicProfile: new GetPublicProfileUseCase(publicUserRepo),
+  getPublicActivity: new GetPublicActivityUseCase(publicUserRepo),
+  uploadAvatar: new UploadAvatarUseCase(userRepo, publicImageStorage),
+  deleteAvatar: new DeleteAvatarUseCase(userRepo, publicImageStorage),
 });
 
 // ---- Modul device (FCM token register/revoke, multi-device) ----
@@ -590,6 +602,18 @@ app.route('/api/v1/bookmarks', createBookmarkRoutes({ controller: bookmarkContro
 // Profil publik by username (19-api-profil-publik.md) - tanpa auth, rate
 // limit 100/menit/IP di routes factory. Tidak bentrok /admin/users.
 app.route('/api/v1/users', createPublicUserRoutes({ controller: userController }));
+app.route(
+  '/api/v1/users/me/avatar',
+  createMeAvatarRoutes({ controller: userController, authenticate }),
+);
+
+const publicImageController = new PublicImageController({
+  uploadPublicImage: new UploadPublicImageUseCase(publicImageStorage),
+});
+app.route(
+  '/api/v1/images',
+  createPublicImageRoutes({ controller: publicImageController, authenticate }),
+);
 app.route('/api/v1/device', createDeviceRoutes({ controller: deviceController, authenticate }));
 app.route(
   '/api/v1/notifications',

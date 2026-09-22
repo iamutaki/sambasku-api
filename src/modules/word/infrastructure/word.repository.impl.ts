@@ -1344,6 +1344,8 @@ export class WordRepositoryImpl implements WordRepository {
     data: {
       url: string;
       providerFileId: string;
+      provider: string;
+      sha?: string | null;
       altText?: string | null;
       isPrimary: boolean;
       status: ChildStatus;
@@ -1357,7 +1359,9 @@ export class WordRepositoryImpl implements WordRepository {
           .insert(wordImages)
           .values({
             wordId,
+            provider: data.provider,
             providerFileId: data.providerFileId,
+            sha: data.sha ?? null,
             url: data.url,
             altText: data.altText ?? null,
             isPrimary: data.isPrimary,

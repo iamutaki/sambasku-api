@@ -19,6 +19,7 @@ export class GetPublicProfileUseCase {
       role: user.role,
       isVerifier: isVerifierRole(user.role),
       joinedAt: user.joinedAt,
+      avatarUrl: user.avatarUrl,
       stats,
     };
   }

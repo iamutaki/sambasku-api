@@ -17,6 +17,10 @@ function toEntity(row: UserRow): User {
     role: row.role as User['role'],
     isActive: row.isActive,
     emailVerified: row.emailVerified,
+    avatarUrl: row.avatarUrl ?? null,
+    avatarProvider: row.avatarProvider ?? null,
+    avatarProviderFileId: row.avatarProviderFileId ?? null,
+    avatarSha: row.avatarSha ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     deletedAt: row.deletedAt,
@@ -126,6 +130,50 @@ export class UserRepositoryImpl implements UserRepository {
     const [updated] = await this.db
       .update(users)
       .set({ phone, updatedAt: new Date() })
+      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .returning({ id: users.id });
+
+    if (!updated) {
+      throw new NotFoundError('USER_NOT_FOUND', `User ${id} tidak ditemukan`);
+    }
+  }
+
+  async updateAvatar(
+    id: string,
+    data: {
+      avatarUrl: string;
+      avatarProvider: string;
+      avatarProviderFileId: string;
+      avatarSha: string;
+    },
+  ): Promise<void> {
+    const [updated] = await this.db
+      .update(users)
+      .set({
+        avatarUrl: data.avatarUrl,
+        avatarProvider: data.avatarProvider,
+        avatarProviderFileId: data.avatarProviderFileId,
+        avatarSha: data.avatarSha,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .returning({ id: users.id });
+
+    if (!updated) {
+      throw new NotFoundError('USER_NOT_FOUND', `User ${id} tidak ditemukan`);
+    }
+  }
+
+  async clearAvatar(id: string): Promise<void> {
+    const [updated] = await this.db
+      .update(users)
+      .set({
+        avatarUrl: null,
+        avatarProvider: null,
+        avatarProviderFileId: null,
+        avatarSha: null,
+        updatedAt: new Date(),
+      })
       .where(and(eq(users.id, id), isNull(users.deletedAt)))
       .returning({ id: users.id });
 

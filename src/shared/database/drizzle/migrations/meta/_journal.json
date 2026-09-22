@@ -50,6 +50,13 @@
       "when": 1790600000000,
       "tag": "0006_word-reports",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790700000000,
+      "tag": "0007_public-images-avatar",
+      "breakpoints": true
     }
   ]
 }

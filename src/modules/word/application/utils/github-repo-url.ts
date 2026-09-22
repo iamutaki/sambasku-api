@@ -1,9 +1,12 @@
 /** Parse https://github.com/owner/repo → { owner, repo }. */
-export function parseGithubRepoUrl(url: string): { owner: string; repo: string } {
+export function parseGithubRepoUrl(
+  url: string,
+  envLabel = 'GITHUB_URL',
+): { owner: string; repo: string } {
   const trimmed = url.replace(/\/+$/, '');
   const m = trimmed.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/i);
   if (!m) {
-    throw new Error(`PRONUNCIACION_GITHUB_URL tidak valid: ${url}`);
+    throw new Error(`${envLabel} tidak valid: ${url}`);
   }
   return { owner: m[1], repo: m[2] };
 }

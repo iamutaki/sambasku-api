@@ -11,4 +11,14 @@ export interface UserRepository {
   list(filter: UserListFilter): Promise<UserListResult>;
   updateRole(id: string, role: UserRole): Promise<void>;
   updatePhone(id: string, phone: string): Promise<void>;
+  updateAvatar(
+    id: string,
+    data: {
+      avatarUrl: string;
+      avatarProvider: string;
+      avatarProviderFileId: string;
+      avatarSha: string;
+    },
+  ): Promise<void>;
+  clearAvatar(id: string): Promise<void>;
 }

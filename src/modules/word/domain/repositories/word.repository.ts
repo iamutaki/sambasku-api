@@ -299,6 +299,8 @@ export interface WordRepository {
     data: {
       url: string;
       providerFileId: string;
+      provider: string;
+      sha?: string | null;
       altText?: string | null;
       isPrimary: boolean;
       status: ChildStatus;

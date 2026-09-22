@@ -22,6 +22,7 @@ export const loginResponseSchema = z.object({
       id: z.string(), // ULID
       username: z.string(),
       role: z.string(),
+      avatar_url: z.string().url().nullable(),
     }),
   }),
 });

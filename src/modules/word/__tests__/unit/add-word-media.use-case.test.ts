@@ -82,7 +82,7 @@ describe('AddPronunciationUseCase', () => {
 describe('AddWordImageUseCase', () => {
   it('contributor → pending_review; admin → published', async () => {
     const { wordRepo, auditRepo } = makeDeps();
-    const useCase = new AddWordImageUseCase(wordRepo, auditRepo as unknown as AuditLogRepository);
+    const useCase = new AddWordImageUseCase(wordRepo, auditRepo as unknown as AuditLogRepository, 'github');
     const asContributor = await useCase.execute(
       WORD.id,
       { url: 'https://ik.imagekit.io/x/a.jpg', providerFileId: 'f1', isPrimary: false },

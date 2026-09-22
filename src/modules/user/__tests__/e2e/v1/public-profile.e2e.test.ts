@@ -93,9 +93,10 @@ describe.skipIf(!hasTestDb)('Public profile E2E v1 - GET /users/:username (19 do
       username: 'anonim',
       role: 'contributor',
       is_verifier: false,
-      stats: { contributions_approved: 0, verifications_done: 0 },
+      stats: { contributions_approved: 0, verifications_done: 0, comments_published: 0 },
     });
     expect(body.data.joined_at).toBeTruthy();
+    expect(body.data).toHaveProperty('avatar_url');
     expect(body.data).not.toHaveProperty('email');
     expect(body.data).not.toHaveProperty('phone');
   });
