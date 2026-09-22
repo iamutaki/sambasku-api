@@ -135,6 +135,7 @@ describe('LoginWithFacebookUseCase', () => {
       id: '01TESTFACEBOOKUSER0000001',
       username: 'budi',
       role: 'contributor',
+      avatarUrl: null,
     });
     expect(identityRepo.createUserWithGoogleIdentity).not.toHaveBeenCalled();
     expect(userRepo.findByEmail).not.toHaveBeenCalled();

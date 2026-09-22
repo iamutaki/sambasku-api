@@ -108,7 +108,12 @@ describe('LoginUserUseCase', () => {
 
     expect(result.accessToken).toBe('jwt-token');
     expect(result.expiresIn).toBe(900);
-    expect(result.user).toEqual({ id: '01TESTULIDUSERID00000000', username: 'budi', role: 'contributor' });
+    expect(result.user).toEqual({
+      id: '01TESTULIDUSERID00000000',
+      username: 'budi',
+      role: 'contributor',
+      avatarUrl: null,
+    });
 
     const stored = vi.mocked(refreshTokenRepo.create).mock.calls[0][0];
     expect(stored.tokenHash).not.toBe(result.refreshToken); // hash !== plain
