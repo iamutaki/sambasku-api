@@ -254,6 +254,21 @@ export interface WordRepository {
    */
   softDelete(id: string, actorId: string): Promise<boolean>;
 
+  /**
+   * published → taken_down, simpan alasan. false jika bukan published
+   * (race / status lain / sudah dihapus).
+   */
+  takedown(
+    id: string,
+    data: { actorId: string; reasonCode: string; note: string | null },
+  ): Promise<boolean>;
+
+  /**
+   * taken_down → published. is_verified tidak diubah. Jejak takedown
+   * dikosongkan. false jika status bukan taken_down.
+   */
+  restore(id: string, actorId: string): Promise<boolean>;
+
   // ---- Kontribusi media (03-api-kontribusi-verifikasi.md) ----
 
   /** makna by id (belum soft-deleted) - untuk validasi parent contoh kalimat */

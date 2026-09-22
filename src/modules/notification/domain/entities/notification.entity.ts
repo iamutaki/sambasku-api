@@ -4,9 +4,10 @@ export type InboxNotificationType =
   | 'contribution_corrected'
   | 'suggestion_approved'
   | 'suggestion_rejected'
-  | 'suggestion_corrected';
+  | 'suggestion_corrected'
+  | 'word_taken_down';
 
-export type NotificationTargetKind = 'contribution' | 'suggestion';
+export type NotificationTargetKind = 'contribution' | 'suggestion' | 'word';
 
 export interface InboxNotification {
   id: string;
@@ -51,6 +52,11 @@ export function inboxCopyFor(type: InboxNotificationType): { title: string; body
       return {
         title: 'Usulan perubahan dikoreksi',
         body: 'Usulan perubahan kata Anda dikoreksi dan diterapkan.',
+      };
+    case 'word_taken_down':
+      return {
+        title: 'Entri ditarik',
+        body: 'Entri yang kamu buat ditarik dari kamus.',
       };
   }
 }

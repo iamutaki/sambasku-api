@@ -1,4 +1,4 @@
-import { NotFoundError } from '@/shared/errors/app-error';
+import { ConflictError, NotFoundError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { WordRepository } from '@/modules/word/domain/repositories/word.repository';
 import type { CommentBlocklistRepository } from '@/modules/comment-blocklist/domain/repositories/comment-blocklist.repository';
@@ -28,6 +28,9 @@ export class CreateCommentUseCase {
     const word = await this.wordRepo.findById(cmd.wordId);
     if (!word) {
       throw new NotFoundError('WORD_NOT_FOUND', 'Kata dengan id tersebut tidak ditemukan');
+    }
+    if (word.status !== 'published') {
+      throw new ConflictError('WORD_NOT_PUBLISHED', 'Komentar hanya bisa ditambahkan pada kata yang tayang');
     }
 
     const blocked = await this.blocklistRepo.listAllActiveWords();

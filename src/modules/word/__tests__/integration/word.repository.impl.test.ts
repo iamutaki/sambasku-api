@@ -10,6 +10,7 @@ import {
   lexicalRelations,
   meanings,
   meaningTranslations,
+  wordAudios,
   wordCategories,
   users,
   wordClasses,
@@ -247,6 +248,98 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     // jejak kontribusi update (action 'update')
     const rows = await db.select().from(contributions).where(eq(contributions.entityId, word.id));
     expect(rows.map((r) => r.action)).toContain('update');
+  });
+
+  it('updateWithRelations mempertahankan audio lemma dan audio contoh (id sama, example_id baru)', async () => {
+    const word = await repo.saveWithRelations(baseWord(), ACTOR);
+    const [meaning] = await db.select().from(meanings).where(eq(meanings.wordId, word.id));
+    const [example] = await db.select().from(examples).where(eq(examples.meaningId, meaning.id));
+
+    const lemmaAudioId = ulid26('01TESTAUDIOLEMMA');
+    const exampleAudioId = ulid26('01TESTAUDIOCONTOH');
+    await db.insert(wordAudios).values([
+      {
+        id: lemmaAudioId,
+        wordId: word.id,
+        provider: 'github',
+        providerFileId: 'assets/audio/umum/makatn/lemma.m4a',
+        url: 'https://cdn.example/lemma.m4a',
+        mimeType: 'audio/mp4',
+        fileSize: 1200,
+        isPrimary: true,
+        speakerName: 'Ani',
+      },
+      {
+        id: exampleAudioId,
+        wordId: word.id,
+        exampleId: example.id,
+        provider: 'github',
+        providerFileId: 'assets/audio/umum/makatn/contoh.m4a',
+        url: 'https://cdn.example/contoh.m4a',
+        mimeType: 'audio/mp4',
+        fileSize: 800,
+        isPrimary: true,
+      },
+    ]);
+
+    const updated = await repo.updateWithRelations(word.id, baseWord({ notes: 'tetap ada audio' }), ACTOR);
+    expect(updated?.id).toBe(word.id);
+
+    const audios = await db.select().from(wordAudios).where(eq(wordAudios.wordId, word.id));
+    expect(audios.map((a) => a.id).sort()).toEqual([exampleAudioId, lemmaAudioId].sort());
+
+    const lemma = audios.find((a) => a.id === lemmaAudioId);
+    expect(lemma?.exampleId).toBeNull();
+    expect(lemma?.speakerName).toBe('Ani');
+
+    const [newMeaning] = await db.select().from(meanings).where(eq(meanings.wordId, word.id));
+    const [newExample] = await db.select().from(examples).where(eq(examples.meaningId, newMeaning.id));
+    expect(newExample.id).not.toBe(example.id);
+    expect(audios.find((a) => a.id === exampleAudioId)?.exampleId).toBe(newExample.id);
+  });
+
+  it('updateWithRelations membuang audio contoh jika kalimatnya dihapus, audio lemma tetap', async () => {
+    const word = await repo.saveWithRelations(baseWord(), ACTOR);
+    const [meaning] = await db.select().from(meanings).where(eq(meanings.wordId, word.id));
+    const [example] = await db.select().from(examples).where(eq(examples.meaningId, meaning.id));
+
+    const lemmaAudioId = ulid26('01TESTAUDIOLEMMA');
+    const exampleAudioId = ulid26('01TESTAUDIOCONTOH');
+    await db.insert(wordAudios).values([
+      {
+        id: lemmaAudioId,
+        wordId: word.id,
+        provider: 'github',
+        providerFileId: 'assets/audio/umum/makatn/lemma.m4a',
+        url: 'https://cdn.example/lemma.m4a',
+        mimeType: 'audio/mp4',
+        fileSize: 1200,
+        isPrimary: true,
+      },
+      {
+        id: exampleAudioId,
+        wordId: word.id,
+        exampleId: example.id,
+        provider: 'github',
+        providerFileId: 'assets/audio/umum/makatn/contoh.m4a',
+        url: 'https://cdn.example/contoh.m4a',
+        mimeType: 'audio/mp4',
+        fileSize: 800,
+        isPrimary: false,
+      },
+    ]);
+
+    const [keptMeaning] = baseWord().meanings;
+    await repo.updateWithRelations(
+      word.id,
+      baseWord({ meanings: [{ ...keptMeaning, examples: [] }] }),
+      ACTOR,
+    );
+
+    const audios = await db.select().from(wordAudios).where(eq(wordAudios.wordId, word.id));
+    expect(audios).toHaveLength(1);
+    expect(audios[0]?.id).toBe(lemmaAudioId);
+    expect(audios[0]?.exampleId).toBeNull();
   });
 
   it('BUKTI ROLLBACK update: FK invalid di tengah → ValidationError dan data LAMA utuh', async () => {

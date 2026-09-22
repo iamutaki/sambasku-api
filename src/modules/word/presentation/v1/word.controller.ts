@@ -10,6 +10,8 @@ import type { SearchWordsUseCase } from '../../application/use-cases/search-word
 import type { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-case';
 import type { PublishWordUseCase } from '../../application/use-cases/publish-word.use-case';
 import type { SoftDeleteWordUseCase } from '../../application/use-cases/soft-delete-word.use-case';
+import type { TakedownWordUseCase } from '../../application/use-cases/takedown-word.use-case';
+import type { RestoreWordUseCase } from '../../application/use-cases/restore-word.use-case';
 import type { AddPronunciationUseCase } from '../../application/use-cases/add-pronunciation.use-case';
 import type { AddWordImageUseCase } from '../../application/use-cases/add-word-image.use-case';
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
@@ -24,6 +26,7 @@ import type {
   ListLatestWordsQueryBody,
 } from './validators/create-word.validator';
 import type { UpdateWordBody } from './validators/update-word.validator';
+import type { TakedownWordBody } from '@/modules/word-report/presentation/v1/validators/word-report.validator';
 import type {
   AddExampleBody,
   AddMeaningBody,
@@ -52,6 +55,8 @@ export class WordController {
       verify: VerifyWordUseCase;
       publish: PublishWordUseCase;
       deleteWord: SoftDeleteWordUseCase;
+      takedownWord: TakedownWordUseCase;
+      restoreWord: RestoreWordUseCase;
       addPronunciation: AddPronunciationUseCase;
       addWordImage: AddWordImageUseCase;
       addExample: AddExampleUseCase;
@@ -150,6 +155,9 @@ export class WordController {
         ...this.toDetailData(word),
         created_at: word.createdAt.toISOString(),
         updated_at: word.updatedAt ? word.updatedAt.toISOString() : null,
+        takedown_reason_code: word.takedownReasonCode,
+        takedown_note: word.takedownNote,
+        taken_down_at: word.takenDownAt ? word.takenDownAt.toISOString() : null,
       },
     });
   }
@@ -643,6 +651,30 @@ export class WordController {
       },
       201,
     );
+  }
+
+  async takedownWord(c: Context, id: string, body: TakedownWordBody) {
+    return this.withActor(c, async (actor) => {
+      await this.deps.takedownWord.execute({
+        wordId: id,
+        actorId: actor.userId,
+        reasonCode: body.reason_code,
+        note: body.note,
+        requestId: actor.requestId,
+      });
+      return c.json({ success: true as const, data: { id, status: 'taken_down' as const } });
+    });
+  }
+
+  async restoreWord(c: Context, id: string) {
+    return this.withActor(c, async (actor) => {
+      await this.deps.restoreWord.execute({
+        wordId: id,
+        actorId: actor.userId,
+        requestId: actor.requestId,
+      });
+      return c.json({ success: true as const, data: { id, status: 'published' as const } });
+    });
   }
 
   /** Soft-delete kata - DELETE /api/v1/admin/words/:id (07-api-delete-kata.md) */

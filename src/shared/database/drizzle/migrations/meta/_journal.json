@@ -43,6 +43,13 @@
       "when": 1790500000000,
       "tag": "0005_words-published-recent-idx",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790600000000,
+      "tag": "0006_word-reports",
+      "breakpoints": true
     }
   ]
 }

@@ -56,7 +56,7 @@ describe('CreateCommentUseCase', () => {
       uc.execute({ wordId: WORD, userId: AUTHOR, role: 'contributor', body: 'x' }),
     ).rejects.toBeInstanceOf(NotFoundError);
 
-    wordRepo.findById.mockResolvedValue({ id: WORD });
+    wordRepo.findById.mockResolvedValue({ id: WORD, status: 'published' });
     const created = await uc.execute({
       wordId: WORD,
       userId: AUTHOR,

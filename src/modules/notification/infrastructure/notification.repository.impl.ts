@@ -46,6 +46,31 @@ export class NotificationRepositoryImpl implements NotificationRepository {
       });
   }
 
+  async upsertUnread(input: CreateInboxNotificationInput): Promise<void> {
+    await this.db
+      .insert(notifications)
+      .values({
+        userId: input.userId,
+        type: input.type,
+        title: input.title,
+        body: input.body,
+        targetKind: input.targetKind,
+        targetId: input.targetId,
+        readAt: null,
+        createdAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [notifications.userId, notifications.targetKind, notifications.targetId],
+        set: {
+          type: input.type,
+          title: input.title,
+          body: input.body,
+          readAt: null,
+          createdAt: new Date(),
+        },
+      });
+  }
+
   async listByUser(userId: string, opts: NotificationListOptions): Promise<NotificationListResult> {
     const rows = await this.db
       .select()

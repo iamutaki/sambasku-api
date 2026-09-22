@@ -84,5 +84,8 @@ export const adminWordDetailResponseSchema = wordDetailResponseSchema.extend({
   data: wordDetailResponseSchema.shape.data.extend({
     created_at: z.string(),
     updated_at: z.string().nullable(),
+    takedown_reason_code: z.string().nullable(),
+    takedown_note: z.string().nullable(),
+    taken_down_at: z.string().nullable(),
   }),
 });

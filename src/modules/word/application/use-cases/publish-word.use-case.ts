@@ -1,4 +1,4 @@
-import { NotFoundError } from '@/shared/errors/app-error';
+import { ConflictError, NotFoundError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { WordRepository } from '../../domain/repositories/word.repository';
 
@@ -27,6 +27,17 @@ export class PublishWordUseCase {
   ) {}
 
   async execute(cmd: PublishWordCommand): Promise<PublishWordResult> {
+    const existing = await this.wordRepo.findById(cmd.wordId);
+    if (!existing) {
+      throw new NotFoundError('WORD_NOT_FOUND', 'Kata dengan id tersebut tidak ditemukan');
+    }
+    if (existing.status === 'taken_down') {
+      throw new ConflictError(
+        'WORD_ALREADY_MODERATED',
+        'Entri ini ditarik. Pulihkan dulu sebelum mengubah status tayang.',
+      );
+    }
+
     if (!cmd.published) {
       const ok = await this.wordRepo.setPublished(cmd.wordId, {
         published: false,

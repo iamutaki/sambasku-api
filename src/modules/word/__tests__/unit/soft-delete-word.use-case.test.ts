@@ -22,6 +22,10 @@ function makeWord(overrides: Partial<Word> = {}): Word {
     updatedAt: null,
     deletedAt: null,
     deletedBy: null,
+    takedownReasonCode: null,
+    takedownNote: null,
+    takenDownBy: null,
+    takenDownAt: null,
     ...overrides,
   };
 }

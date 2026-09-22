@@ -32,4 +32,5 @@ export * from './device-tokens.schema';
 export * from './notifications.schema';
 export * from './verifier-applications.schema';
 export * from './bug-reports.schema';
+export * from './word-reports.schema';
 export * from './word-audios.schema';

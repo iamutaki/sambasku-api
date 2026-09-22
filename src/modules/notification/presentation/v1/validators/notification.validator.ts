@@ -8,9 +8,10 @@ export const inboxNotificationTypeSchema = z.enum([
   'suggestion_approved',
   'suggestion_rejected',
   'suggestion_corrected',
+  'word_taken_down',
 ]);
 
-export const notificationTargetKindSchema = z.enum(['contribution', 'suggestion']);
+export const notificationTargetKindSchema = z.enum(['contribution', 'suggestion', 'word']);
 
 export const listNotificationsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),

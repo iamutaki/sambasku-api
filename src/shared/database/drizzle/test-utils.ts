@@ -31,6 +31,7 @@ import {
   wordClasses,
   wordEditSuggestions,
   wordImages,
+  wordReports,
   wordVariants,
   words,
 } from './schema';
@@ -41,6 +42,7 @@ export async function truncateAll(db: AppDatabase): Promise<void> {
   await ensureTestDbReady();
   for (const table of [
     auditLogs,
+    wordReports,
     bugReports,
     contributionReviews,
     contributions,

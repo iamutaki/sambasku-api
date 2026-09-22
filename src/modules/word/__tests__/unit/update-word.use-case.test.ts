@@ -61,6 +61,10 @@ function makeDetail(overrides: Partial<WordDetail> = {}): WordDetail {
     updatedAt: null,
     deletedAt: null,
     deletedBy: null,
+    takedownReasonCode: null,
+    takedownNote: null,
+    takenDownBy: null,
+    takenDownAt: null,
     meanings: [
       {
         id: '01MEANINGULID0000000000000',
@@ -106,6 +110,10 @@ function makeWord(overrides: Partial<Word> = {}): Word {
     updatedAt: new Date(),
     deletedAt: null,
     deletedBy: null,
+    takedownReasonCode: null,
+    takedownNote: null,
+    takenDownBy: null,
+    takenDownAt: null,
     ...overrides,
   };
 }

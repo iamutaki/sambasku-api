@@ -55,6 +55,7 @@ export class BookmarkController {
           lemma: i.word.lemma,
           word_type: i.word.wordType,
           is_verified: i.word.isVerified,
+          available: i.word.available,
         },
       })),
       // Mode cek status batch (word_ids) tidak berpaginasi - tanpa meta

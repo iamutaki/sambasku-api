@@ -35,6 +35,12 @@ export const words = sqliteTable(
     updatedAt: integer('updated_at', { mode: 'timestamp' }),
     deletedAt: integer('deleted_at', { mode: 'timestamp' }),
     deletedBy: text('deleted_by').references(() => users.id),
+    // Jejak takedown (pernah tayang, lalu ditarik). Null saat bukan taken_down
+    // dan dikosongkan lagi saat pulihkan.
+    takedownReasonCode: text('takedown_reason_code'),
+    takedownNote: text('takedown_note'),
+    takenDownBy: text('taken_down_by').references(() => users.id),
+    takenDownAt: integer('taken_down_at', { mode: 'timestamp' }),
   },
   (t) => [
     index('words_language_lemma_idx').on(t.languageId, t.lemma),

@@ -25,6 +25,7 @@ import {
   updateWordResponseSchema,
   updateWordSchema,
 } from './validators/update-word.validator';
+import { takedownWordBodySchema } from '@/modules/word-report/presentation/v1/validators/word-report.validator';
 
 const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
@@ -227,6 +228,67 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
 
   routes.openapi(publishRoute, (c) => deps.controller.publish(c, c.req.param('id'), true) as never);
   routes.openapi(unpublishRoute, (c) => deps.controller.publish(c, c.req.param('id'), false) as never);
+
+  const moderationResponseSchema = z.object({
+    success: z.literal(true),
+    data: z.object({
+      id: z.string(),
+      status: z.enum(['taken_down', 'published']),
+    }),
+  });
+
+  routes.use(
+    '/:id/takedown',
+    deps.authenticate,
+    authorizeRole('admin', 'editor', 'root', 'reviewer'),
+    rateLimit({ points: 30, duration: 60 }),
+  );
+  routes.use(
+    '/:id/restore',
+    deps.authenticate,
+    authorizeRole('admin', 'editor', 'root', 'reviewer'),
+    rateLimit({ points: 30, duration: 60 }),
+  );
+
+  const takedownRoute = createRoute({
+    method: 'post',
+    path: '/:id/takedown',
+    tags: ['Words', 'Admin'],
+    summary: 'Tarik entri yang tayang (status → taken_down). Bukan soft-delete.',
+    request: {
+      params: z.object({ id: z.string().length(26) }),
+      body: { content: json(takedownWordBodySchema) },
+    },
+    responses: {
+      200: { description: 'Entri ditarik', content: json(moderationResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+      404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
+      409: { description: 'Bukan published', content: json(errorResponseSchema) },
+    },
+  });
+
+  const restoreRoute = createRoute({
+    method: 'post',
+    path: '/:id/restore',
+    tags: ['Words', 'Admin'],
+    summary: 'Pulihkan entri taken_down ke published',
+    request: { params: z.object({ id: z.string().length(26) }) },
+    responses: {
+      200: { description: 'Entri dipulihkan', content: json(moderationResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+      404: { description: 'Kata tidak ditemukan', content: json(errorResponseSchema) },
+      409: { description: 'Bukan taken_down', content: json(errorResponseSchema) },
+    },
+  });
+
+  routes.openapi(
+    takedownRoute,
+    (c) => deps.controller.takedownWord(c, c.req.param('id'), c.req.valid('json')) as never,
+  );
+  routes.openapi(restoreRoute, (c) => deps.controller.restoreWord(c, c.req.param('id')) as never);
 
   return routes;
 }

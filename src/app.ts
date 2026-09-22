@@ -53,6 +53,8 @@ import { ListLatestWordsUseCase } from '@/modules/word/application/use-cases/lis
 import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-word.use-case';
 import { PublishWordUseCase } from '@/modules/word/application/use-cases/publish-word.use-case';
 import { SoftDeleteWordUseCase } from '@/modules/word/application/use-cases/soft-delete-word.use-case';
+import { TakedownWordUseCase } from '@/modules/word/application/use-cases/takedown-word.use-case';
+import { RestoreWordUseCase } from '@/modules/word/application/use-cases/restore-word.use-case';
 import { AddPronunciationUseCase } from '@/modules/word/application/use-cases/add-pronunciation.use-case';
 import { AddMeaningUseCase } from '@/modules/word/application/use-cases/add-meaning.use-case';
 import { AddWordImageUseCase } from '@/modules/word/application/use-cases/add-word-image.use-case';
@@ -119,6 +121,16 @@ import { createImageStorage } from '@/modules/image/infrastructure/image-storage
 import { CreateUploadCredentialsUseCase } from '@/modules/image/application/use-cases/create-upload-credentials.use-case';
 import { ImageController } from '@/modules/image/presentation/v1/image.controller';
 import { createImageRoutes } from '@/modules/image/presentation/v1/image.routes';
+import { WordReportRepositoryImpl } from '@/modules/word-report/infrastructure/word-report.repository.impl';
+import { CreateWordReportUseCase } from '@/modules/word-report/application/use-cases/create-word-report.use-case';
+import { ListWordReportsUseCase } from '@/modules/word-report/application/use-cases/list-word-reports.use-case';
+import {
+  ResolveWordReportUseCase,
+  TakedownWordReportUseCase,
+} from '@/modules/word-report/application/use-cases/resolve-word-report.use-case';
+import { WordReportController } from '@/modules/word-report/presentation/v1/word-report.controller';
+import { createWordReportRoutes } from '@/modules/word-report/presentation/v1/word-report.routes';
+import { createAdminWordReportRoutes } from '@/modules/word-report/presentation/v1/admin-word-report.routes';
 import { BugReportRepositoryImpl } from '@/modules/bug-report/infrastructure/bug-report.repository.impl';
 import { CreateBugReportUseCase } from '@/modules/bug-report/application/use-cases/create-bug-report.use-case';
 import { ListBugReportsUseCase } from '@/modules/bug-report/application/use-cases/list-bug-reports.use-case';
@@ -288,6 +300,9 @@ const optionalAuthenticate = createOptionalAuthenticateMiddleware((token) =>
 
 // ---- Modul word (+ language & category sebagai data referensi form admin) ----
 const wordRepo = new WordRepositoryImpl(db);
+const wordReportRepo = new WordReportRepositoryImpl(db);
+const takedownWord = new TakedownWordUseCase(wordRepo, auditRepo, wordReportRepo, recordInbox);
+const restoreWord = new RestoreWordUseCase(wordRepo, auditRepo);
 // Provider gambar dipilih via env IMAGE_PROVIDER (default imagekit) -
 // pola factory yang sama dengan createMailer (Section 8)
 const imageStorage = createImageStorage();
@@ -307,6 +322,8 @@ const wordController = new WordController({
   verify: new VerifyWordUseCase(wordRepo, auditRepo),
   publish: new PublishWordUseCase(wordRepo, auditRepo),
   deleteWord: new SoftDeleteWordUseCase(wordRepo, auditRepo),
+  takedownWord,
+  restoreWord,
   addPronunciation: new AddPronunciationUseCase(wordRepo, auditRepo),
   addWordImage: new AddWordImageUseCase(wordRepo, auditRepo),
   addExample: new AddExampleUseCase(wordRepo, auditRepo),
@@ -537,6 +554,13 @@ app.route('/api/v1/words', createWordMediaRoutes({ controller: wordController, a
 // Komentar per kata (09) - SEBELUM public word routes (pola media routes),
 // supaya /:wordId/comments tidak tertelan routes.use('*') rate limit publik
 app.route('/api/v1/words', createWordCommentRoutes({ controller: commentController, authenticate }));
+const wordReportController = new WordReportController({
+  create: new CreateWordReportUseCase(wordReportRepo, wordRepo, auditRepo),
+  list: new ListWordReportsUseCase(wordReportRepo),
+  resolve: new ResolveWordReportUseCase(wordReportRepo, auditRepo),
+  takedown: new TakedownWordReportUseCase(wordReportRepo, takedownWord),
+});
+app.route('/api/v1/words', createWordReportRoutes({ controller: wordReportController, authenticate }));
 app.route('/api/v1/words', createPublicWordRoutes({ controller: wordController, authenticate }));
 app.route('/api/v1/words', createWordHistoryRoutes({ controller: suggestionController, authenticate }));
 app.route(
@@ -638,6 +662,10 @@ app.route(
 app.route(
   '/api/v1/admin/bug-reports',
   createAdminBugReportRoutes({ controller: bugReportController, authenticate }),
+);
+app.route(
+  '/api/v1/admin/word-reports',
+  createAdminWordReportRoutes({ controller: wordReportController, authenticate }),
 );
 
 // Statistik dashboard - semua role yang login (dashboard = halaman pertama konsol)

@@ -27,6 +27,8 @@ export interface NotificationListResult {
 
 export interface NotificationRepository {
   create(input: CreateInboxNotificationInput): Promise<void>;
+  /** Insert, atau timpa baris yang sama lalu tandai belum dibaca. */
+  upsertUnread(input: CreateInboxNotificationInput): Promise<void>;
   listByUser(userId: string, opts: NotificationListOptions): Promise<NotificationListResult>;
   countUnread(userId: string): Promise<number>;
   markRead(userId: string, id: string): Promise<'updated' | 'already_read' | 'not_found'>;

@@ -6,7 +6,13 @@ export const ulid = opaqueId;
 const wordClassId = choiceId('Kelas kata');
 
 // Section 22 - approval gate: pending_review/rejected hanya di-set sistem
-export const wordStatusSchema = z.enum(['draft', 'pending_review', 'published', 'rejected']);
+export const wordStatusSchema = z.enum([
+  'draft',
+  'pending_review',
+  'published',
+  'rejected',
+  'taken_down',
+]);
 
 export const relationTypeSchema = z.enum(['synonym', 'antonym', 'has_component', 'derived_from']);
 export const wordTypeSchema = z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']);
@@ -439,6 +445,16 @@ export const createWordResponseSchema = z.object({
   }),
 });
 
+const wordDetailAudioSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  dialect_id: z.string().nullable(),
+  speaker_name: z.string().nullable(),
+  duration_ms: z.number().int().nullable(),
+  is_primary: z.boolean(),
+  mime_type: z.string(),
+});
+
 export const wordDetailResponseSchema = z.object({
   success: z.literal(true),
   data: z.object({
@@ -494,6 +510,7 @@ export const wordDetailResponseSchema = z.object({
             target_language_id: z.string().nullable(),
             target_sentence: z.string().nullable(),
             source_type: z.string().nullable(),
+            audios: z.array(wordDetailAudioSchema),
           }),
         ),
       }),
@@ -516,6 +533,7 @@ export const wordDetailResponseSchema = z.object({
         is_primary: z.boolean(),
       }),
     ),
+    audios: z.array(wordDetailAudioSchema),
     related_words: z.array(
       z.object({
         word_id: z.string(),

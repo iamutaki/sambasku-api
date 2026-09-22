@@ -60,6 +60,7 @@ const bookmarkDataSchema = z.object({
     lemma: z.string(),
     word_type: z.string(),
     is_verified: z.boolean(),
+    available: z.boolean(),
   }),
 });
 

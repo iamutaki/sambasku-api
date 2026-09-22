@@ -4,6 +4,8 @@ export interface BookmarkWordSummary {
   lemma: string;
   wordType: string;
   isVerified: boolean;
+  /** false bila kata bukan published (misalnya taken_down). */
+  available: boolean;
 }
 
 export interface BookmarkItem {

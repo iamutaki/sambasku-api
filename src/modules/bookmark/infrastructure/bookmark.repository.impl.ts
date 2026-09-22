@@ -62,6 +62,7 @@ export class BookmarkRepositoryImpl implements BookmarkRepository {
         lemma: words.lemma,
         wordType: words.wordType,
         isVerified: words.isVerified,
+        status: words.status,
       })
       .from(bookmarks)
       .innerJoin(words, eq(words.id, bookmarks.wordId))
@@ -90,6 +91,7 @@ export class BookmarkRepositoryImpl implements BookmarkRepository {
         lemma: row.lemma,
         wordType: row.wordType,
         isVerified: row.isVerified,
+        available: row.status === 'published',
       } satisfies BookmarkWordSummary,
     }));
 

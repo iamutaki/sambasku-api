@@ -31,6 +31,12 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `VOTE_TARGET_NOT_FOUND` | 404 | Target vote tidak ditemukan / sudah di-soft-delete (word, makna, contoh, pelafalan, gambar, komentar) |
 | `COMMENT_NOT_FOUND` | 404 | Komentar tidak ditemukan by id (hapus / moderasi) |
 | `COMMENT_ALREADY_MODERATED` | 409 | Komentar sudah di-takedown / bukan published (race takedown) |
+| `WORD_NOT_PUBLISHED` | 409 | Komentar pada kata yang bukan `published` |
+| `WORD_NOT_REPORTABLE` | 409 | Laporan entri pada kata yang bukan `published` |
+| `WORD_REPORT_ALREADY_OPEN` | 409 | Pelapor yang sama masih punya laporan terbuka pada kata itu |
+| `WORD_REPORT_NOT_FOUND` | 404 | Laporan entri tidak ditemukan |
+| `WORD_REPORT_ALREADY_RESOLVED` | 409 | Laporan entri sudah ditutup |
+| `WORD_ALREADY_MODERATED` | 409 | Takedown pada kata bukan published, atau restore pada kata bukan taken_down |
 | `COMMENT_NOT_CENSORED` | 400 | Uncensor dipanggil tapi komentar tidak punya body_original |
 | `BLOCKLIST_WORD_EXISTS` | 409 | Kata blocklist sudah ada (aktif) |
 | `BLOCKLIST_WORD_NOT_FOUND` | 404 | Entry blocklist tidak ditemukan |

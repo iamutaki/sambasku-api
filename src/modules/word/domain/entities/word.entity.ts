@@ -1,6 +1,17 @@
 // Entitas domain - murni TypeScript, tidak tahu Drizzle/HTTP
 // Section 22 (approval gate): pending_review/rejected hanya di-set sistem
-export type WordStatus = 'draft' | 'pending_review' | 'published' | 'rejected';
+export type WordStatus = 'draft' | 'pending_review' | 'published' | 'rejected' | 'taken_down';
+
+/** Alasan laporan / takedown entri. `other` dan `duplicate` wajib catatan. */
+export const TAKEDOWN_REASON_CODES = [
+  'not_sambas',
+  'inaccurate',
+  'duplicate',
+  'inappropriate',
+  'spam',
+  'other',
+] as const;
+export type TakedownReasonCode = (typeof TAKEDOWN_REASON_CODES)[number];
 export type WordType = 'word' | 'idiom' | 'peribahasa' | 'ungkapan';
 /** Status publikasi konten anak (pronunciations/images/examples) - tanpa draft */
 export type ChildStatus = 'pending_review' | 'published' | 'rejected';
@@ -22,6 +33,10 @@ export interface Word {
   updatedAt: Date | null;
   deletedAt: Date | null;
   deletedBy: string | null;
+  takedownReasonCode: string | null;
+  takedownNote: string | null;
+  takenDownBy: string | null;
+  takenDownAt: Date | null;
 }
 
 export interface WordSummary {

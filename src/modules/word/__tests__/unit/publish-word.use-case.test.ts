@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ConflictError } from '@/shared/errors/app-error';
 import { PublishWordUseCase } from '../../application/use-cases/publish-word.use-case';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 
@@ -7,6 +8,7 @@ function makeDeps(opts?: {
   publishOrMerge?: { wordId: string; mergedIntoWordId: string | null } | null;
 }) {
   const wordRepo = {
+    findById: vi.fn().mockResolvedValue({ id: '01WORD', status: 'draft' }),
     setPublished: vi.fn().mockResolvedValue(opts?.setPublishedResult ?? true),
     publishOrMergeMeanings: vi.fn().mockResolvedValue(
       opts?.publishOrMerge === undefined
@@ -84,6 +86,14 @@ describe('PublishWordUseCase', () => {
     expect(auditRepo.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'unpublish', newData: { status: 'draft' } }),
     );
+  });
+
+  it('taken_down tidak lewat sakelar tayang', async () => {
+    const { wordRepo, useCase } = makeDeps();
+    wordRepo.findById.mockResolvedValue({ id: '01WORD', status: 'taken_down' });
+    await expect(
+      useCase.execute({ wordId: '01WORD', published: true, actorId: '01ADMIN' }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 
   it('publish kata hilang → 404', async () => {

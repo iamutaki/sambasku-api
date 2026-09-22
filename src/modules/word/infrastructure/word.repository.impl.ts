@@ -71,6 +71,10 @@ function toWord(row: typeof words.$inferSelect): Word {
     updatedAt: row.updatedAt,
     deletedAt: row.deletedAt,
     deletedBy: row.deletedBy,
+    takedownReasonCode: row.takedownReasonCode,
+    takedownNote: row.takedownNote,
+    takenDownBy: row.takenDownBy,
+    takenDownAt: row.takenDownAt,
   };
 }
 
@@ -1726,6 +1730,38 @@ export class WordRepositoryImpl implements WordRepository {
           .returning();
         if (!wordRow) return null;
 
+        // Audio multi-take tidak ikut body PUT. Snapshot dulu, hapus SEBELUM
+        // examples (FK example_id → examples, ON DELETE no action), lalu
+        // sisipkan ulang dengan id yang sama setelah contoh baru ada.
+        const audioSnapshots = await tx
+          .select({
+            id: wordAudios.id,
+            wordId: wordAudios.wordId,
+            exampleId: wordAudios.exampleId,
+            dialectId: wordAudios.dialectId,
+            provider: wordAudios.provider,
+            providerFileId: wordAudios.providerFileId,
+            sha: wordAudios.sha,
+            url: wordAudios.url,
+            mimeType: wordAudios.mimeType,
+            fileSize: wordAudios.fileSize,
+            durationMs: wordAudios.durationMs,
+            speakerName: wordAudios.speakerName,
+            isPrimary: wordAudios.isPrimary,
+            status: wordAudios.status,
+            isVerified: wordAudios.isVerified,
+            isCorrected: wordAudios.isCorrected,
+            createdBy: wordAudios.createdBy,
+            createdAt: wordAudios.createdAt,
+            sourceSentence: examples.sourceSentence,
+          })
+          .from(wordAudios)
+          .leftJoin(examples, eq(wordAudios.exampleId, examples.id))
+          .where(and(eq(wordAudios.wordId, id), isNull(wordAudios.deletedAt)));
+
+        // Termasuk baris soft-delete: mereka tetap memegang FK ke examples.
+        await tx.delete(wordAudios).where(eq(wordAudios.wordId, id));
+
         // Replace children: hapus lama (urutan FK-safe) lalu insert baru
         await tx.delete(examples).where(
           inArray(examples.meaningId, tx.select({ id: meanings.id }).from(meanings).where(eq(meanings.wordId, id)),
@@ -1738,11 +1774,11 @@ export class WordRepositoryImpl implements WordRepository {
         await tx.delete(lexicalRelations).where(eq(lexicalRelations.sourceWordId, id));
         await tx.delete(wordVariants).where(eq(wordVariants.wordId, id));
         await tx.delete(wordImages).where(eq(wordImages.wordId, id));
-        await tx.delete(wordAudios).where(eq(wordAudios.wordId, id));
         await tx.delete(pronunciations).where(eq(pronunciations.wordId, id));
 
         // Insert children baru (pola sama dengan saveWithRelations)
         await this.insertChildren(tx, id, word, actorId);
+        await this.restoreWordAudios(tx, id, audioSnapshots);
 
         // Catat kontribusi update - status antrean turunan dari status entity
         // (correct oleh verifikator → published → 'approved', tidak mengotori antrean)
@@ -1778,6 +1814,122 @@ export class WordRepositoryImpl implements WordRepository {
       .where(and(eq(words.id, id), isNull(words.deletedAt)))
       .returning({ id: words.id });
     return updated.length > 0;
+  }
+
+  async takedown(
+    id: string,
+    data: { actorId: string; reasonCode: string; note: string | null },
+  ): Promise<boolean> {
+    const now = new Date();
+    const updated = await this.db
+      .update(words)
+      .set({
+        status: 'taken_down',
+        takedownReasonCode: data.reasonCode,
+        takedownNote: data.note,
+        takenDownBy: data.actorId,
+        takenDownAt: now,
+        updatedBy: data.actorId,
+        updatedAt: now,
+      })
+      .where(and(eq(words.id, id), eq(words.status, 'published'), isNull(words.deletedAt)))
+      .returning({ id: words.id });
+    return updated.length > 0;
+  }
+
+  async restore(id: string, actorId: string): Promise<boolean> {
+    const now = new Date();
+    const updated = await this.db
+      .update(words)
+      .set({
+        status: 'published',
+        takedownReasonCode: null,
+        takedownNote: null,
+        takenDownBy: null,
+        takenDownAt: null,
+        updatedBy: actorId,
+        updatedAt: now,
+      })
+      .where(and(eq(words.id, id), eq(words.status, 'taken_down'), isNull(words.deletedAt)))
+      .returning({ id: words.id });
+    return updated.length > 0;
+  }
+
+  /**
+   * Tulis ulang audio yang di-snapshot sebelum replace anak.
+   * Lemma (example_id null) tetap. Audio contoh hanya kembali jika kalimat
+   * yang sama masih ada di contoh baru — id baris audio tidak berubah.
+   */
+  private async restoreWordAudios(
+    tx: Tx,
+    wordId: string,
+    snapshots: {
+      id: string;
+      wordId: string;
+      exampleId: string | null;
+      dialectId: string | null;
+      provider: string;
+      providerFileId: string;
+      sha: string | null;
+      url: string;
+      mimeType: string;
+      fileSize: number;
+      durationMs: number | null;
+      speakerName: string | null;
+      isPrimary: boolean;
+      status: string;
+      isVerified: boolean;
+      isCorrected: boolean;
+      createdBy: string | null;
+      createdAt: Date;
+      sourceSentence: string | null;
+    }[],
+  ): Promise<void> {
+    if (snapshots.length === 0) return;
+
+    const newExamples = await tx
+      .select({ id: examples.id, sourceSentence: examples.sourceSentence })
+      .from(examples)
+      .innerJoin(meanings, eq(examples.meaningId, meanings.id))
+      .where(eq(meanings.wordId, wordId));
+
+    const exampleIdBySentence = new Map<string, string>();
+    for (const ex of newExamples) {
+      const key = ex.sourceSentence.trim();
+      if (key && !exampleIdBySentence.has(key)) exampleIdBySentence.set(key, ex.id);
+    }
+
+    const rows = [];
+    for (const snap of snapshots) {
+      let exampleId: string | null = null;
+      if (snap.exampleId) {
+        const key = snap.sourceSentence?.trim() ?? '';
+        const nextId = key ? exampleIdBySentence.get(key) : undefined;
+        if (!nextId) continue;
+        exampleId = nextId;
+      }
+      rows.push({
+        id: snap.id,
+        wordId: snap.wordId,
+        exampleId,
+        dialectId: snap.dialectId,
+        provider: snap.provider,
+        providerFileId: snap.providerFileId,
+        sha: snap.sha,
+        url: snap.url,
+        mimeType: snap.mimeType,
+        fileSize: snap.fileSize,
+        durationMs: snap.durationMs,
+        speakerName: snap.speakerName,
+        isPrimary: snap.isPrimary,
+        status: snap.status,
+        isVerified: snap.isVerified,
+        isCorrected: snap.isCorrected,
+        createdBy: snap.createdBy,
+        createdAt: snap.createdAt,
+      });
+    }
+    if (rows.length > 0) await tx.insert(wordAudios).values(rows);
   }
 
   // Helper: insert children untuk save & update (dipakai bersama)
