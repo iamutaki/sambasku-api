@@ -143,12 +143,12 @@ Client (admin / mobile)
   → POST /api/v1/words/:wordId/pronunciations/audio  (multipart)
   → API validasi MIME/ukuran
   → GitHub Contents API PUT  assets/audio/<dialect|umum>/<lemma-slug>/<ulid>.<ext>
-  → INSERT word_audios  (url = raw.githubusercontent.com/…/main/<path>, …)
+  → INSERT word_audios  (url = cdn.jsdelivr.net/gh/…@main/<path>, …)
 ```
 
 | Field di `word_audios` (inti) | Arti |
 | ----------------------------- | ---- |
-| `url` | Link asset publik (raw GitHub) |
+| `url` | Link asset publik (jsDelivr CDN) |
 | `path` / path di storage | Path relatif di repo pronunciation |
 | `word_id` | Lemma induk |
 | `example_id` | `null` = audio lemma; terisi = audio contoh kalimat |
@@ -161,8 +161,10 @@ Client (admin / mobile)
 Contoh URL asset setelah upload:
 
 ```text
-https://raw.githubusercontent.com/iamutaki/sambasku-pronunciation/main/assets/audio/umum/makatn/<ulid>.m4a
+https://cdn.jsdelivr.net/gh/iamutaki/sambasku-pronunciation@main/assets/audio/umum/makatn/<ulid>.m4a
 ```
+
+(jsDelivr CDN di depan repo GitHub publik; path file immutable / ULID.)
 
 Baca di word detail: `audios[]` (lemma) dan
 `meanings[].examples[].audios[]` (contoh).

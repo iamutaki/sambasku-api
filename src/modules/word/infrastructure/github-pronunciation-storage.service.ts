@@ -2,14 +2,14 @@ import { env } from '@/shared/config/env';
 import { BadGatewayError, ServiceUnavailableError } from '@/shared/errors/app-error';
 import { logger } from '@/shared/logging/logger';
 import type { PronunciationStoragePort } from '../application/ports/pronunciation-storage.port';
-import { bytesToBase64, parseGithubRepoUrl } from '../application/utils/github-repo-url';
+import { bytesToBase64, buildJsDelivrPublicUrl, parseGithubRepoUrl } from '../application/utils/github-repo-url';
 
 const BRANCH = 'main';
 const API_VERSION = '2022-11-28';
 const TIMEOUT_MS = 15_000;
 const USER_AGENT = 'SambasKu-API/pronunciation';
 
-export { parseGithubRepoUrl, bytesToBase64 };
+export { parseGithubRepoUrl, bytesToBase64, buildJsDelivrPublicUrl };
 
 export class GitHubPronunciationStorageService implements PronunciationStoragePort {
   readonly providerName = 'github';
@@ -37,8 +37,12 @@ export class GitHubPronunciationStorageService implements PronunciationStoragePo
     };
   }
 
+  /**
+   * URL publik lewat jsDelivr (CDN) — bukan raw.githubusercontent.com.
+   * Path immutable (ULID) jadi cache CDN aman; repo harus publik.
+   */
   private publicUrl(owner: string, repo: string, path: string): string {
-    return `https://raw.githubusercontent.com/${owner}/${repo}/${BRANCH}/${path}`;
+    return buildJsDelivrPublicUrl({ owner, repo, branch: BRANCH, path });
   }
 
   private async fetchWithRetry(

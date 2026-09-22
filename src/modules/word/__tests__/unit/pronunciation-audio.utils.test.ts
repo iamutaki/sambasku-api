@@ -10,6 +10,7 @@ import {
 } from '../../application/utils/validate-audio-file';
 import {
   bytesToBase64,
+  buildJsDelivrPublicUrl,
   parseGithubRepoUrl,
 } from '../../application/utils/github-repo-url';
 
@@ -44,6 +45,32 @@ describe('parseGithubRepoUrl', () => {
       owner: 'iamutaki',
       repo: 'sambasku-pronunciation',
     });
+  });
+});
+
+describe('buildJsDelivrPublicUrl', () => {
+  it('bentuk CDN: cdn.jsdelivr.net/gh/owner/repo@branch/path', () => {
+    expect(
+      buildJsDelivrPublicUrl({
+        owner: 'iamutaki',
+        repo: 'sambasku-pronunciation',
+        branch: 'main',
+        path: 'assets/audio/umum/makatn/01J8ZQTESTULID00000000000.m4a',
+      }),
+    ).toBe(
+      'https://cdn.jsdelivr.net/gh/iamutaki/sambasku-pronunciation@main/assets/audio/umum/makatn/01J8ZQTESTULID00000000000.m4a',
+    );
+  });
+
+  it('menghilangkan slash awal pada path', () => {
+    expect(
+      buildJsDelivrPublicUrl({
+        owner: 'o',
+        repo: 'r',
+        branch: 'main',
+        path: '/assets/a.wav',
+      }),
+    ).toBe('https://cdn.jsdelivr.net/gh/o/r@main/assets/a.wav');
   });
 });
 
