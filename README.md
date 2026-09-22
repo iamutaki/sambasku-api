@@ -89,6 +89,8 @@ npx wrangler secret put DATABASE_AUTH_TOKEN --env staging
 # paste: token dari `turso db tokens create sambasku-staging`
 
 # JWT, Resend, ImageKit, OAuth, FCM — sama seperti sebelumnya
+# Audio pelafalan (lihat bagian "Audio pelafalan" di bawah):
+#   npx wrangler secret put PRONUNCIACION_GITHUB_TOKEN --env staging
 ```
 
 ### Deploy otomatis dari GitHub (CI/CD)
@@ -107,6 +109,70 @@ test (file SQLite) → migrate Turso → `wrangler deploy --env staging`.
 Secret Worker (JWT, dll.) tidak ikut CI — `wrangler deploy` mempertahankan
 secret yang sudah terpasang. Seed staging manual:
 `gh workflow run seed-staging.yml --ref staging -f confirm=true`.
+
+## Audio pelafalan (GitHub asset repo)
+
+File audio **tidak** disimpan di Turso. Backend menulis file ke repo publik
+[sambasku-pronunciation](https://github.com/iamutaki/sambasku-pronunciation),
+lalu menyimpan **record metadata + URL** di tabel `word_audios`.
+
+README asset (asal audio, struktur path, URL raw):
+[`pronunciation/README.md`](../pronunciation/README.md) ·
+[raw di GitHub](https://github.com/iamutaki/sambasku-pronunciation/blob/main/README.md).
+
+Kontrak API lengkap: `docs/api/29-api-pronunciation-audio.md`.
+
+### Env (lokal / Workers)
+
+```env
+PRONUNCIACION_PROVIDER=github
+PRONUNCIACION_GITHUB_URL=https://github.com/iamutaki/sambasku-pronunciation
+PRONUNCIACION_GITHUB_TOKEN=          # PAT Contents RW — secret, jangan commit
+```
+
+Staging: `PRONUNCIACION_PROVIDER` + `PRONUNCIACION_GITHUB_URL` di
+`wrangler.toml` `[env.staging.vars]`; token via
+`npx wrangler secret put PRONUNCIACION_GITHUB_TOKEN --env staging`.
+
+Tanpa token/URL → upload balas **503** `PRONUNCIACION_UPLOAD_UNAVAILABLE`.
+
+### Alur record (DB + asset)
+
+```text
+Client (admin / mobile)
+  → POST /api/v1/words/:wordId/pronunciations/audio  (multipart)
+  → API validasi MIME/ukuran
+  → GitHub Contents API PUT  assets/audio/<dialect|umum>/<lemma-slug>/<ulid>.<ext>
+  → INSERT word_audios  (url = raw.githubusercontent.com/…/main/<path>, …)
+```
+
+| Field di `word_audios` (inti) | Arti |
+| ----------------------------- | ---- |
+| `url` | Link asset publik (raw GitHub) |
+| `path` / path di storage | Path relatif di repo pronunciation |
+| `word_id` | Lemma induk |
+| `example_id` | `null` = audio lemma; terisi = audio contoh kalimat |
+| `dialect_id` | Dialek opsional |
+| `mime_type` / `file_size` / `duration_ms` | Metadata file |
+| `speaker_name` | Nama penutur (opsional) |
+| `is_primary` | Take pertama per target (lemma / per-example) |
+| `status` | `pending_review` (contributor) / `published` (admin, …) |
+
+Contoh URL asset setelah upload:
+
+```text
+https://raw.githubusercontent.com/iamutaki/sambasku-pronunciation/main/assets/audio/umum/makatn/<ulid>.m4a
+```
+
+Baca di word detail: `audios[]` (lemma) dan
+`meanings[].examples[].audios[]` (contoh).
+
+### Endpoint ringkas
+
+| Method | Path | Keterangan |
+| ------ | ---- | ---------- |
+| `POST` | `/api/v1/words/:wordId/pronunciations/audio` | Upload + buat record |
+| `DELETE` | `/api/v1/words/:wordId/pronunciations/audio/:audioId` | Soft-delete DB + hapus file (best-effort) |
 
 ## Akses Database
 
