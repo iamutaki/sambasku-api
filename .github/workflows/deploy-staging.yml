@@ -42,7 +42,7 @@ jobs:
             echo "CORS_ALLOWED_ORIGINS=http://localhost:5173"
           } > .env.test
           rm jwt_private.pem jwt_public.pem
-      - run: pnpm drizzle-kit migrate
+      - run: pnpm db:migrate
         env:
           DATABASE_URL: file:./test.db
       - run: pnpm typecheck
@@ -61,7 +61,21 @@ jobs:
           node-version: 22
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm drizzle-kit migrate
+      - name: Cek secrets Turso staging
+        env:
+          DATABASE_URL: ${{ secrets.TURSO_STAGING_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_STAGING_AUTH_TOKEN }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Secret TURSO_STAGING_DATABASE_URL kosong — set di GitHub → Settings → Secrets"
+            exit 1
+          fi
+          if [ -z "$DATABASE_AUTH_TOKEN" ]; then
+            echo "::error::Secret TURSO_STAGING_AUTH_TOKEN kosong — set di GitHub → Settings → Secrets"
+            exit 1
+          fi
+          echo "Turso URL host: $(echo "$DATABASE_URL" | sed -E 's#^[a-z]+://##')"
+      - run: pnpm db:migrate
         env:
           DATABASE_URL: ${{ secrets.TURSO_STAGING_DATABASE_URL }}
           DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_STAGING_AUTH_TOKEN }}
