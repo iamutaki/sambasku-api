@@ -625,3 +625,34 @@ export const listWordsQuerySchema = z.object({
 export type SearchWordsQueryBody = z.infer<typeof searchWordsQuerySchema>;
 export type AdminListWordsQueryBody = z.infer<typeof adminListWordsQuerySchema>;
 export type ListWordsQueryBody = z.infer<typeof listWordsQuerySchema>;
+
+/** GET /api/v1/words/latest - feed beranda, urut waktu persetujuan. */
+export const listLatestWordsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  // Opaque base64url (waktu + id) - bukan ULID 26 karakter.
+  cursor: z.string().min(1).optional(),
+});
+
+export const latestWordsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(
+    z.object({
+      id: z.string(),
+      lemma: z.string(),
+      language_id: z.string(),
+      language_code: z.string(),
+      word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']),
+      status: wordStatusSchema,
+      is_verified: z.boolean(),
+      approved_at: z.string(),
+      sense: z.string().nullable(),
+    }),
+  ),
+  meta: z.object({
+    limit: z.number().int(),
+    next_cursor: z.string().nullable(),
+    has_more: z.boolean(),
+  }),
+});
+
+export type ListLatestWordsQueryBody = z.infer<typeof listLatestWordsQuerySchema>;

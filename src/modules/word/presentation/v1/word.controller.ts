@@ -21,6 +21,7 @@ import type {
   SearchWordsQueryBody,
   AdminListWordsQueryBody,
   ListWordsQueryBody,
+  ListLatestWordsQueryBody,
 } from './validators/create-word.validator';
 import type { UpdateWordBody } from './validators/update-word.validator';
 import type {
@@ -31,9 +32,10 @@ import type {
 } from './validators/word-media.validator';
 import { toCreateWordDto, toUpdateWordDto } from './map-create-word';
 import { ANONIM_USER_ID } from '@/shared/constants/anonim';
-import type { WordClassSummary, WordDetail } from '../../domain/entities/word.entity';
+import type { LatestWordSummary, WordClassSummary, WordDetail } from '../../domain/entities/word.entity';
 import type { ListAdminWordsUseCase } from '../../application/use-cases/list-admin-words.use-case';
 import type { ListWordsUseCase } from '../../application/use-cases/list-words.use-case';
+import type { ListLatestWordsUseCase } from '../../application/use-cases/list-latest-words.use-case';
 import { MAX_AUDIO_BYTES } from '../../application/utils/validate-audio-file';
 
 export class WordController {
@@ -46,6 +48,7 @@ export class WordController {
       search: SearchWordsUseCase;
       listAdmin: ListAdminWordsUseCase;
       list: ListWordsUseCase;
+      listLatest: ListLatestWordsUseCase;
       verify: VerifyWordUseCase;
       publish: PublishWordUseCase;
       deleteWord: SoftDeleteWordUseCase;
@@ -332,6 +335,19 @@ export class WordController {
     return c.json({
       success: true as const,
       data: items.map(toListItem),
+      meta,
+    });
+  }
+
+  /** Feed beranda - published, urut waktu persetujuan. */
+  async listLatest(c: Context, query: ListLatestWordsQueryBody) {
+    const { items, meta } = await this.deps.listLatest.execute({
+      limit: query.limit,
+      cursor: query.cursor,
+    });
+    return c.json({
+      success: true as const,
+      data: items.map(toLatestItem),
       meta,
     });
   }
@@ -688,6 +704,20 @@ function toListItem(w: {
     status: w.status,
     ...(w.matchedTranslation !== undefined ? { matched_translation: w.matchedTranslation } : {}),
     ...(w.matchedVariant !== undefined ? { matched_variant: w.matchedVariant } : {}),
+  };
+}
+
+function toLatestItem(w: LatestWordSummary) {
+  return {
+    id: w.id,
+    lemma: w.lemma,
+    language_id: w.languageId,
+    language_code: w.languageCode,
+    word_type: w.wordType,
+    is_verified: w.isVerified,
+    status: w.status,
+    approved_at: w.approvedAt.toISOString(),
+    sense: w.sense,
   };
 }
 

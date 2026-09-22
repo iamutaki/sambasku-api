@@ -43,5 +43,7 @@ export const words = sqliteTable(
     // collation column mengikuti locale DB (staging = C: "Zebra" < "apam",
     // dev = en_US: interleaving) → list A-Z tampak tidak alfabetis.
     index('words_lemma_az_idx').on(sql`lower(${t.lemma})`, t.id),
+    // Feed beranda: published terbaru (verified_at DESC, id DESC).
+    index('words_published_recent_idx').on(t.status, t.verifiedAt, t.id),
   ],
 );

@@ -18,7 +18,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { truncateAll } from '@/shared/database/drizzle/test-utils';
 import { WordRepositoryImpl } from '../../infrastructure/word.repository.impl';
-import { decodeListCursor } from '../../domain/repositories/word.repository';
+import { decodeLatestCursor, decodeListCursor } from '../../domain/repositories/word.repository';
 import type { ResolvedInlineRelation } from '../../domain/repositories/word.repository';
 import type { WordToSave } from '../../domain/repositories/word.repository';
 
@@ -682,5 +682,86 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
 
     const tipe = await repo.listAtoZ({ q: '', limit: 10, wordType: 'peribahasa' });
     expect(tipe.items.map((w) => w.lemma)).toEqual(['kiasan']);
+  });
+
+  it('listLatest: urut persetujuan DESC, keyset tanpa duplikat, pending tidak ikut, sense terisi', async () => {
+    const lama = await repo.saveWithRelations(baseWord({ lemma: 'lama' }), ACTOR);
+    const tengah = await repo.saveWithRelations(baseWord({ lemma: 'tengah' }), ACTOR);
+    const baru = await repo.saveWithRelations(baseWord({ lemma: 'baru' }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'antre', status: 'pending_review' }), ACTOR);
+
+    await repo.setVerified(lama.id, {
+      isVerified: true,
+      verifiedBy: ACTOR,
+      verifiedAt: new Date('2020-01-01T00:00:00.000Z'),
+    });
+    await repo.setVerified(tengah.id, {
+      isVerified: true,
+      verifiedBy: ACTOR,
+      verifiedAt: new Date('2021-06-01T00:00:00.000Z'),
+    });
+    await repo.setVerified(baru.id, {
+      isVerified: true,
+      verifiedBy: ACTOR,
+      verifiedAt: new Date('2022-03-01T00:00:00.000Z'),
+    });
+
+    const p1 = await repo.listLatest({ limit: 2 });
+    expect(p1.items.map((w) => w.lemma)).toEqual(['baru', 'tengah']);
+    expect(p1.items[0]!.sense).toBe('memasukkan makanan ke mulut');
+    expect(p1.hasMore).toBe(true);
+    expect(decodeLatestCursor(p1.nextCursor!)).toEqual({
+      approvedAt: p1.items[1]!.approvedAt,
+      id: p1.items[1]!.id,
+    });
+
+    const p2 = await repo.listLatest({
+      limit: 2,
+      cursor: decodeLatestCursor(p1.nextCursor!),
+    });
+    expect(p2.items.map((w) => w.lemma)).toEqual(['lama']);
+    expect(p2.hasMore).toBe(false);
+    expect(p2.nextCursor).toBeNull();
+    expect([...p1.items, ...p2.items].map((w) => w.id).sort()).toEqual(
+      [baru.id, tengah.id, lama.id].sort(),
+    );
+  });
+
+  it('listLatest: waktu persetujuan sama dipecah id DESC', async () => {
+    const first = await repo.saveWithRelations(baseWord({ lemma: 'satu' }), ACTOR);
+    const second = await repo.saveWithRelations(baseWord({ lemma: 'dua' }), ACTOR);
+    const at = new Date('2024-01-01T00:00:00.000Z');
+    await repo.setVerified(first.id, { isVerified: true, verifiedBy: ACTOR, verifiedAt: at });
+    await repo.setVerified(second.id, { isVerified: true, verifiedBy: ACTOR, verifiedAt: at });
+
+    const higher = first.id > second.id ? first : second;
+    const lower = higher.id === first.id ? second : first;
+    const page = await repo.listLatest({ limit: 10 });
+    expect(page.items.map((w) => w.id)).toEqual([higher.id, lower.id]);
+  });
+
+  it('listLatest: definisi kosong jatuh ke terjemahan; verified_at null tetap tayang', async () => {
+    const plain = await repo.saveWithRelations(baseWord({ lemma: 'polos', isVerified: false }), ACTOR);
+    await repo.saveWithRelations(
+      baseWord({
+        lemma: 'tanpadef',
+        meanings: [
+          {
+            wordClassId: NOMINA,
+            definition: '-',
+            isHaveDefinition: false,
+            orderIndex: 1,
+            translations: [{ languageId: IDN, translationText: 'makan', translationType: 'direct' }],
+          },
+        ],
+      }),
+      ACTOR,
+    );
+
+    const page = await repo.listLatest({ limit: 10 });
+    const byLemma = new Map(page.items.map((w) => [w.lemma, w]));
+    expect(byLemma.get('tanpadef')?.sense).toBe('makan');
+    expect(byLemma.get('polos')?.sense).toBe('memasukkan makanan ke mulut');
+    expect(byLemma.get('polos')?.approvedAt.getTime()).toBe(plain.createdAt.getTime());
   });
 });

@@ -22,13 +22,14 @@ import {
 import type { AppDatabase, AppTransaction } from '@/shared/database/drizzle/client';
 import { ConflictError, ValidationError } from '@/shared/errors/app-error';
 import { publishOrMergeMeaningsInTx } from './publish-or-merge-meanings';
-import type { ChildStatus, Word, WordDetail, WordStatus, WordSummary } from '../domain/entities/word.entity';
+import type { ChildStatus, LatestWordSummary, Word, WordDetail, WordStatus, WordSummary } from '../domain/entities/word.entity';
 import type { MeaningMedia } from '../domain/entities/meaning.entity';
 import type {
   CursorPage,
   ExampleMedia,
   InlineCreatedWordSummary,
   ListAtoZParams,
+  ListLatestParams,
   MissingReferences,
   PronunciationMedia,
   ReferenceCheck,
@@ -40,7 +41,7 @@ import type {
   WordRepository,
   WordToSave,
 } from '../domain/repositories/word.repository';
-import { encodeListCursor } from '../domain/repositories/word.repository';
+import { encodeLatestCursor, encodeListCursor } from '../domain/repositories/word.repository';
 import type { CreateWordRelatedDto } from '../application/dto/create-word.dto';
 
 function verificationCols(isVerified: boolean, actorId: string, at = new Date()) {
@@ -838,6 +839,139 @@ export class WordRepositoryImpl implements WordRepository {
       nextCursor: hasMore && last ? encodeListCursor({ lemma: last.lemma, id: last.id }) : null,
       hasMore,
     };
+  }
+
+  // Feed beranda: published, keyset (COALESCE(verified_at, created_at), id) DESC.
+  // verified_at = waktu persetujuan; kata yang langsung tayang mengisi field
+  // yang sama. Null → created_at supaya baris lama tetap muncul.
+  async listLatest(params: ListLatestParams): Promise<CursorPage<LatestWordSummary>> {
+    const approvedAtExpr = sql`COALESCE(${words.verifiedAt}, ${words.createdAt})`;
+    const cursorEpoch = params.cursor
+      ? Math.floor(params.cursor.approvedAt.getTime() / 1000)
+      : undefined;
+
+    const where = and(
+      isNull(words.deletedAt),
+      eq(words.status, 'published'),
+      params.cursor
+        ? sql`(${approvedAtExpr}, ${words.id}) < (${cursorEpoch}, ${params.cursor.id})`
+        : undefined,
+    );
+
+    const rows = await this.db
+      .select({
+        id: words.id,
+        lemma: words.lemma,
+        languageId: words.languageId,
+        languageCode: languages.code,
+        wordType: words.wordType,
+        isVerified: words.isVerified,
+        status: words.status,
+        verifiedAt: words.verifiedAt,
+        createdAt: words.createdAt,
+      })
+      .from(words)
+      .innerJoin(languages, eq(words.languageId, languages.id))
+      .where(where)
+      .orderBy(desc(approvedAtExpr), desc(words.id))
+      .limit(params.limit + 1);
+
+    const hasMore = rows.length > params.limit;
+    const page: LatestWordSummary[] = (hasMore ? rows.slice(0, params.limit) : rows).map((r) => ({
+      id: r.id,
+      lemma: r.lemma,
+      languageId: r.languageId,
+      languageCode: r.languageCode,
+      wordType: r.wordType as Word['wordType'],
+      isVerified: r.isVerified,
+      status: r.status as WordStatus,
+      approvedAt: r.verifiedAt ?? r.createdAt,
+      sense: null,
+    }));
+
+    await this.attachSenses(page);
+
+    const last = page[page.length - 1];
+    return {
+      items: page,
+      nextCursor: hasMore && last ? encodeLatestCursor({ approvedAt: last.approvedAt, id: last.id }) : null,
+      hasMore,
+    };
+  }
+
+  /** Satu batch makna + terjemahan untuk halaman feed. Bukan N+1. */
+  private async attachSenses(page: LatestWordSummary[]): Promise<void> {
+    if (page.length === 0) return;
+
+    const meaningRows = await this.db
+      .select({
+        id: meanings.id,
+        wordId: meanings.wordId,
+        definition: meanings.definition,
+        isHaveDefinition: meanings.isHaveDefinition,
+      })
+      .from(meanings)
+      .where(
+        and(
+          inArray(
+            meanings.wordId,
+            page.map((p) => p.id),
+          ),
+          isNull(meanings.deletedAt),
+          eq(meanings.status, 'published'),
+        ),
+      )
+      .orderBy(asc(meanings.orderIndex), asc(meanings.id));
+
+    const firstByWord = new Map<string, (typeof meaningRows)[number]>();
+    for (const row of meaningRows) {
+      if (!firstByWord.has(row.wordId)) firstByWord.set(row.wordId, row);
+    }
+
+    const needTranslation: string[] = [];
+    const meaningIdByWord = new Map<string, string>();
+    for (const item of page) {
+      const meaning = firstByWord.get(item.id);
+      if (!meaning) continue;
+      const definition = meaning.definition.trim();
+      if (meaning.isHaveDefinition && definition.length > 0 && definition !== '-') {
+        item.sense = definition;
+        continue;
+      }
+      needTranslation.push(meaning.id);
+      meaningIdByWord.set(item.id, meaning.id);
+    }
+
+    if (needTranslation.length === 0) return;
+
+    const translationRows = await this.db
+      .select({
+        meaningId: meaningTranslations.meaningId,
+        translationText: meaningTranslations.translationText,
+      })
+      .from(meaningTranslations)
+      .where(
+        and(
+          inArray(meaningTranslations.meaningId, needTranslation),
+          isNull(meaningTranslations.deletedAt),
+          ne(meaningTranslations.translationText, '-'),
+        ),
+      )
+      .orderBy(asc(meaningTranslations.id));
+
+    const textByMeaning = new Map<string, string>();
+    for (const row of translationRows) {
+      const text = row.translationText.trim();
+      if (!text || textByMeaning.has(row.meaningId)) continue;
+      textByMeaning.set(row.meaningId, text);
+    }
+
+    for (const item of page) {
+      if (item.sense) continue;
+      const meaningId = meaningIdByWord.get(item.id);
+      if (!meaningId) continue;
+      item.sense = textByMeaning.get(meaningId) ?? null;
+    }
   }
 
   private async searchByTranslation(params: SearchParams): Promise<CursorPage<WordSummary>> {

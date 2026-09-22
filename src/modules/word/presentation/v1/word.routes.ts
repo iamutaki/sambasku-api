@@ -16,6 +16,8 @@ import {
   searchWordsQuerySchema,
   wordDetailResponseSchema,
   wordOfDayResponseSchema,
+  latestWordsResponseSchema,
+  listLatestWordsQuerySchema,
   wordListResponseSchema,
 } from './validators/create-word.validator';
 import {
@@ -249,6 +251,19 @@ export function createPublicWordRoutes(deps: WordRoutesDeps) {
     },
   });
 
+  // Feed beranda - literal '/latest' WAJIB sebelum '/:id'.
+  const listLatestRoute = createRoute({
+    method: 'get',
+    path: '/latest',
+    tags: ['Words'],
+    summary: 'Feed kosakata terbaru yang sudah disetujui (cursor waktu persetujuan)',
+    request: { query: listLatestWordsQuerySchema },
+    responses: {
+      200: { description: 'Kata published urut persetujuan terbaru', content: json(latestWordsResponseSchema) },
+      400: { description: 'Query tidak valid', content: json(errorResponseSchema) },
+    },
+  });
+
   // 28-api-word-of-the-day.md - literal '/today' WAJIB sebelum '/:id'
   // (kalau tidak, tertangkap param id → gagal validasi ULID 400).
   const wordOfDayRoute = createRoute({
@@ -288,6 +303,7 @@ export function createPublicWordRoutes(deps: WordRoutesDeps) {
   });
 
   routes.openapi(listWordsRoute, (c) => deps.controller.list(c, c.req.valid('query')) as never);
+  routes.openapi(listLatestRoute, (c) => deps.controller.listLatest(c, c.req.valid('query')) as never);
   routes.openapi(searchWordsRoute, (c) => deps.controller.search(c, c.req.valid('query')) as never);
   routes.openapi(wordOfDayRoute, (c) => deps.controller.wordOfDay(c) as never);
   routes.openapi(wordDetailRoute, (c) => deps.controller.detail(c, c.req.param('id')) as never);

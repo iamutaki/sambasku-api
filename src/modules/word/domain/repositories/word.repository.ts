@@ -1,5 +1,6 @@
 import type {
   ChildStatus,
+  LatestWordSummary,
   Word,
   WordClassSummary,
   WordDetail,
@@ -146,6 +147,25 @@ export function decodeListCursor(s: string): { lemma: string; id: string } {
   return { lemma: parts[0], id: parts[1] };
 }
 
+/** Feed beranda. Cursor komposit (approvedAt ISO, id) — opaque bagi klien. */
+export interface ListLatestParams {
+  limit: number;
+  cursor?: { approvedAt: Date; id: string };
+}
+
+export function encodeLatestCursor(c: { approvedAt: Date; id: string }): string {
+  return Buffer.from(`${c.approvedAt.toISOString()}${LIST_CURSOR_SEP}${c.id}`).toString('base64url');
+}
+
+export function decodeLatestCursor(s: string): { approvedAt: Date; id: string } {
+  const parts = Buffer.from(s, 'base64url').toString().split(LIST_CURSOR_SEP);
+  const approvedAt = parts.length === 2 ? new Date(parts[0]) : new Date(NaN);
+  if (parts.length !== 2 || Number.isNaN(approvedAt.getTime()) || parts[1].length !== 26) {
+    throw new Error('INVALID_CURSOR_FORMAT');
+  }
+  return { approvedAt, id: parts[1] };
+}
+
 // Kontrak repository modul word - implementasi Drizzle di infrastructure/.
 // saveWithRelations & saveWithInlineRelations DIJAMIN atomik (satu
 // db.transaction) - use case tidak perlu tahu soal transaction
@@ -189,6 +209,11 @@ export interface WordRepository {
    * ter-encode (impl memanggil encodeListCursor).
    */
   listAtoZ(params: ListAtoZParams): Promise<CursorPage<WordSummary>>;
+  /**
+   * Feed beranda: published, urut COALESCE(verified_at, created_at) DESC, id DESC.
+   * sense = definisi makna published pertama, fallback terjemahan pertama.
+   */
+  listLatest(params: ListLatestParams): Promise<CursorPage<LatestWordSummary>>;
   findMissingReferences(refs: ReferenceCheck): Promise<MissingReferences>;
   /** data referensi dropdown kelas kata (hierarki parent) */
   listWordClasses(): Promise<WordClassSummary[]>;
