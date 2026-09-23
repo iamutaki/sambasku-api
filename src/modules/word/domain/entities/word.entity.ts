@@ -128,6 +128,8 @@ export interface WordDetail extends Word {
   variants: WordVariantRef[];
   /** JOIN users pada words.verified_by; tetap ada meski user soft-deleted */
   verifier: { username: string; role: string } | null;
+  /** JOIN users pada words.created_by; username publik, bukan id */
+  creator: { username: string; role: string } | null;
 }
 
 export interface WordClassSummary {

@@ -88,6 +88,7 @@ function makeDetail(overrides: Partial<WordDetail> = {}): WordDetail {
     appearsIn: [],
     variants: [],
     verifier: null,
+    creator: null,
     ...overrides,
   };
 }

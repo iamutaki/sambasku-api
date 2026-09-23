@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { ilikeCompat } from '@/shared/database/drizzle/ilike-compat';
 import { isForeignKeyViolation, isUniqueViolation } from '@/shared/database/drizzle/sqlite-errors';
 import {
@@ -394,14 +395,19 @@ export class WordRepositoryImpl implements WordRepository {
     opts?: { includeAllStatuses?: boolean },
   ): Promise<WordDetail | null> {
     const includeAll = opts?.includeAllStatuses === true;
+    const verifierUsers = alias(users, 'word_verifier');
+    const creatorUsers = alias(users, 'word_creator');
     const [joined] = await this.db
       .select({
         word: words,
-        verifierUsername: users.username,
-        verifierRole: users.role,
+        verifierUsername: verifierUsers.username,
+        verifierRole: verifierUsers.role,
+        creatorUsername: creatorUsers.username,
+        creatorRole: creatorUsers.role,
       })
       .from(words)
-      .leftJoin(users, eq(words.verifiedBy, users.id))
+      .leftJoin(verifierUsers, eq(words.verifiedBy, verifierUsers.id))
+      .leftJoin(creatorUsers, eq(words.createdBy, creatorUsers.id))
       .where(
         includeAll
           ? and(eq(words.id, id), isNull(words.deletedAt))
@@ -550,6 +556,10 @@ export class WordRepositoryImpl implements WordRepository {
       verifier:
         joined.verifierUsername != null && joined.verifierRole != null
           ? { username: joined.verifierUsername, role: joined.verifierRole }
+          : null,
+      creator:
+        joined.creatorUsername != null && joined.creatorRole != null
+          ? { username: joined.creatorUsername, role: joined.creatorRole }
           : null,
       meanings: meaningRows.map((m) => ({
         id: m.id,

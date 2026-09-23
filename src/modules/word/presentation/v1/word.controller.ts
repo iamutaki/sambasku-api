@@ -216,6 +216,7 @@ export class WordController {
       self_verified: Boolean(
         word.isVerified && word.createdBy && word.verifiedBy && word.createdBy === word.verifiedBy,
       ),
+      created_by: word.creator,
       verified_by: word.isVerified && word.verifier ? word.verifier : null,
       verified_at: word.isVerified && word.verifiedAt ? word.verifiedAt.toISOString() : null,
       meanings: word.meanings.map((m) => ({
