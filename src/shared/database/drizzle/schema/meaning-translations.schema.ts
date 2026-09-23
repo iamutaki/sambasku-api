@@ -1,28 +1,28 @@
-import { pgTable, text, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, unique } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { meanings } from './meanings.schema';
 import { languages } from './languages.schema';
 import { users } from './users.schema';
 
-export const meaningTranslations = pgTable(
+export const meaningTranslations = sqliteTable(
   'meaning_translations',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    meaningId: varchar('meaning_id', { length: 26 })
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    meaningId: text('meaning_id')
       .notNull()
       .references(() => meanings.id),
-    languageId: varchar('language_id', { length: 26 })
+    languageId: text('language_id')
       .notNull()
       .references(() => languages.id),
     translationText: text('translation_text').notNull(),
     // direct | descriptive | idiomatic
-    translationType: varchar('translation_type', { length: 50 }).notNull().default('direct'),
+    translationType: text('translation_type').notNull().default('direct'),
     notes: text('notes'),
-    createdBy: varchar('created_by', { length: 26 }).references(() => users.id),
-    updatedBy: varchar('updated_by', { length: 26 }).references(() => users.id),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at'),
-    deletedAt: timestamp('deleted_at'),
+    createdBy: text('created_by').references(() => users.id),
+    updatedBy: text('updated_by').references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
   },
   (t) => [
     unique('meaning_translations_unique').on(t.meaningId, t.languageId, t.translationText),

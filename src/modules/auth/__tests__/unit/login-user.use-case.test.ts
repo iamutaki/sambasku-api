@@ -11,13 +11,20 @@ function makeUser(overrides: Partial<User> = {}): User {
     id: '01TESTULIDUSERID00000000',
     username: 'budi',
     email: 'budi@test.com',
+    phone: null,
     passwordHash: 'argon2id$hash',
     role: 'contributor',
     isActive: true,
+    emailVerified: true,
+    avatarUrl: null,
+    avatarProvider: null,
+    avatarProviderFileId: null,
+    avatarSha: null,
     createdAt: new Date(),
     updatedAt: null,
     deletedAt: null,
     ...overrides,
+    canContribute: overrides.canContribute ?? true,
   };
 }
 
@@ -75,12 +82,24 @@ describe('LoginUserUseCase', () => {
     ).rejects.toMatchObject(GENERIC_ERROR);
   });
 
-  it('EDGE CASE: menolak user yang dinonaktifkan (is_active=false) — pesan generik sama', async () => {
+  it('EDGE CASE: menolak user yang dinonaktifkan (is_active=false) - pesan generik sama', async () => {
     const { useCase } = makeDeps(makeUser({ isActive: false }));
 
     await expect(
       useCase.execute({ email: 'budi@test.com', password: 'Password123' }),
     ).rejects.toMatchObject(GENERIC_ERROR);
+  });
+
+  it('password benar + email belum verified → 403 EMAIL_NOT_VERIFIED, tanpa token', async () => {
+    const { useCase, refreshTokenRepo } = makeDeps(makeUser({ emailVerified: false }));
+
+    await expect(
+      useCase.execute({ email: 'budi@test.com', password: 'Password123' }),
+    ).rejects.toMatchObject({
+      errorCode: 'EMAIL_NOT_VERIFIED',
+      statusCode: 403,
+    });
+    expect(refreshTokenRepo.create).not.toHaveBeenCalled();
   });
 
   it('sukses: simpan refresh token dalam bentuk HASH, bukan plain', async () => {
@@ -90,7 +109,12 @@ describe('LoginUserUseCase', () => {
 
     expect(result.accessToken).toBe('jwt-token');
     expect(result.expiresIn).toBe(900);
-    expect(result.user).toEqual({ id: '01TESTULIDUSERID00000000', username: 'budi', role: 'contributor' });
+    expect(result.user).toEqual({
+      id: '01TESTULIDUSERID00000000',
+      username: 'budi',
+      role: 'contributor',
+      avatarUrl: null,
+    });
 
     const stored = vi.mocked(refreshTokenRepo.create).mock.calls[0][0];
     expect(stored.tokenHash).not.toBe(result.refreshToken); // hash !== plain

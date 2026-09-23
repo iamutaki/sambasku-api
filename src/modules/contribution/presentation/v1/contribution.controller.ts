@@ -18,7 +18,7 @@ export class ContributionController {
       getDetail: GetContributionDetailUseCase;
       review: ReviewContributionUseCase;
       correct: CorrectContributionUseCase;
-      /** provider gambar aktif — untuk mapping koreksi entity word */
+      /** provider gambar aktif - untuk mapping koreksi entity word */
       imageProviderName: string;
     },
   ) {}
@@ -28,6 +28,7 @@ export class ContributionController {
       status: query.status,
       entityType: query.entity_type,
       action: query.action,
+      wordId: query.word_id,
       limit: query.limit,
       cursor: query.cursor,
     });
@@ -42,6 +43,10 @@ export class ContributionController {
         action: item.action,
         status: item.status,
         created_at: item.createdAt.toISOString(),
+        word_lemma: item.wordLemma,
+        search_miss_id: item.searchMissId,
+        search_miss_term: item.searchMissTerm,
+        search_miss_direction: item.searchMissDirection,
       })),
       meta: { limit: query.limit, next_cursor: nextCursor, has_more: hasMore },
     });
@@ -61,6 +66,10 @@ export class ContributionController {
           action: contribution.action,
           status: contribution.status,
           created_at: contribution.createdAt.toISOString(),
+          word_lemma: contribution.wordLemma,
+          search_miss_id: contribution.searchMissId,
+          search_miss_term: contribution.searchMissTerm,
+          search_miss_direction: contribution.searchMissDirection,
         },
         review: review
           ? {
@@ -70,7 +79,7 @@ export class ContributionController {
               created_at: review.createdAt.toISOString(),
             }
           : null,
-        // payload polymorphic — snake_case untuk entity anak; word detail
+        // payload polymorphic - snake_case untuk entity anak; word detail
         // bentuknya sama seperti GET /words/:id (semua status)
         entity: serializeEntity(entity),
       },
@@ -104,14 +113,16 @@ export class ContributionController {
   async correct(c: Context, id: string, body: CorrectContributionBody) {
     const actor = this.requireActor(c);
     const comment = body.comment ?? null;
+    const publish = body.publish ?? true;
 
     if (body.entity_type === 'word') {
-      const { entity_type: _type, comment: _comment, ...wordBody } = body;
+      const { entity_type: _type, comment: _comment, publish: _publish, ...wordBody } = body;
       const outcome = await this.deps.correct.execute({
         contributionId: id,
         actorId: actor.userId,
         requestId: actor.requestId,
         comment,
+        publish,
         input: { word: toCreateWordDto({ ...wordBody, status: 'published' }, this.deps.imageProviderName) },
       });
       return decisionResponse(c, outcome, true);
@@ -123,6 +134,7 @@ export class ContributionController {
         actorId: actor.userId,
         requestId: actor.requestId,
         comment,
+        publish,
         input: {
           pronunciation: {
             notation: body.notation,
@@ -143,6 +155,7 @@ export class ContributionController {
         actorId: actor.userId,
         requestId: actor.requestId,
         comment,
+        publish,
         input: {
           wordImage: {
             url: body.url,
@@ -155,11 +168,30 @@ export class ContributionController {
       return decisionResponse(c, outcome, true);
     }
 
+    if (body.entity_type === 'word_audio') {
+      const outcome = await this.deps.correct.execute({
+        contributionId: id,
+        actorId: actor.userId,
+        requestId: actor.requestId,
+        comment,
+        publish,
+        input: {
+          wordAudio: {
+            speakerName: body.speaker_name ?? null,
+            dialectId: body.dialect_id ?? null,
+            isPrimary: body.is_primary,
+          },
+        },
+      });
+      return decisionResponse(c, outcome, true);
+    }
+
     const outcome = await this.deps.correct.execute({
       contributionId: id,
       actorId: actor.userId,
       requestId: actor.requestId,
       comment,
+      publish,
       input: {
         example: {
           sourceSentence: body.source_sentence,
@@ -182,7 +214,13 @@ export class ContributionController {
 
 function decisionResponse(
   c: Context,
-  outcome: { contributionId: string; entityType: string; entityId: string; status: string },
+  outcome: {
+    contributionId: string;
+    entityType: string;
+    entityId: string;
+    status: string;
+    mergedIntoWordId?: string | null;
+  },
   isCorrected = false,
 ) {
   return c.json({
@@ -193,6 +231,9 @@ function decisionResponse(
       entity_id: outcome.entityId,
       status: outcome.status,
       ...(isCorrected ? { is_corrected: true } : {}),
+      ...(outcome.mergedIntoWordId
+        ? { merged_into_word_id: outcome.mergedIntoWordId }
+        : {}),
     },
   });
 }

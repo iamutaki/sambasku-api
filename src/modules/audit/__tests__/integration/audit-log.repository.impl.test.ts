@@ -53,10 +53,23 @@ describe.skipIf(!hasTestDb)('AuditLogRepositoryImpl', () => {
     const byType = await repo.list({ entityType: 'word', limit: 10 });
     expect(byType.items.length).toBeGreaterThanOrEqual(1);
     expect(byType.items[0].entityId).toBe(WORD_1);
+    expect(byType.items[0].userName).toBe('audita');
     expect(typeof byType.hasMore).toBe('boolean');
 
     const byUser = await repo.list({ userId: USER_A, limit: 10 });
     expect(byUser.items.length).toBeGreaterThanOrEqual(2);
+
+    const byUserName = await repo.list({ userName: 'auditb', limit: 10 });
+    expect(byUserName.items).toHaveLength(1);
+    expect(byUserName.items[0].userName).toBe('auditb');
+    expect(byUserName.items[0].entityType).toBe('user');
+
+    const byUserNameCaseInsensitive = await repo.list({ userName: 'AUDITA', limit: 10 });
+    expect(byUserNameCaseInsensitive.items.length).toBeGreaterThanOrEqual(2);
+
+    const byAction = await repo.list({ action: 'password_change', limit: 10 });
+    expect(byAction.items).toHaveLength(1);
+    expect(byAction.items[0].action).toBe('password_change');
 
     const hal1 = await repo.list({ limit: 2 });
     expect(hal1.items).toHaveLength(2);

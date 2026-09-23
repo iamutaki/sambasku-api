@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
+import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
+import { ANONIM_EMAIL, ANONIM_USER_ID, ANONIM_USERNAME } from '@/shared/constants/anonim';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -33,7 +35,7 @@ function validWordBody(lemma: string) {
   };
 }
 
-describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 approval gate)', () => {
+describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 approval gate)', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let app: any;
   let adminToken: string;
@@ -74,28 +76,38 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 
       ['kon', `kon${stamp}@test.com`, 'contributor'],
     ] as const) {
       await post('/api/v1/auth/register', {
-        username: `${prefix}${stamp}`,
+        name: `${prefix}${stamp}`,
         email,
         password: 'Password123',
         confirm_password: 'Password123',
       });
+      await post('/api/v1/auth/verify-email', { email, code: capturedOtpDisplayCode() });
       if (role !== 'contributor') {
         await db.update(users).set({ role }).where(eq(users.email, email));
       }
     }
+
+    // User sistem Anonim - penampung kontribusi tanpa login (03 doc)
+    await db.insert(users).values({
+      id: ANONIM_USER_ID,
+      username: ANONIM_USERNAME,
+      email: ANONIM_EMAIL,
+      passwordHash: 'bukan-hash-login',
+      role: 'contributor',
+    });
     const login = async (email: string) =>
       (await (await post('/api/v1/auth/login', { email, password: 'Password123' })).json()).data.access_token;
     adminToken = await login(`adm${stamp}@test.com`);
     contributorToken = await login(`kon${stamp}@test.com`);
   });
 
-  it('alur penuh: contributor submit → antrean pending → detail → approve → tayang + terverifikasi', async () => {
-    // 1. Contributor submit → pending_review, tidak tayang
+  it('alur penuh: contributor submit tayang belum dicek → antrean pending → approve menandai terverifikasi', async () => {
     const create = await post('/api/v1/admin/words', validWordBody('kalintiak'), contributorToken);
     expect(create.status).toBe(201);
     const { data: created } = await create.json();
-    expect(created.status).toBe('pending_review');
-    expect((await get(`/api/v1/words/${created.word_id}`)).status).toBe(404);
+    expect(created.status).toBe('published');
+    expect(created.is_verified).toBe(false);
+    expect((await get(`/api/v1/words/${created.word_id}`)).status).toBe(200);
 
     // 2. Muncul di antrean admin (status pending)
     const list = await get('/api/v1/admin/contributions?status=pending&entity_type=word', adminToken);
@@ -108,12 +120,13 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 
     expect(typeof item.contributor_username).toBe('string');
     expect(listBody.meta).toMatchObject({ limit: 20, has_more: false });
 
-    // 3. Detail untuk layar review — payload entity utuh (semua status)
+    // 3. Detail untuk layar review - payload entity utuh (semua status)
     const detail = await get(`/api/v1/admin/contributions/${item.id}`, adminToken);
     const detailBody = await detail.json();
     expect(detailBody.data.contribution.id).toBe(item.id);
     expect(detailBody.data.review).toBeNull();
-    expect(detailBody.data.entity).toMatchObject({ lemma: 'kalintiak', status: 'pending_review' });
+    // entity word = WordDetail camelCase (serializer detail kontribusi)
+    expect(detailBody.data.entity).toMatchObject({ lemma: 'kalintiak', status: 'published', isVerified: false });
 
     // 4. Approve → kata tayang + is_verified true
     const approve = await post(`/api/v1/admin/contributions/${item.id}/approve`, { comment: 'valid' }, adminToken);
@@ -125,7 +138,15 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 
     expect(publik.status).toBe(200);
     const publikBody = await publik.json();
     expect(publikBody.data.is_verified).toBe(true);
+    expect(publikBody.data.self_verified).toBe(false);
     expect(typeof publikBody.data.verified_at).toBe('string');
+    expect(publikBody.data.meanings).toHaveLength(1);
+    expect(publikBody.data.meanings[0]).toMatchObject({
+      definition: expect.any(String),
+      is_have_definition: expect.any(Boolean),
+      is_have_translation: expect.any(Boolean),
+    });
+    expect(publikBody.data.meanings[0].translations.length).toBeGreaterThan(0);
   });
 
   it('approve ulang → 409 CONTRIBUTION_ALREADY_REVIEWED', async () => {
@@ -167,6 +188,44 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 
     expect((await bogus.json()).error_code).toBe('CONTRIBUTION_NOT_FOUND');
   });
 
+  it('ANONIM: submit kata TANPA login → 201 pending_review, atribusi ke user Anonim', async () => {
+    // endpoint publik /api/v1/contributions/words - tanpa token sama sekali
+    const res = await post('/api/v1/contributions/words', validWordBody('kata dari anonim'));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.data.status).toBe('pending_review');
+    expect(body.data.is_verified).toBe(false);
+
+    // antrean admin: kontribusi ini tercatat atas nama user Anonim
+    const list = await get('/api/v1/admin/contributions?status=pending&entity_type=word', adminToken);
+    const listBody = await list.json();
+    const item = listBody.data.find((c: { entity_id: string }) => c.entity_id === body.data.word_id);
+    expect(item).toMatchObject({ contributor_username: 'anonim', status: 'pending' });
+
+    // dan tidak tayang sampai di-approve
+    expect((await get(`/api/v1/words/${body.data.word_id}`)).status).toBe(404);
+  });
+
+  it('LOGIN: submit via /contributions/words + Bearer → atribusi user real (bukan anonim)', async () => {
+    const res = await post(
+      '/api/v1/contributions/words',
+      validWordBody('kata dari user login'),
+      contributorToken,
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.data.status).toBe('published');
+    expect(body.data.is_verified).toBe(false);
+
+    const list = await get('/api/v1/admin/contributions?status=pending&entity_type=word', adminToken);
+    const item = (await list.json()).data.find(
+      (c: { entity_id: string }) => c.entity_id === body.data.word_id,
+    );
+    expect(item).toBeDefined();
+    expect(item.contributor_username).not.toBe('anonim');
+    expect(item.status).toBe('pending');
+  });
+
   it('correct contoh kalimat → is_corrected true + tayang; entity_type salah → 400', async () => {
     // kata published dari admin + contoh pending dari contributor
     const create = await post('/api/v1/admin/words', validWordBody('kata contoh'), adminToken);
@@ -181,7 +240,8 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 
     );
     expect(add.status).toBe(201);
     const added = (await add.json()).data;
-    expect(added.status).toBe('pending_review');
+    expect(added.status).toBe('published');
+    expect(added.is_verified).toBe(false);
 
     const list = await get('/api/v1/admin/contributions?status=pending&entity_type=example', adminToken);
     const item = (await list.json()).data.find((c: { entity_id: string }) => c.entity_id === added.id);
@@ -209,5 +269,79 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 — antrean review (Section 22 
     expect(afterBody.data.meanings[0].examples.some(
       (e: { source_sentence: string }) => e.source_sentence === 'Kami makatn kalintiak.',
     )).toBe(true);
+  });
+
+  it('correct publish=false → koreksi saja: kontribusi tetap pending; yang sudah tayang tetap tayang', async () => {
+    const create = await post('/api/v1/admin/words', validWordBody('kata koreksi tunda'), adminToken);
+    const { data } = await create.json();
+    const detail = await get(`/api/v1/words/${data.word_id}`);
+    const meaningId = (await detail.json()).data.meanings[0].id;
+
+    const add = await post(
+      `/api/v1/meanings/${meaningId}/examples`,
+      { source_language_id: SMB, source_sentence: 'Salah ejaan.', target_language_id: IDN, target_sentence: 'Salah.' },
+      contributorToken,
+    );
+    const added = (await add.json()).data;
+
+    const list = await get('/api/v1/admin/contributions?status=pending&entity_type=example', adminToken);
+    const item = (await list.json()).data.find((c: { entity_id: string }) => c.entity_id === added.id);
+
+    const correct = await post(
+      `/api/v1/admin/contributions/${item.id}/correct`,
+      { entity_type: 'example', publish: false, source_sentence: 'Sudah diperbaiki.' },
+      adminToken,
+    );
+    expect(correct.status).toBe(200);
+    expect((await correct.json()).data).toMatchObject({ status: 'pending', is_corrected: true });
+
+    // kontribusi masih di antrean pending
+    const stillPending = await get('/api/v1/admin/contributions?status=pending&entity_type=example', adminToken);
+    expect((await stillPending.json()).data.some((c: { id: string }) => c.id === item.id)).toBe(true);
+
+    // contoh kontributor login sudah published: koreksi tanpa publish
+    // menimpa kalimat dan tetap tayang (belum diverifikasi)
+    const after = await get(`/api/v1/words/${data.word_id}`);
+    const afterBody = await after.json();
+    expect(afterBody.data.meanings[0].examples.some(
+      (e: { source_sentence: string }) => e.source_sentence === 'Sudah diperbaiki.',
+    )).toBe(true);
+    expect(afterBody.data.meanings[0].examples.some(
+      (e: { source_sentence: string }) => e.source_sentence === 'Salah ejaan.',
+    )).toBe(false);
+  });
+
+  it('GET /contributions/my: 401 tanpa token; milik sendiri; 404 id orang lain', async () => {
+    expect((await get('/api/v1/contributions/my')).status).toBe(401);
+
+    const create = await post(
+      '/api/v1/contributions/words',
+      validWordBody('usulanku-my'),
+      contributorToken,
+    );
+    expect(create.status).toBe(201);
+    const { data } = await create.json();
+
+    const mine = await get('/api/v1/contributions/my', contributorToken);
+    expect(mine.status).toBe(200);
+    const body = await mine.json();
+    const item = body.data.find((c: { word_id: string }) => c.word_id === data.word_id);
+    expect(item).toMatchObject({
+      kind: 'contribution',
+      entity_type: 'word',
+      lemma: 'usulanku-my',
+      status: 'pending',
+    });
+    expect(body.meta).toMatchObject({ has_more: false });
+
+    const detail = await get(`/api/v1/contributions/my/contribution/${item.id}`, contributorToken);
+    expect(detail.status).toBe(200);
+    expect((await detail.json()).data.id).toBe(item.id);
+
+    expect((await get(`/api/v1/contributions/my/contribution/${item.id}`, adminToken)).status).toBe(404);
+
+    const adminMine = await get('/api/v1/contributions/my', adminToken);
+    const adminBody = await adminMine.json();
+    expect(adminBody.data.some((c: { id: string }) => c.id === item.id)).toBe(false);
   });
 });

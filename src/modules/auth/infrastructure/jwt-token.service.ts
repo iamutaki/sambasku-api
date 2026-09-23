@@ -8,7 +8,7 @@ export interface JwtTokenServiceOptions {
   accessTokenTtlSeconds: number;
 }
 
-// RS256: private key menandatangani, public key memverifikasi —
+// RS256: private key menandatangani, public key memverifikasi -
 // service yang hanya perlu verifikasi tidak perlu pegang private key.
 export class JwtTokenService implements TokenServicePort {
   private privateKeyPromise?: Promise<CryptoKey>;
@@ -27,7 +27,10 @@ export class JwtTokenService implements TokenServicePort {
   }
 
   async generateAccessToken(payload: AccessTokenPayload): Promise<string> {
-    return new SignJWT({ role: payload.role })
+    return new SignJWT({
+      role: payload.role,
+      ...(payload.username ? { username: payload.username } : {}),
+    })
       .setProtectedHeader({ alg: 'RS256' })
       .setSubject(payload.user_id)
       .setIssuedAt()

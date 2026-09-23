@@ -9,7 +9,7 @@ export interface DismissSearchMissCommand {
 }
 
 // Admin menyingkirkan miss dari panel/beranda (spam, istilah tidak layak).
-// Soft delete — jejak tetap ada (Section 7).
+// Soft delete - jejak tetap ada (Section 7).
 export class DismissSearchMissUseCase {
   constructor(
     private readonly searchMissRepo: SearchMissRepository,

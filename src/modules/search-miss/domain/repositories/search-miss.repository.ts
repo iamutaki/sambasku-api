@@ -2,13 +2,20 @@ import type { CursorPage } from '@/modules/word/domain/repositories/word.reposit
 import type { SearchMiss, SearchMissDirection } from '../entities/search-miss.entity';
 
 export interface SearchMissListFilter {
-  /** public = hanya yang belum terjawab, urut paling dicari; admin = semua + cursor */
+  /** public = hanya yang belum terjawab + visible; admin = semua + cursor */
   scope: 'public' | 'admin';
   direction?: SearchMissDirection;
-  /** admin only — filter status terjawab (derived) */
+  /** admin only - filter status terjawab (derived) */
   fulfilled?: boolean;
+  /** admin only - filter gate tayang (14-api) */
+  visible?: boolean;
   limit: number;
   cursor?: string;
+}
+
+export interface SearchMissUpdatePatch {
+  term?: string;
+  isVisible?: boolean;
 }
 
 // Interface lintas modul (pola Section 4): di-inject ke SearchWordsUseCase
@@ -17,7 +24,14 @@ export interface SearchMissListFilter {
 export interface SearchMissRepository {
   /** Upsert istilah: hit_count + 1 kalau sudah pernah dicari. Best-effort. */
   record(input: { term: string; direction: SearchMissDirection }): Promise<void>;
+  /** Load miss aktif (deleted_at IS NULL). Null kalau tidak ada / dismissed. */
+  findById(id: string): Promise<SearchMiss | null>;
   list(filter: SearchMissListFilter): Promise<CursorPage<SearchMiss>>;
   /** Soft-delete (dismiss dari panel admin). Return false kalau tidak ada. */
   dismiss(id: string, actorId: string): Promise<boolean>;
+  /**
+   * Partial update term / is_visible (14-api). Null kalau tidak ada.
+   * Unique (term,direction) collision → throw ConflictError.
+   */
+  update(id: string, patch: SearchMissUpdatePatch): Promise<SearchMiss | null>;
 }

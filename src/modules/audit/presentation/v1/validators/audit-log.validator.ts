@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 export const listAuditLogsQuerySchema = z.object({
   user_id: z.string().length(26).optional(),
+  /** partial match username pelaku (case-insensitive) */
+  user_name: z.string().max(100).optional(),
+  action: z.string().max(50).optional(),
   entity_type: z.string().max(100).optional(),
   entity_id: z.string().length(26).optional(),
   from: z.iso.datetime().optional(),
@@ -15,6 +18,7 @@ export type ListAuditLogsQuery = z.infer<typeof listAuditLogsQuerySchema>;
 const auditLogItemSchema = z.object({
   id: z.string(),
   user_id: z.string().nullable(),
+  user_name: z.string().nullable(),
   action: z.string(),
   entity_type: z.string(),
   entity_id: z.string(),

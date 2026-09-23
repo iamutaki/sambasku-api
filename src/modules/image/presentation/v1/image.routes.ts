@@ -16,7 +16,7 @@ const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
 });
 
-// GET /api/v1/admin/images/upload-token — tanda tangan untuk direct upload
+// GET /api/v1/admin/images/upload-token - tanda tangan untuk direct upload
 // dari client ke ImageKit (backend tidak pernah melewati byte gambar)
 export function createImageRoutes(deps: {
   controller: ImageController;
@@ -27,7 +27,9 @@ export function createImageRoutes(deps: {
   routes.use(
     '/',
     deps.authenticate,
-    authorizeRole('admin', 'editor', 'contributor'),
+    // Mirror role media-kontribusi (03): contributor ke atas boleh
+    // ambil token; root/reviewer ikut supaya konsol & mobile tidak 403.
+    authorizeRole('admin', 'editor', 'contributor', 'root', 'reviewer'),
     rateLimit({ points: 30, duration: 60 }),
   );
 

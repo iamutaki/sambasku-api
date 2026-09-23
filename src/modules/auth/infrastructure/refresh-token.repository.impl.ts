@@ -1,7 +1,6 @@
 import { and, eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { refreshTokens } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type {
   NewRefreshToken,
   RefreshTokenRecord,
@@ -9,7 +8,7 @@ import type {
 } from '../domain/repositories/refresh-token.repository';
 
 export class RefreshTokenRepositoryImpl implements RefreshTokenRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async create(token: NewRefreshToken): Promise<RefreshTokenRecord> {
     const [row] = await this.db.insert(refreshTokens).values(token).returning();

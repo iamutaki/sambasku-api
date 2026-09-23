@@ -1,0 +1,99 @@
+name: Deploy Staging (Cloudflare Workers)
+
+# Push ke branch `staging` → test (file SQLite) → migrate Turso → deploy Workers.
+#
+# Secrets GitHub:
+#   CLOUDFLARE_API_TOKEN
+#   CLOUDFLARE_ACCOUNT_ID
+#   TURSO_STAGING_DATABASE_URL   - libsql://…
+#   TURSO_STAGING_AUTH_TOKEN
+#
+# Secret Worker (DATABASE_URL + DATABASE_AUTH_TOKEN + JWT …) TIDAK perlu di CI -
+# `wrangler deploy` mempertahankan secret yang sudah terpasang.
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Siapkan .env.test (file SQLite + JWT dummy)
+        run: |
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out jwt_private.pem
+          openssl pkey -in jwt_private.pem -pubout -out jwt_public.pem
+          {
+            echo "NODE_ENV=test"
+            echo "DATABASE_URL=file:./test.db"
+            echo "DATABASE_AUTH_TOKEN="
+            echo "JWT_PRIVATE_KEY=\"$(cat jwt_private.pem)\""
+            echo "JWT_PUBLIC_KEY=\"$(cat jwt_public.pem)\""
+            echo "CORS_ALLOWED_ORIGINS=http://localhost:5173"
+          } > .env.test
+          rm jwt_private.pem jwt_public.pem
+      - run: pnpm db:migrate
+        env:
+          DATABASE_URL: file:./test.db
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  migrate-staging:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Cek secrets Turso staging
+        env:
+          DATABASE_URL: ${{ secrets.TURSO_STAGING_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_STAGING_AUTH_TOKEN }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Secret TURSO_STAGING_DATABASE_URL kosong — set di GitHub → Settings → Secrets"
+            exit 1
+          fi
+          if [ -z "$DATABASE_AUTH_TOKEN" ]; then
+            echo "::error::Secret TURSO_STAGING_AUTH_TOKEN kosong — set di GitHub → Settings → Secrets"
+            exit 1
+          fi
+          echo "Turso URL host: $(echo "$DATABASE_URL" | sed -E 's#^[a-z]+://##')"
+      - run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.TURSO_STAGING_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_STAGING_AUTH_TOKEN }}
+
+  deploy:
+    needs: migrate-staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: npx wrangler deploy --env staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

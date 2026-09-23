@@ -13,6 +13,10 @@ const NO_MISSING: MissingReferences = {
   categories: [],
   words: [],
   dialects: [],
+  inlineWordClasses: [],
+  inlineLanguages: [],
+  inlineCategories: [],
+  inlineDialects: [],
 };
 
 const WORD = { id: '01WORDULID000000000000000', lemma: 'makatn' } as { id: string; lemma: string };
@@ -40,15 +44,15 @@ function makeDeps() {
 }
 
 describe('AddPronunciationUseCase', () => {
-  it('contributor → pending_review (masuk antrean)', async () => {
+  it('contributor → published, belum terverifikasi', async () => {
     const { wordRepo, auditRepo } = makeDeps();
     const useCase = new AddPronunciationUseCase(wordRepo, auditRepo as unknown as AuditLogRepository);
     const media = await useCase.execute(WORD.id, { notation: 'ipa', value: '/makatn/' }, CONTRIBUTOR);
-    expect(media.status).toBe('pending_review');
+    expect(media.status).toBe('published');
     expect(media.isVerified).toBe(false);
     expect(wordRepo.addPronunciation).toHaveBeenCalledWith(
       WORD.id,
-      expect.objectContaining({ status: 'pending_review', isVerified: false }),
+      expect.objectContaining({ status: 'published', isVerified: false }),
       CONTRIBUTOR.userId,
     );
     expect(auditRepo.record).toHaveBeenCalledWith(
@@ -76,15 +80,16 @@ describe('AddPronunciationUseCase', () => {
 });
 
 describe('AddWordImageUseCase', () => {
-  it('contributor → pending_review; admin → published', async () => {
+  it('contributor → published belum dicek; admin → published + verified', async () => {
     const { wordRepo, auditRepo } = makeDeps();
-    const useCase = new AddWordImageUseCase(wordRepo, auditRepo as unknown as AuditLogRepository);
+    const useCase = new AddWordImageUseCase(wordRepo, auditRepo as unknown as AuditLogRepository, 'github');
     const asContributor = await useCase.execute(
       WORD.id,
       { url: 'https://ik.imagekit.io/x/a.jpg', providerFileId: 'f1', isPrimary: false },
       CONTRIBUTOR,
     );
-    expect(asContributor.status).toBe('pending_review');
+    expect(asContributor.status).toBe('published');
+    expect(asContributor.isVerified).toBe(false);
     const asAdmin = await useCase.execute(
       WORD.id,
       { url: 'https://ik.imagekit.io/x/b.jpg', providerFileId: 'f2', isPrimary: true },
@@ -117,7 +122,7 @@ describe('AddExampleUseCase', () => {
     });
   });
 
-  it('contributor → pending_review + audit entityType example', async () => {
+  it('contributor → published belum dicek + audit entityType example', async () => {
     const { wordRepo, auditRepo } = makeDeps();
     const useCase = new AddExampleUseCase(wordRepo, auditRepo as unknown as AuditLogRepository);
     const media = await useCase.execute(
@@ -125,7 +130,8 @@ describe('AddExampleUseCase', () => {
       { sourceLanguageId: '01LANGLANGUAGESMB0000000', sourceSentence: 'Kami makatn.' },
       CONTRIBUTOR,
     );
-    expect(media.status).toBe('pending_review');
+    expect(media.status).toBe('published');
+    expect(media.isVerified).toBe(false);
     expect(auditRepo.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'create', entityType: 'example' }),
     );

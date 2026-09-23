@@ -1,0 +1,97 @@
+# Cloudflare Workers - konfigurasi deploy (pasangan main.ts untuk Node)
+#
+# Setup awal (sekali):
+#   1. npx wrangler login
+#   2. Secrets (JANGAN di file ini):
+#        npx wrangler secret put DATABASE_URL          # libsql://…
+#        npx wrangler secret put DATABASE_AUTH_TOKEN   # token Turso
+#        npx wrangler secret put JWT_PRIVATE_KEY       # PEM
+#        npx wrangler secret put JWT_PUBLIC_KEY        # PEM
+#        npx wrangler secret put RESEND_API_KEY        # opsional
+#        npx wrangler secret put PRONUNCIACION_GITHUB_TOKEN
+#        npx wrangler secret put PUBLIC_IMAGE_GITHUB_TOKEN
+#        …
+#   3. npx wrangler deploy
+#
+# Migration TIDAK lewat Workers - tetap `pnpm drizzle-kit migrate` dari CI
+# Node dengan TURSO_* URL + auth token.
+#
+# Dev lokal: `pnpm dev` (Node + file:./local.db). `npx wrangler dev` untuk
+# uji paritas runtime; DATABASE_URL dari .env / .dev.vars.
+
+name = "sambasku-api"
+main = "src/worker.ts"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+NODE_ENV = "production"
+# Basis link reset password / deep link (host API produksi).
+APP_URL = "https://api.sambasku.com"
+# Hanya origin browser produksi (mobile tidak kena CORS).
+CORS_ALLOWED_ORIGINS = "https://sambasku.com,https://console.sambasku.com"
+JWT_ACCESS_TOKEN_TTL = "900"
+JWT_REFRESH_TOKEN_TTL = "2592000"
+MAIL_FROM = "SambasKu <no-reply@iamutaki.com>"
+KBBI_PROVIDER = "raf555"
+RAF555_BASE_URL = "https://kbbi.raf555.dev"
+LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
+SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
+GOOGLE_CLIENT_ID = "497143924506-embip2d0er5te84t6cind855tlmsm0i1.apps.googleusercontent.com"
+FIREBASE_PROJECT_ID = "sambasku-production"
+FIREBASE_CLIENT_EMAIL = "firebase-adminsdk-fbsvc@sambasku-production.iam.gserviceaccount.com"
+# Gambar publik (kata/avatar) + audio — TOKEN via wrangler secret.
+PUBLIC_IMAGE_PROVIDER = "github"
+PUBLIC_IMAGE_GITHUB_URL = "https://github.com/iamutaki/sambasku-images"
+PRONUNCIACION_PROVIDER = "github"
+PRONUNCIACION_GITHUB_URL = "https://github.com/iamutaki/sambasku-pronunciation"
+
+[observability]
+enabled = true
+
+# Custom domain API produksi (pola sama staging: host penuh, bukan path).
+[[routes]]
+pattern = "api.sambasku.com"
+custom_domain = true
+
+# ============================================================
+# STAGING - deploy: pnpm deploy:staging
+# ============================================================
+[env.staging]
+name = "sambasku-api-staging"
+
+[[env.staging.routes]]
+pattern = "sambasku-staging.iamutaki.com"
+custom_domain = true
+
+[env.staging.vars]
+NODE_ENV = "staging"
+APP_URL = "https://sambasku-staging.iamutaki.com"
+CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://console-sambasku-staging.iamutaki.com,https://sambasku-web-staging.iamutaki.com,https://sambasku-web-staging.ibnuul.workers.dev"
+JWT_ACCESS_TOKEN_TTL = "900"
+JWT_REFRESH_TOKEN_TTL = "2592000"
+MAIL_FROM = "SambasKu <no-reply@iamutaki.com>"
+KBBI_PROVIDER = "raf555"
+RAF555_BASE_URL = "https://kbbi.raf555.dev"
+LEMMA_DEFINITION_CACHE_TTL_SECONDS = "3600"
+SHARE_BACKGROUNDS_CACHE_TTL_SECONDS = "86400"
+GOOGLE_CLIENT_ID = "497143924506-rs7qao9as5jf95r5m1mgp51boc6rdrv7.apps.googleusercontent.com"
+FIREBASE_PROJECT_ID = "sambasku-staging"
+FIREBASE_CLIENT_EMAIL = "firebase-adminsdk-fbsvc@sambasku-staging.iam.gserviceaccount.com"
+# Gambar publik + audio (GitHub Contents API) — TOKEN via wrangler secret.
+PUBLIC_IMAGE_PROVIDER = "github"
+PUBLIC_IMAGE_GITHUB_URL = "https://github.com/iamutaki/sambasku-images"
+PRONUNCIACION_PROVIDER = "github"
+PRONUNCIACION_GITHUB_URL = "https://github.com/iamutaki/sambasku-pronunciation"
+
+[env.staging.observability]
+enabled = true
+
+# Secrets staging:
+#   npx wrangler secret put DATABASE_URL --env staging
+#   npx wrangler secret put DATABASE_AUTH_TOKEN --env staging
+#   npx wrangler secret put JWT_PRIVATE_KEY --env staging
+#   npx wrangler secret put JWT_PUBLIC_KEY --env staging
+#   npx wrangler secret put PUBLIC_IMAGE_GITHUB_TOKEN --env staging
+#   npx wrangler secret put PRONUNCIACION_GITHUB_TOKEN --env staging
+#   … (Resend, ImageKit, OAuth, FCM — sama seperti sebelumnya)

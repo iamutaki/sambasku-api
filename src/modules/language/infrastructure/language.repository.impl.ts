@@ -1,12 +1,11 @@
-import { and, asc, eq, isNull } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { dialects, languages } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type { Dialect, Language } from '../domain/entities/language.entity';
 import type { LanguageRepository } from '../domain/repositories/language.repository';
 
 export class LanguageRepositoryImpl implements LanguageRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async listLanguages(activeOnly: boolean): Promise<Language[]> {
     const rows = await this.db
@@ -34,13 +33,14 @@ export class LanguageRepositoryImpl implements LanguageRepository {
           activeOnly ? eq(dialects.isActive, true) : undefined,
         ),
       )
-      .orderBy(asc(dialects.name));
+      .orderBy(desc(dialects.isDefault), asc(dialects.name));
     return rows.map((r) => ({
       id: r.id,
       languageId: r.languageId,
       code: r.code,
       name: r.name,
       isActive: r.isActive,
+      isDefault: r.isDefault,
     }));
   }
 }

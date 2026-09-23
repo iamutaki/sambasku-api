@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
+import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
 import { eq } from 'drizzle-orm';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
@@ -12,7 +13,7 @@ const SMB = ulid26('01E2ELANGSMB');
 const IDN = ulid26('01E2ELANGIDN');
 const NOMINA = ulid26('01E2EWCNOMINA');
 
-describe.skipIf(!hasTestDb)('Word Media E2E v1 — kontribusi pronounce/gambar/contoh', () => {
+describe.skipIf(!hasTestDb)('Word Media E2E v1 - kontribusi pronounce/gambar/contoh', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let app: any;
   let adminToken: string;
@@ -54,11 +55,12 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 — kontribusi pronounce/gambar/c
       ['kon', `kon${stamp}@test.com`, 'contributor'],
     ] as const) {
       await post('/api/v1/auth/register', {
-        username: `${prefix}${stamp}`,
+        name: `${prefix}${stamp}`,
         email,
         password: 'Password123',
         confirm_password: 'Password123',
       });
+      await post('/api/v1/auth/verify-email', { email, code: capturedOtpDisplayCode() });
       if (role !== 'contributor') {
         await db.update(users).set({ role }).where(eq(users.email, email));
       }
@@ -68,7 +70,7 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 — kontribusi pronounce/gambar/c
     adminToken = await login(`adm${stamp}@test.com`);
     contributorToken = await login(`kon${stamp}@test.com`);
 
-    // Kata published dari admin — induk kontribusi media
+    // Kata published dari admin - induk kontribusi media
     const create = await post(
       '/api/v1/admin/words',
       {
@@ -94,7 +96,7 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 — kontribusi pronounce/gambar/c
     meaningId = (await detail.json()).data.meanings[0].id;
   });
 
-  it('pronounce (contributor) → 201 pending_review, TIDAK tampil di detail publik', async () => {
+  it('pronounce (contributor) → 201 tayang, belum terverifikasi', async () => {
     const res = await post(
       `/api/v1/words/${wordId}/pronunciations`,
       { notation: 'ipa', value: '/makatn/', speaker_name: 'Pak Daud' },
@@ -102,12 +104,12 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 — kontribusi pronounce/gambar/c
     );
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.data).toMatchObject({ status: 'pending_review', is_verified: false, is_corrected: false });
+    expect(body.data).toMatchObject({ status: 'published', is_verified: false, is_corrected: false });
     expect(body.data.id).toHaveLength(26);
 
     const detail = await get(`/api/v1/words/${wordId}`);
     const detailBody = await detail.json();
-    expect(detailBody.data.pronunciations).toHaveLength(0);
+    expect(detailBody.data.pronunciations.some((p: { value: string }) => p.value === '/makatn/')).toBe(true);
   });
 
   it('gambar (admin) → 201 published + tampil di detail publik', async () => {
@@ -130,14 +132,14 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 — kontribusi pronounce/gambar/c
     expect(detailBody.data.images.some((i: { alt_text: string }) => i.alt_text === 'Orang makan')).toBe(true);
   });
 
-  it('contoh kalimat (contributor) → pending; bahasa salah → 400', async () => {
+  it('contoh kalimat (contributor) → tayang belum dicek; bahasa salah → 400', async () => {
     const ok = await post(
       `/api/v1/meanings/${meaningId}/examples`,
       { source_language_id: SMB, source_sentence: 'Kami udah makatn.' },
       contributorToken,
     );
     expect(ok.status).toBe(201);
-    expect((await ok.json()).data.status).toBe('pending_review');
+    expect((await ok.json()).data.status).toBe('published');
 
     const bad = await post(
       `/api/v1/meanings/${meaningId}/examples`,

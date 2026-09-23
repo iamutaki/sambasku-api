@@ -20,7 +20,7 @@ const categoryListResponseSchema = z.object({
   ),
 });
 
-// GET /api/v1/categories — multi-select kategori form admin
+// GET /api/v1/categories - multi-select kategori form admin
 export function createCategoryRoutes(deps: { controller: CategoryController }) {
   const routes = createOpenApiApp();
   routes.use('*', rateLimit({ points: 100, duration: 60 })); // publik baca (Section 15)

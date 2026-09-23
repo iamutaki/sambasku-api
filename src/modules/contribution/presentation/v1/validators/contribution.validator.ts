@@ -1,14 +1,26 @@
+import { choiceId, opaqueId } from '@/shared/validation/id';
 import { z } from 'zod';
-import { createWordBodySchema } from '@/modules/word/presentation/v1/validators/create-word.validator';
+import {
+  createWordBodySchema,
+  variantRootRefine,
+} from '@/modules/word/presentation/v1/validators/create-word.validator';
 import { addPronunciationSchema, addWordImageSchema } from '@/modules/word/presentation/v1/validators/word-media.validator';
 
 export const contributionStatusSchema = z.enum(['pending', 'approved', 'rejected', 'corrected']);
-export const entityTypeSchema = z.enum(['word', 'pronunciation', 'word_image', 'example']);
+export const entityTypeSchema = z.enum([
+  'word',
+  'pronunciation',
+  'word_image',
+  'word_audio',
+  'example',
+  'meaning',
+]);
 
 export const listContributionsQuerySchema = z.object({
   status: contributionStatusSchema.optional(),
   entity_type: entityTypeSchema.optional(),
   action: z.string().trim().min(1).optional(),
+  word_id: opaqueId.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().length(26).optional(),
 });
@@ -16,14 +28,17 @@ export const listContributionsQuerySchema = z.object({
 export type ListContributionsQueryBody = z.infer<typeof listContributionsQuerySchema>;
 
 const commentField = z.string().trim().max(2000).optional();
+// true (default) = koreksi langsung tayang (published + verified);
+// false = koreksi saja, entity tetap menunggu review (pending_review)
+const publishField = z.boolean().default(true);
 
 export const approveContributionSchema = z.object({ comment: commentField });
 export const rejectContributionSchema = z.object({
   comment: z.string().trim().min(1, 'Alasan penolakan wajib diisi').max(2000),
 });
 
-// Koreksi — discriminated union pada entity_type. Varian 'word' memakai
-// schema create-word minus status (replace semantics; pakai base object —
+// Koreksi - discriminated union pada entity_type. Varian 'word' memakai
+// schema create-word minus status (replace semantics; pakai base object -
 // `.omit()` tidak bisa pada schema ber-refine); varian anak subset field
 // yang boleh dikoreksi verifikator.
 const correctWordSchema = createWordBodySchema
@@ -31,25 +46,38 @@ const correctWordSchema = createWordBodySchema
   .extend({
     entity_type: z.literal('word'),
     comment: commentField,
+    publish: publishField,
   })
   .refine((d) => (d.images ?? []).filter((i) => i.is_primary).length <= 1, {
     message: 'Hanya satu gambar yang boleh is_primary',
     path: ['images'],
-  });
+  })
+  .superRefine(variantRootRefine); // 11: variasi ≠ lemma induk
 
 export const correctContributionSchema = z.discriminatedUnion('entity_type', [
   correctWordSchema,
   addPronunciationSchema.extend({
     entity_type: z.literal('pronunciation'),
     comment: commentField,
+    publish: publishField,
   }),
   addWordImageSchema.extend({
     entity_type: z.literal('word_image'),
     comment: commentField,
+    publish: publishField,
+  }),
+  z.object({
+    entity_type: z.literal('word_audio'),
+    comment: commentField,
+    publish: publishField,
+    speaker_name: z.string().trim().max(255).nullable().optional(),
+    dialect_id: choiceId('Dialek').nullable().optional(),
+    is_primary: z.boolean().default(false),
   }),
   z.object({
     entity_type: z.literal('example'),
     comment: commentField,
+    publish: publishField,
     source_sentence: z.string().trim().min(1, 'Contoh kalimat tidak boleh kosong'),
     target_sentence: z.string().optional(),
     source_type: z.enum(['native_speaker', 'book', 'corpus', 'interview', 'other']).optional(),
@@ -68,6 +96,10 @@ const contributionItemSchema = z.object({
   action: z.string(),
   status: contributionStatusSchema,
   created_at: z.string(),
+  word_lemma: z.string().nullable().optional(),
+  search_miss_id: z.string().nullable().optional(),
+  search_miss_term: z.string().nullable().optional(),
+  search_miss_direction: z.enum(['lemma', 'translation']).nullable().optional(),
 });
 
 export const listContributionsResponseSchema = z.object({
@@ -92,7 +124,7 @@ export const contributionDetailResponseSchema = z.object({
         created_at: z.string(),
       })
       .nullable(),
-    // payload polymorphic per entity_type — bentuknya didokumentasikan di
+    // payload polymorphic per entity_type - bentuknya didokumentasikan di
     // docs/api/03-api-kontribusi-verifikasi.md (word detail / child + parent)
     entity: z.any(),
   }),
@@ -104,7 +136,62 @@ export const reviewDecisionResponseSchema = z.object({
     contribution_id: z.string(),
     entity_type: entityTypeSchema,
     entity_id: z.string(),
-    status: z.enum(['approved', 'rejected', 'corrected']),
+    status: z.enum(['pending', 'approved', 'rejected', 'corrected']),
     is_corrected: z.boolean().optional(),
+    /** Set saat makna digabung ke lemma published yang sudah ada (12-api §8) */
+    merged_into_word_id: z.string().optional(),
   }),
+});
+
+export const mySubmissionKindSchema = z.enum(['contribution', 'suggestion']);
+
+export const listMyContributionsQuerySchema = z.object({
+  status: contributionStatusSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  cursor: opaqueId.optional(),
+});
+
+export type ListMyContributionsQueryBody = z.infer<typeof listMyContributionsQuerySchema>;
+
+export const mySubmissionItemSchema = z.object({
+  id: z.string(),
+  kind: mySubmissionKindSchema,
+  entity_type: z.enum([
+    'word',
+    'pronunciation',
+    'word_image',
+    'word_audio',
+    'example',
+    'meaning',
+    'word_suggestion',
+  ]),
+  lemma: z.string().nullable(),
+  status: contributionStatusSchema,
+  created_at: z.string(),
+  review_comment: z.string().nullable(),
+  word_id: z.string().nullable(),
+  action: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
+  reason_code: z.string().nullable().optional(),
+  reviewed_at: z.string().nullable().optional(),
+});
+
+export const listMyContributionsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(mySubmissionItemSchema),
+  meta: z.object({
+    limit: z.number().int(),
+    next_cursor: z.string().nullable(),
+    has_more: z.boolean(),
+  }),
+});
+
+export const myContributionDetailParamsSchema = z.object({
+  kind: mySubmissionKindSchema,
+  id: opaqueId,
+});
+
+export const myContributionDetailResponseSchema = z.object({
+  success: z.literal(true),
+  data: mySubmissionItemSchema,
 });

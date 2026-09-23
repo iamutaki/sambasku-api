@@ -1,16 +1,16 @@
-import { primaryKey, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core';
 import { words } from './words.schema';
 import { categories } from './categories.schema';
 
-// Junction table — composite PK, tanpa kolom tambahan (Section 19)
-export const wordCategories = pgTable(
+// Junction table - composite PK, tanpa kolom tambahan (Section 19)
+export const wordCategories = sqliteTable(
   'word_categories',
   {
-    wordId: varchar('word_id', { length: 26 })
+    wordId: text('word_id')
       .notNull()
       .references(() => words.id),
-    deletedAt: timestamp('deleted_at'),
-    categoryId: varchar('category_id', { length: 26 })
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+    categoryId: text('category_id')
       .notNull()
       .references(() => categories.id),
   },

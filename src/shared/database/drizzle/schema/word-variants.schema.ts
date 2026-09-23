@@ -1,33 +1,33 @@
-import { index, pgTable, text, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer, index, unique } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
 import { words } from './words.schema';
 import { dialects } from './dialects.schema';
 import { users } from './users.schema';
 
-// Bentuk surface kata — variasi bentuk TANPA entri kamus sendiri
+// Bentuk surface kata - variasi bentuk TANPA entri kamus sendiri
 // (mis. "memakan" milik entri "makan"). Punya makna sendiri → entri words
 // + lexical_relations, bukan tabel ini (lihat 01-api-tambah-kata.md).
-export const wordVariants = pgTable(
+export const wordVariants = sqliteTable(
   'word_variants',
   {
-    id: varchar('id', { length: 26 }).primaryKey().$defaultFn(() => generateId()),
-    wordId: varchar('word_id', { length: 26 })
+    id: text('id').primaryKey().$defaultFn(() => generateId()),
+    wordId: text('word_id')
       .notNull()
       .references(() => words.id),
-    form: varchar('form', { length: 255 }).notNull(),
+    form: text('form').notNull(),
     // inflection | derivation | alternative | reduplication
-    variantType: varchar('variant_type', { length: 50 }).notNull().default('alternative'),
-    // prefix | suffix | circumfix | reduplication (nullable — bentuk tanpa afiks)
-    affixType: varchar('affix_type', { length: 30 }),
-    affixValue: varchar('affix_value', { length: 50 }),
-    dialectId: varchar('dialect_id', { length: 26 }).references(() => dialects.id),
+    variantType: text('variant_type').notNull().default('alternative'),
+    // prefix | suffix | circumfix | reduplication (nullable - bentuk tanpa afiks)
+    affixType: text('affix_type'),
+    affixValue: text('affix_value'),
+    dialectId: text('dialect_id').references(() => dialects.id),
     notes: text('notes'),
-    createdBy: varchar('created_by', { length: 26 }).references(() => users.id),
-    updatedBy: varchar('updated_by', { length: 26 }).references(() => users.id),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at'),
-    deletedAt: timestamp('deleted_at'),
-    deletedBy: varchar('deleted_by', { length: 26 }).references(() => users.id),
+    createdBy: text('created_by').references(() => users.id),
+    updatedBy: text('updated_by').references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+    deletedBy: text('deleted_by').references(() => users.id),
   },
   (t) => [
     unique('word_variants_unique').on(t.wordId, t.form, t.dialectId),

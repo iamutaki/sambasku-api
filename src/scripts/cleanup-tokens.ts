@@ -1,21 +1,23 @@
-import { lt, sql } from 'drizzle-orm';
-import { db, pool } from '@/shared/database/drizzle/client';
+import 'dotenv/config'; // script CLI jalan di Node - env.ts tidak lagi memuat dotenv
+import { count, lt } from 'drizzle-orm';
+import { closeDb, db } from '@/shared/database/drizzle/client';
 import { passwordResetTokens, refreshTokens } from '@/shared/database/drizzle/schema';
 import { logger } from '@/shared/logging/logger';
 
-// Bersihkan token expired — jalankan berkala via cron/scheduler.
+// Bersihkan token expired - jalankan berkala via cron/scheduler.
 // Hanya menghapus baris yang SUDAH LEWAT expires_at (bukan soft-delete:
 // token adalah data ephemeral per Section 7).
 async function main() {
   const now = new Date();
 
+  // helper count() - typed resmi drizzle (hasil bigint dipetakan jadi number)
   const [expiredRefresh] = await db
-    .select({ count: sql<number>`count(*)::int` })
+    .select({ count: count() })
     .from(refreshTokens)
     .where(lt(refreshTokens.expiresAt, now));
 
   const [expiredReset] = await db
-    .select({ count: sql<number>`count(*)::int` })
+    .select({ count: count() })
     .from(passwordResetTokens)
     .where(lt(passwordResetTokens.expiresAt, now));
 
@@ -28,10 +30,10 @@ async function main() {
 }
 
 main()
-  .then(() => pool.end())
+  .then(() => closeDb())
   .then(() => process.exit(0))
   .catch(async (err) => {
     logger.error({ err }, 'Cleanup gagal');
-    await pool.end().catch(() => {});
+    await closeDb().catch(() => {});
     process.exit(1);
   });

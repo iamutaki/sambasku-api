@@ -1,0 +1,1 @@
+ALTER TABLE "word_classes" ADD COLUMN "alias" varchar(100);

@@ -1,8 +1,19 @@
-// Entitas domain — murni TypeScript, tidak tahu Drizzle/HTTP
+// Entitas domain - murni TypeScript, tidak tahu Drizzle/HTTP
 // Section 22 (approval gate): pending_review/rejected hanya di-set sistem
-export type WordStatus = 'draft' | 'pending_review' | 'published' | 'rejected';
+export type WordStatus = 'draft' | 'pending_review' | 'published' | 'rejected' | 'taken_down';
+
+/** Alasan laporan / takedown entri. `other` dan `duplicate` wajib catatan. */
+export const TAKEDOWN_REASON_CODES = [
+  'not_sambas',
+  'inaccurate',
+  'duplicate',
+  'inappropriate',
+  'spam',
+  'other',
+] as const;
+export type TakedownReasonCode = (typeof TAKEDOWN_REASON_CODES)[number];
 export type WordType = 'word' | 'idiom' | 'peribahasa' | 'ungkapan';
-/** Status publikasi konten anak (pronunciations/images/examples) — tanpa draft */
+/** Status publikasi konten anak (pronunciations/images/examples) - tanpa draft */
 export type ChildStatus = 'pending_review' | 'published' | 'rejected';
 
 export interface Word {
@@ -22,6 +33,10 @@ export interface Word {
   updatedAt: Date | null;
   deletedAt: Date | null;
   deletedBy: string | null;
+  takedownReasonCode: string | null;
+  takedownNote: string | null;
+  takenDownBy: string | null;
+  takenDownAt: Date | null;
 }
 
 export interface WordSummary {
@@ -34,6 +49,22 @@ export interface WordSummary {
   isVerified: boolean;
   /** terisi saat pencarian terjemahan (Indonesia→Sambas): teks yang cocok */
   matchedTranslation?: string;
+  /** 11: terisi saat pencarian lemma cocok lewat variasi penulisan (formnya) */
+  matchedVariant?: string;
+  /**
+   * Ringkas gloss daftar: `[n] makan,[v] santap` (kode kelas + terjemahan).
+   * GET /words (A-Z) dan GET /words/search. Feed /latest memakai
+   * `LatestWordSummary.sense` dengan semantik berbeda (satu baris definisi).
+   */
+  sense?: string | null;
+}
+
+/** Item feed beranda: kata published, urut waktu persetujuan. */
+export interface LatestWordSummary extends WordSummary {
+  /** COALESCE(verified_at, created_at) — waktu tayang/persetujuan. */
+  approvedAt: Date;
+  /** Definisi makna published pertama, atau terjemahan pertama bila definisi kosong. */
+  sense: string | null;
 }
 
 export interface RelatedWordRef {
@@ -68,22 +99,45 @@ export interface WordDetail extends Word {
   images: {
     id: string;
     url: string;
+    /** wajib dibawa form edit untuk round-trip PUT (full-replace images[]) */
+    providerFileId: string;
+    sha?: string | null;
     altText: string | null;
     isPrimary: boolean;
     status?: ChildStatus;
     isVerified?: boolean;
     isCorrected?: boolean;
   }[];
+  /** Audio pelafalan lemma (example_id IS NULL). Multi-take. */
+  audios: {
+    id: string;
+    url: string;
+    dialectId: string | null;
+    speakerName: string | null;
+    durationMs: number | null;
+    isPrimary: boolean;
+    mimeType: string;
+    status?: ChildStatus;
+    isVerified?: boolean;
+    isCorrected?: boolean;
+  }[];
   /** relasi keluar (mis. peribahasa → komponen; kata → sinonim/antonim) */
   relatedWords: RelatedWordRef[];
-  /** relasi masuk (mis. komponen → "muncul dalam" peribahasa) — derived, tak disimpan */
+  /** relasi masuk (mis. komponen → "muncul dalam" peribahasa) - derived, tak disimpan */
   appearsIn: RelatedWordRef[];
   variants: WordVariantRef[];
+  /** JOIN users pada words.verified_by; tetap ada meski user soft-deleted */
+  verifier: { username: string; role: string } | null;
+  /** JOIN users pada words.created_by; username publik, bukan id */
+  creator: { username: string; role: string } | null;
 }
 
 export interface WordClassSummary {
   id: string;
   code: string;
   name: string;
+  // Nama lain yang lebih dikenal user (Verba → "Kata Kerja")
+  alias: string | null;
+  description: string | null;
   parentId: string | null;
 }

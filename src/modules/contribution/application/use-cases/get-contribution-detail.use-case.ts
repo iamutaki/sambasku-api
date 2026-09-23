@@ -6,11 +6,11 @@ import type { ContributionRepository } from '../../domain/repositories/contribut
 export interface ContributionDetail {
   contribution: Contribution;
   review: ContributionReview | null;
-  /** payload utuh entity — word: WordDetail semua status; anak: row + parent */
+  /** payload utuh entity - word: WordDetail semua status; anak: row + parent */
   entity: unknown;
 }
 
-// Detail satu kontribsi untuk layar review — entity 'word' dibaca lewat
+// Detail satu kontribsi untuk layar review - entity 'word' dibaca lewat
 // WordRepository (interface modul word, pola Section 4) supaya anak-anaknya
 // ikut semua status; entity anak dibaca repository sendiri + referensi parent.
 export class GetContributionDetailUseCase {

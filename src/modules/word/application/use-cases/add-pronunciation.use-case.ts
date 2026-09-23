@@ -2,6 +2,7 @@ import { NotFoundError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { WordRepository, PronunciationMedia } from '../../domain/repositories/word.repository';
 import { resolveChildPublication } from '../utils/resolve-publication';
+import { assertCanContribute } from '../utils/assert-can-contribute';
 import type { Actor } from './create-word.use-case';
 
 export interface AddPronunciationDto {
@@ -13,8 +14,8 @@ export interface AddPronunciationDto {
   notes?: string | null;
 }
 
-// Kontribusi pelafalan pada kata existing (03-api-kontribusi-verifikasi.md).
-// Contributor → pending_review (antrean); verifikator → published+verified.
+// Kontribusi pelafalan pada kata existing.
+// Login non-verifikator → published, belum dicek; verifikator → published+verified.
 export class AddPronunciationUseCase {
   constructor(
     private readonly wordRepo: WordRepository,
@@ -22,6 +23,7 @@ export class AddPronunciationUseCase {
   ) {}
 
   async execute(wordId: string, dto: AddPronunciationDto, actor: Actor): Promise<PronunciationMedia> {
+    await assertCanContribute(actor.userId);
     const word = await this.wordRepo.findById(wordId);
     if (!word) {
       throw new NotFoundError('WORD_NOT_FOUND', 'Kata dengan id tersebut tidak ditemukan');

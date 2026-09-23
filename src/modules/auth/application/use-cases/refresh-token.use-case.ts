@@ -30,7 +30,7 @@ export class RefreshTokenUseCase {
       throw new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak valid');
     }
 
-    // Rotasi: revoke yang lama, buat yang baru — cegah replay attack
+    // Rotasi: revoke yang lama, buat yang baru - cegah replay attack
     await this.refreshTokenRepo.revokeByHash(record.tokenHash);
     const { token, tokenHash } = generateToken();
     await this.refreshTokenRepo.create({
@@ -42,6 +42,7 @@ export class RefreshTokenUseCase {
     const accessToken = await this.tokenService.generateAccessToken({
       user_id: user.id,
       role: user.role,
+      username: user.username,
     });
 
     return { accessToken, expiresIn: this.accessTokenTtlSeconds, refreshToken: token };

@@ -33,14 +33,14 @@ describe.skipIf(!hasTestDb)('Image Upload Token E2E', () => {
     await request('/api/v1/auth/register', {
       method: 'POST',
       body: JSON.stringify({
-        username: `imgadm${stamp}`,
+        name: `imgadm${stamp}`,
         email,
         password: 'Password123',
         confirm_password: 'Password123',
       }),
       headers: { 'x-forwarded-for': '10.1.0.1' },
     });
-    await db.update(users).set({ role: 'admin' }).where(eq(users.email, email));
+    await db.update(users).set({ role: 'admin', emailVerified: true }).where(eq(users.email, email));
     const loginRes = await request('/api/v1/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password: 'Password123' }),

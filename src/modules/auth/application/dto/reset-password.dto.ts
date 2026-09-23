@@ -3,6 +3,8 @@ export interface ForgotPasswordDto {
 }
 
 export interface ResetPasswordDto {
-  token: string;
+  token?: string;
+  email?: string;
+  code?: string;
   newPassword: string;
 }

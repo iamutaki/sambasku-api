@@ -26,7 +26,7 @@ export interface ContributionRoutesDeps {
   authenticate: MiddlewareHandler<{ Variables: AppVariables }>;
 }
 
-// Antrean review — HANYA verifikator: admin, root, reviewer (Section 22).
+// Antrean review - HANYA verifikator: admin, root, reviewer (Section 22).
 // Tier admin Section 15: 500 request/60 detik.
 export function createContributionRoutes(deps: ContributionRoutesDeps) {
   const routes = createOpenApiApp();
@@ -43,7 +43,7 @@ export function createContributionRoutes(deps: ContributionRoutesDeps) {
     method: 'get',
     path: '/',
     tags: ['Contributions', 'Admin'],
-    summary: 'Antrean review kontribusi (filter status/entity_type) — cursor pagination',
+    summary: 'Antrean review kontribusi (filter status/entity_type) - cursor pagination',
     request: { query: listContributionsQuerySchema },
     responses: {
       200: { description: 'Daftar kontribusi', content: json(listContributionsResponseSchema) },
@@ -70,7 +70,7 @@ export function createContributionRoutes(deps: ContributionRoutesDeps) {
     method: 'post',
     path: '/:id/approve',
     tags: ['Contributions', 'Admin'],
-    summary: 'Setujui kontribusi — entity published + is_verified true',
+    summary: 'Setujui kontribusi - entity published + is_verified true',
     request: {
       params: z.object({ id: z.string().length(26) }),
       body: { content: json(approveContributionSchema) },
@@ -88,7 +88,7 @@ export function createContributionRoutes(deps: ContributionRoutesDeps) {
     method: 'post',
     path: '/:id/reject',
     tags: ['Contributions', 'Admin'],
-    summary: 'Tolak kontribusi — comment (alasan) WAJIB, entity rejected',
+    summary: 'Tolak kontribusi - comment (alasan) WAJIB, entity rejected',
     request: {
       params: z.object({ id: z.string().length(26) }),
       body: { content: json(rejectContributionSchema) },
@@ -107,7 +107,7 @@ export function createContributionRoutes(deps: ContributionRoutesDeps) {
     method: 'post',
     path: '/:id/correct',
     tags: ['Contributions', 'Admin'],
-    summary: 'Koreksi kontribusi oleh verifikator — is_corrected true, lalu published',
+    summary: 'Koreksi kontribusi oleh verifikator - is_corrected true, lalu published',
     request: {
       params: z.object({ id: z.string().length(26) }),
       body: { content: json(correctContributionSchema) },

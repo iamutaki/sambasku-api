@@ -1,41 +1,68 @@
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type * as schema from './schema';
+import type { AppDatabase } from './client';
+import { ensureTestDbReady } from './test-client';
 import {
   auditLogs,
+  authIdentities,
+  bookmarks,
+  bugReports,
   categories,
+  commentBlocklistWords,
+  comments,
   contributionReviews,
   contributions,
+  deviceTokens,
   dialects,
+  emailVerificationOtps,
   examples,
   languages,
   lexicalRelations,
   meanings,
   meaningTranslations,
+  notifications,
   passwordResetTokens,
   pronunciations,
   refreshTokens,
   searchMisses,
   users,
+  verifierApplications,
+  votes,
+  wordAudios,
   wordCategories,
   wordClasses,
+  wordEditSuggestions,
   wordImages,
+  wordReports,
   wordVariants,
   words,
 } from './schema';
 
-// Hapus semua tabel dalam urutan aman FK (anak dulu) — pakai ini di
+// Hapus semua tabel dalam urutan aman FK (anak dulu) - pakai ini di
 // beforeEach/beforeAll integration & e2e test, jangan delete per tabel.
-export async function truncateAll(db: NodePgDatabase<typeof schema>): Promise<void> {
+export async function truncateAll(db: AppDatabase): Promise<void> {
+  await ensureTestDbReady();
   for (const table of [
     auditLogs,
+    wordReports,
+    bugReports,
     contributionReviews,
     contributions,
+    wordEditSuggestions,
+    votes,
+    commentBlocklistWords,
+    comments,
+    bookmarks,
+    notifications,
+    deviceTokens,
+    verifierApplications,
     lexicalRelations,
     pronunciations,
+    wordAudios,
     examples,
     meaningTranslations,
     passwordResetTokens,
     refreshTokens,
+    authIdentities,
+    emailVerificationOtps,
     searchMisses,
     wordCategories,
     wordImages,

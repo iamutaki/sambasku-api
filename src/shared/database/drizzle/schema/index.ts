@@ -1,11 +1,14 @@
-// Barrel schema — Drizzle butuh semua tabel terdaftar di satu tempat.
+// Barrel schema - Drizzle butuh semua tabel terdaftar di satu tempat.
 // Tabel modul lain ditambahkan seiring modulnya dibuat.
 export * from './users.schema';
+export * from './email-verification-otps.schema';
+export * from './auth-identities.schema';
 export * from './refresh-tokens.schema';
 export * from './password-reset-tokens.schema';
 export * from './languages.schema';
 export * from './dialects.schema';
 export * from './word-classes.schema';
+export * from './word-edit-suggestions.schema';
 export * from './words.schema';
 export * from './meanings.schema';
 export * from './meaning-translations.schema';
@@ -13,6 +16,7 @@ export * from './examples.schema';
 export * from './categories.schema';
 export * from './word-categories.schema';
 export * from './word-images.schema';
+export * from './word-audios.schema';
 export * from './word-variants.schema';
 export * from './lexical-relations.schema';
 export * from './pronunciations.schema';
@@ -20,3 +24,13 @@ export * from './contributions.schema';
 export * from './contribution-reviews.schema';
 export * from './search-misses.schema';
 export * from './audit-logs.schema';
+export * from './votes.schema';
+export * from './comments.schema';
+export * from './comment-blocklist-words.schema';
+export * from './bookmarks.schema';
+export * from './device-tokens.schema';
+export * from './notifications.schema';
+export * from './verifier-applications.schema';
+export * from './bug-reports.schema';
+export * from './word-reports.schema';
+export * from './word-audios.schema';

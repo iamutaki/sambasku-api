@@ -1,4 +1,4 @@
-// Hierarki error lintas modul — lihat api-base-stack.md Section 13.
+// Hierarki error lintas modul - lihat api-base-stack.md Section 13.
 // Use case melempar class ini langsung; mereka tidak tahu soal Hono.
 export abstract class AppError extends Error {
   abstract readonly statusCode: number;
@@ -36,7 +36,34 @@ export class UnauthorizedError extends AppError {
 
 export class ForbiddenError extends AppError {
   statusCode = 403;
-  errorCode = 'FORBIDDEN';
+  errorCode: string;
+  details: { field: string; message: string }[] | null;
+  constructor(
+    errorCode = 'FORBIDDEN',
+    message = 'Tidak diizinkan',
+    details: { field: string; message: string }[] | null = null,
+  ) {
+    super(message);
+    this.errorCode = errorCode;
+    this.details = details;
+  }
+}
+
+export class BadRequestError extends AppError {
+  statusCode = 400;
+  errorCode: string;
+  details: { field: string; message: string }[] | null;
+  // errorCode bisa dioverride untuk kode spesifik: INVALID_ROLE,
+  // SEARCH_MISS_TERM_MISMATCH, dll
+  constructor(
+    errorCode = 'BAD_REQUEST',
+    message = 'Permintaan tidak valid',
+    details: { field: string; message: string }[] | null = null,
+  ) {
+    super(message);
+    this.errorCode = errorCode;
+    this.details = details;
+  }
 }
 
 export class ConflictError extends AppError {
@@ -49,10 +76,31 @@ export class ConflictError extends AppError {
   }
 }
 
+export class RateLimitedError extends AppError {
+  statusCode = 429;
+  errorCode = 'RATE_LIMITED';
+  constructor(
+    message = 'Terlalu banyak percobaan, coba lagi nanti',
+    public retryAfterSeconds = 120,
+  ) {
+    super(message);
+  }
+}
+
 export class ServiceUnavailableError extends AppError {
   statusCode = 503;
   errorCode: string;
   constructor(errorCode = 'SERVICE_UNAVAILABLE', message = 'Layanan tidak tersedia') {
+    super(message);
+    this.errorCode = errorCode;
+  }
+}
+
+/** Upstream third-party gagal / timeout / payload tak terparse (502). */
+export class BadGatewayError extends AppError {
+  statusCode = 502;
+  errorCode: string;
+  constructor(errorCode = 'BAD_GATEWAY', message = 'Layanan hulu gagal') {
     super(message);
     this.errorCode = errorCode;
   }

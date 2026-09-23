@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
+import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
 const hasTestDb = !!parsed?.DATABASE_URL;
 if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL;
 
-// Fixture ULID — selalu 26 karakter (varchar(26))
+// Fixture ULID - selalu 26 karakter (varchar(26))
 const ulid26 = (prefix: string) => prefix.padEnd(26, '0').slice(0, 26);
 const SMB = ulid26('01E2ELANGSMB');
 const IDN = ulid26('01E2ELANGIDN');
@@ -102,16 +103,24 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     // admin + contributor via register, lalu role admin dinaikkan manual
     const stamp = Date.now();
     await post('/api/v1/auth/register', {
-      username: `adm${stamp}`,
+      name: `adm${stamp}`,
       email: `adm${stamp}@test.com`,
       password: 'Password123',
       confirm_password: 'Password123',
     });
+    await post('/api/v1/auth/verify-email', {
+      email: `adm${stamp}@test.com`,
+      code: capturedOtpDisplayCode(),
+    });
     await post('/api/v1/auth/register', {
-      username: `kon${stamp}`,
+      name: `kon${stamp}`,
       email: `kon${stamp}@test.com`,
       password: 'Password123',
       confirm_password: 'Password123',
+    });
+    await post('/api/v1/auth/verify-email', {
+      email: `kon${stamp}@test.com`,
+      code: capturedOtpDisplayCode(),
     });
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, `adm${stamp}@test.com`));
 
@@ -130,19 +139,18 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect(body.data.warnings).toBeUndefined(); // lemma pertama, tidak duplikat
   });
 
-  it('POST (contributor, published) → 201 pending_review — TIDAK tayang (Section 22 approval gate)', async () => {
+  it('POST (contributor, published) → 201 tayang, belum terverifikasi', async () => {
     const res = await post('/api/v1/admin/words', validBody({ lemma: 'minum' }), contributorToken);
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.data.status).toBe('pending_review');
+    expect(body.data.status).toBe('published');
     expect(body.data.is_verified).toBe(false);
 
-    // Tidak tayang: detail publik 404, tidak muncul di search
     const detail = await request(`/api/v1/words/${body.data.word_id}`);
-    expect(detail.status).toBe(404);
+    expect(detail.status).toBe(200);
     const search = await request('/api/v1/words/search?q=minum');
     const searchBody = await search.json();
-    expect(searchBody.data.some((w: { lemma: string }) => w.lemma === 'minum')).toBe(false);
+    expect(searchBody.data.some((w: { lemma: string }) => w.lemma === 'minum')).toBe(true);
   });
 
   it('POST submit kedua lemma sama → warnings duplikat', async () => {
@@ -202,6 +210,36 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
       url: 'https://ik.imagekit.io/test/words/makatn.jpg',
       is_primary: true,
     });
+    expect(body.data.is_verified).toBe(true);
+    expect(body.data.self_verified).toBe(true);
+    expect(body.data.verified_by).toMatchObject({
+      username: expect.stringMatching(/^adm/),
+      role: 'admin',
+    });
+    expect(typeof body.data.verified_at).toBe('string');
+  });
+
+  it('GET detail setelah unverify → verified_by dan verified_at null', async () => {
+    const create = await post(
+      '/api/v1/admin/words',
+      validBody({ lemma: 'unverifyatribusi' }),
+      adminToken,
+    );
+    const { data } = await create.json();
+
+    const unverify = await request(`/api/v1/admin/words/${data.word_id}/unverify`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(unverify.status).toBe(200);
+
+    const res = await request(`/api/v1/words/${data.word_id}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.is_verified).toBe(false);
+    expect(body.data.self_verified).toBe(false);
+    expect(body.data.verified_by).toBeNull();
+    expect(body.data.verified_at).toBeNull();
   });
 
   it('GET detail kata draft → 404 WORD_NOT_FOUND (draft tidak tayang)', async () => {
@@ -305,10 +343,11 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect(body.details[0].field).toBe('related_words');
   });
 
-  it('VERIFY: kata pending_review bisa di-verify — tapi tayang tetap lewat antrean approve', async () => {
+  it('VERIFY: kata kontributor yang sudah tayang bisa ditandai terverifikasi', async () => {
     const create = await post('/api/v1/admin/words', validBody({ lemma: 'kata diverifikasi' }), contributorToken);
     const { data } = await create.json();
-    expect(data.status).toBe('pending_review');
+    expect(data.status).toBe('published');
+    expect(data.is_verified).toBe(false);
 
     const res = await request(`/api/v1/admin/words/${data.word_id}/verify`, {
       method: 'POST',
@@ -316,9 +355,9 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     });
     expect(res.status).toBe(200);
 
-    // Masih tidak tayang — publikasi lewat antrean review (03 doc), bukan verify
     const detail = await request(`/api/v1/words/${data.word_id}`);
-    expect(detail.status).toBe(404);
+    expect(detail.status).toBe(200);
+    expect((await detail.json()).data.is_verified).toBe(true);
   });
 
   it('VERIFY: unverify mengembalikan false', async () => {
@@ -351,6 +390,136 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     });
     expect(res.status).toBe(404);
     expect((await res.json()).error_code).toBe('WORD_NOT_FOUND');
+  });
+
+  // ---- 04-api-sinonim-inline.md: related_words Form B (sinonim baru inline) ----
+
+  it('04: campuran Form A + Form B → 201, inline_created_words urut sesuai request', async () => {
+    // kata existing untuk Form A
+    const existing = await post('/api/v1/admin/words', validBody({ lemma: 'lapa' }), adminToken);
+    expect(existing.status).toBe(201);
+    const existingData = (await existing.json()).data;
+
+    const res = await post(
+      '/api/v1/admin/words',
+      validBody({
+        lemma: 'makn',
+        related_words: [
+          // Form A - link ke kata lama
+          { word_id: existingData.word_id, relation_type: 'synonym' },
+          // Form B - buat sinonim baru inline, default inherit makna induk
+          { relation_type: 'synonym', word: { lemma: 'ngamakn' } },
+          // Form B + override satu makna → makna itu "selesai mengikuti" induk
+          {
+            relation_type: 'synonym',
+            word: {
+              lemma: 'ngunyahn',
+              meaning_overrides: [{ meaning_index: 0, definition: 'Mengunyah makanan' }],
+            },
+          },
+        ],
+      }),
+      adminToken,
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+
+    // induk + inline_created_words urut sesuai request (2 Form B)
+    expect(body.data.word_id).toHaveLength(26);
+    expect(body.data.lemma).toBe('makn');
+    expect(body.data.inline_created_words).toHaveLength(2);
+    expect(body.data.inline_created_words[0]).toMatchObject({
+      word_id: expect.stringMatching(/^01/),
+      lemma: 'ngamakn',
+      relation_type: 'synonym',
+      status: 'published',
+      is_verified: true,
+      meanings_count: 1,
+      inherited_meanings_count: 1,
+      overridden_meanings_count: 0,
+    });
+    expect(body.data.inline_created_words[1]).toMatchObject({
+      lemma: 'ngunyahn',
+      status: 'published',
+      meanings_count: 1,
+      inherited_meanings_count: 1,
+      overridden_meanings_count: 1,
+    });
+
+    // kata inline published muncul di detail induk (Form A link + 2 Form B)
+    const detail = await request(`/api/v1/words/${body.data.word_id}`);
+    const detailBody = await detail.json();
+    const relatedLemmas = detailBody.data.related_words.map((r: { lemma: string }) => r.lemma);
+    expect(relatedLemmas.map((l: string) => l.toLowerCase())).toEqual(
+      expect.arrayContaining(['lapa', 'ngamakn', 'ngunyahn']),
+    );
+
+    // makna kata inline TANPA override → provenance string (masih ikut induk)
+    const inlineDetail = await request(`/api/v1/words/${body.data.inline_created_words[0].word_id}`);
+    const inlineBody = await inlineDetail.json();
+    expect(typeof inlineBody.data.meanings[0].inherited_from_meaning_id).toBe('string');
+    expect(inlineBody.data.meanings[0].definition).toBe('Aktivitas memasukkan makanan ke mulut');
+
+    // makna dengan override → provenance null + definisi kata-kata sendiri
+    const ovDetail = await request(`/api/v1/words/${body.data.inline_created_words[1].word_id}`);
+    const ovBody = await ovDetail.json();
+    expect(ovBody.data.meanings[0].inherited_from_meaning_id).toBeNull();
+    expect(ovBody.data.meanings[0].definition).toBe('Mengunyah makanan');
+  });
+
+  it('04: contributor + published → induk DAN inline tayang, belum terverifikasi', async () => {
+    const res = await post(
+      '/api/v1/admin/words',
+      validBody({
+        lemma: 'minum inline',
+        related_words: [{ relation_type: 'synonym', word: { lemma: 'manginum' } }],
+      }),
+      contributorToken,
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.data.status).toBe('published');
+    expect(body.data.is_verified).toBe(false);
+    expect(body.data.inline_created_words[0]).toMatchObject({
+      lemma: 'manginum',
+      status: 'published',
+      is_verified: false,
+    });
+
+    const inlineDetail = await request(`/api/v1/words/${body.data.inline_created_words[0].word_id}`);
+    expect(inlineDetail.status).toBe(200);
+  });
+
+  it('04: gagal validasi → 400 dengan field path related_words.N.word.*', async () => {
+    // lemma inline == lemma induk
+    const same = await post(
+      '/api/v1/admin/words',
+      validBody({ related_words: [{ relation_type: 'synonym', word: { lemma: 'makatn' } }] }),
+      adminToken,
+    );
+    expect(same.status).toBe(400);
+    const sameBody = await same.json();
+    expect(sameBody.error_code).toBe('VALIDATION_ERROR');
+    expect(sameBody.details.map((d: { field: string }) => d.field)).toContain(
+      'related_words.0.word.lemma',
+    );
+
+    // word_id + word diisi bersamaan
+    const both = await post(
+      '/api/v1/admin/words',
+      validBody({
+        related_words: [
+          { relation_type: 'synonym', word_id: ulid26('01E2EWORDLAIN'), word: { lemma: 'ngamakn' } },
+        ],
+      }),
+      adminToken,
+    );
+    expect(both.status).toBe(400);
+    const bothBody = await both.json();
+    expect(bothBody.details.map((d: { field: string }) => d.field)).toContain(
+      'related_words.0.word',
+    );
   });
 
   it('GET /api/v1/word-classes → 200 daftar kelas kata', async () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { choiceId } from '@/shared/validation/id';
 
 export const listLanguagesQuerySchema = z.object({
   is_active: z.coerce.boolean().default(true),
@@ -18,7 +19,7 @@ export const languageListResponseSchema = z.object({
 });
 
 export const listDialectsQuerySchema = z.object({
-  language_id: z.string().length(26, 'language_id wajib ULID 26 karakter'),
+  language_id: choiceId('Bahasa'),
 });
 
 export const dialectListResponseSchema = z.object({
@@ -30,6 +31,7 @@ export const dialectListResponseSchema = z.object({
       code: z.string(),
       name: z.string(),
       is_active: z.boolean(),
+      is_default: z.boolean(),
     }),
   ),
 });

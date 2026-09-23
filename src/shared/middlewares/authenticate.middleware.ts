@@ -15,13 +15,39 @@ function unauthorized(c: Context, error_code: string, message: string) {
 }
 
 // Factory: verify function di-inject dari composition root (main.ts), supaya
-// shared/ tidak import internal modul auth — arah dependency tetap ke dalam.
+// shared/ tidak import internal modul auth - arah dependency tetap ke dalam.
 export function createAuthenticateMiddleware(verifyAccessToken: VerifyFn) {
   return createMiddleware<{ Variables: AppVariables }>(async (c, next) => {
     const header = c.req.header('Authorization') ?? '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : undefined;
     if (!token) {
       return unauthorized(c, 'UNAUTHORIZED', 'Token tidak disertakan');
+    }
+
+    try {
+      const payload = await verifyAccessToken(token);
+      c.set('user', { user_id: payload.user_id, role: payload.role });
+      await next();
+    } catch (err) {
+      const code = err instanceof AppError && err.errorCode === 'TOKEN_EXPIRED' ? 'TOKEN_EXPIRED' : 'UNAUTHORIZED';
+      return unauthorized(c, code, 'Token tidak valid atau kadaluarsa');
+    }
+  });
+}
+
+/**
+ * Auth opsional: Bearer valid → set `user`; tanpa token → lanjut sebagai tamu.
+ * Token invalid/expired tetap 401 (jangan diam-diam jadi anonim).
+ * Dipakai endpoint publik yang atribusi bergantung login
+ * (mis. POST /contributions/words).
+ */
+export function createOptionalAuthenticateMiddleware(verifyAccessToken: VerifyFn) {
+  return createMiddleware<{ Variables: AppVariables }>(async (c, next) => {
+    const header = c.req.header('Authorization') ?? '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : undefined;
+    if (!token) {
+      await next();
+      return;
     }
 
     try {

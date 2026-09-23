@@ -1,0 +1,1 @@
+CREATE INDEX "words_lemma_id_idx" ON "words" USING btree ("lemma","id");

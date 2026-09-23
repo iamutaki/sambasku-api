@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
+import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
 import { eq } from 'drizzle-orm';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
@@ -30,18 +31,22 @@ describe.skipIf(!hasTestDb)('Audit Logs E2E', () => {
     app = appModule.app;
 
     const stamp = Date.now();
-    for (const [username, email] of [
+    for (const [name, email] of [
       ['audadm', `audadm${stamp}@test.com`],
       ['audkon', `audkon${stamp}@test.com`],
     ] as const) {
       await request('/api/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify({
-          username,
+          name,
           email,
           password: 'Password123',
           confirm_password: 'Password123',
         }),
+      });
+      await request('/api/v1/auth/verify-email', {
+        method: 'POST',
+        body: JSON.stringify({ email, code: capturedOtpDisplayCode() }),
       });
     }
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, `audadm${stamp}@test.com`));
@@ -86,6 +91,43 @@ describe.skipIf(!hasTestDb)('Audit Logs E2E', () => {
     for (const log of body.data) {
       expect(log.entity_type).toBe('word');
     }
+  });
+
+  it('filter action=create → hanya aksi create', async () => {
+    const res = await request('/api/v1/admin/audit-logs?action=create&limit=50', {
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.length).toBeGreaterThanOrEqual(2);
+    for (const log of body.data) {
+      expect(log.action).toBe('create');
+    }
+  });
+
+  it('filter user_name (partial, case-insensitive) → hanya pelaku yang cocok', async () => {
+    const res = await request('/api/v1/admin/audit-logs?user_name=AUDKON&limit=50', {
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.length).toBeGreaterThanOrEqual(1);
+    for (const log of body.data) {
+      expect(log.user_name).toMatch(/^audkon/);
+    }
+  });
+
+  it('filter from/to → hanya entri dalam rentang tanggal', async () => {
+    const res = await request(
+      `/api/v1/admin/audit-logs?from=${new Date(Date.now() - 60_000).toISOString()}&to=${new Date(Date.now() + 60_000).toISOString()}&limit=50`,
+      { headers: { authorization: `Bearer ${adminToken}` } },
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.length).toBeGreaterThanOrEqual(2);
+    const [d1, d2] = [Date.parse(body.data[0].created_at), Date.parse(body.data[body.data.length - 1].created_at)];
+    expect(d1).toBeGreaterThanOrEqual(Date.now() - 60_000);
+    expect(d2).toBeLessThanOrEqual(Date.now() + 60_000);
   });
 
   it('contributor → 403 FORBIDDEN (hanya admin & root)', async () => {

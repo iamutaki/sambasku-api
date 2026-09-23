@@ -16,7 +16,7 @@ const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
 });
 
-// GET /api/v1/admin/audit-logs — HANYA admin & root (Section 21)
+// GET /api/v1/admin/audit-logs - HANYA admin & root (Section 21)
 export function createAuditRoutes(deps: {
   controller: AuditController;
   authenticate: MiddlewareHandler<{ Variables: AppVariables }>;

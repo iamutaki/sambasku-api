@@ -32,9 +32,18 @@ describe.skipIf(!hasTestDb)('PasswordResetTokenRepositoryImpl', () => {
   });
 
   it('consume atomik: sekali true, pemakaian kedua false (single-use)', async () => {
-    await repo.create({ userId, tokenHash: 'f'.repeat(64), expiresAt: new Date() });
+    await repo.create({ userId, tokenHash: 'f'.repeat(64), expiresAt: new Date(Date.now() + 3600_000) });
     expect(await repo.consume('f'.repeat(64))).toBe(true);
     expect(await repo.consume('f'.repeat(64))).toBe(false); // token sudah terbakar
     expect((await repo.findByHash('f'.repeat(64)))?.isUsed).toBe(true);
+  });
+
+  it('invalidateUnusedForUser hanguskan token lama, token baru tetap hidup', async () => {
+    await repo.create({ userId, tokenHash: 'a'.repeat(64), expiresAt: new Date(Date.now() + 3600_000) });
+    await repo.invalidateUnusedForUser(userId);
+    expect((await repo.findByHash('a'.repeat(64)))?.isUsed).toBe(true);
+    await repo.create({ userId, tokenHash: 'b'.repeat(64), expiresAt: new Date(Date.now() + 3600_000) });
+    expect(await repo.consume('b'.repeat(64))).toBe(true);
+    expect(await repo.consume('a'.repeat(64))).toBe(false);
   });
 });

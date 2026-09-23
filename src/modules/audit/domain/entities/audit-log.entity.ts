@@ -1,6 +1,8 @@
 export interface AuditLog {
   id: string;
   userId: string | null;
+  /** username pelaku (JOIN users); null jika user_id null / user terhapus */
+  userName: string | null;
   action: string;
   entityType: string;
   entityId: string;
@@ -24,6 +26,9 @@ export interface NewAuditLog {
 
 export interface AuditLogFilter {
   userId?: string;
+  /** partial match username pelaku (JOIN users, case-insensitive) */
+  userName?: string;
+  action?: string;
   entityType?: string;
   entityId?: string;
   from?: Date;

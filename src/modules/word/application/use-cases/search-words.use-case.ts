@@ -17,7 +17,7 @@ export interface SearchWordsResult extends CursorPage<WordSummary> {
   meta: { limit: number; next_cursor: string | null; has_more: boolean };
 }
 
-// Searchable dropdown sinonim/antonim di form admin — HANYA kata
+// Searchable dropdown sinonim/antonim di form admin - HANYA kata
 // published + belum soft-deleted (draft tidak bocor ke publik).
 // Pagination cursor-based (base-stack.md Section 13).
 //
@@ -30,7 +30,11 @@ export class SearchWordsUseCase {
   ) {}
 
   async execute(query: SearchWordsQuery): Promise<SearchWordsResult> {
-    const { items, nextCursor, hasMore } = await this.wordRepo.search(query);
+    // Publik / dropdown: selalu published saja
+    const { items, nextCursor, hasMore } = await this.wordRepo.search({
+      ...query,
+      published: true,
+    });
 
     if (items.length === 0 && query.q.trim().length >= 2) {
       // Best-effort: kegagalan pencatatan tidak boleh membatalkan response

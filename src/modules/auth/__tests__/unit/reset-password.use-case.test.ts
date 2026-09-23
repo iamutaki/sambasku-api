@@ -6,6 +6,8 @@ import type { PasswordHasherPort } from '../../application/ports/password-hasher
 import type { PasswordResetTokenRecord } from '../../domain/repositories/password-reset-token.repository';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import { hashToken } from '../../application/utils/token';
+import { hashOtp } from '../../application/utils/otp';
+import type { User } from '../../domain/entities/user.entity';
 
 function makeRecord(overrides: Partial<PasswordResetTokenRecord> = {}): PasswordResetTokenRecord {
   return {
@@ -23,6 +25,7 @@ function makeDeps(record: PasswordResetTokenRecord | null, consumeResult = true)
     create: vi.fn(),
     findByHash: vi.fn().mockResolvedValue(record),
     consume: vi.fn().mockResolvedValue(consumeResult),
+    invalidateUnusedForUser: vi.fn(),
   } as unknown as PasswordResetTokenRepository;
   const userRepo = {
     findById: vi.fn(),
@@ -70,9 +73,31 @@ describe('ResetPasswordUseCase', () => {
     expect(resetTokenRepo.consume).toHaveBeenCalledWith(hashToken('token-benar'));
     expect(hasher.hash).toHaveBeenCalledWith('PasswordBaru1');
     expect(userRepo.updatePassword).toHaveBeenCalledWith('01TESTULIDUSERID00000000', 'argon2id$baru');
+    expect(resetTokenRepo.invalidateUnusedForUser).toHaveBeenCalledWith('01TESTULIDUSERID00000000');
   });
 
-  it('menolak token yang sudah dipakai (is_used) — tidak menyentuh password', async () => {
+  it('sukses lewat email+kode OTP (jalur aplikasi)', async () => {
+    const userId = '01TESTULIDUSERID00000000';
+    const code = 'A4K9M2XP';
+    const { useCase, userRepo, resetTokenRepo } = makeDeps(
+      makeRecord({ tokenHash: hashOtp(userId, code) }),
+    );
+    vi.mocked(userRepo.findByEmail).mockResolvedValue({
+      id: userId,
+      deletedAt: null,
+    } as User);
+
+    await useCase.execute({
+      email: 'budi@test.com',
+      code: 'A4K9-M2XP',
+      newPassword: 'PasswordBaru1',
+    });
+
+    expect(resetTokenRepo.consume).toHaveBeenCalledWith(hashOtp(userId, code));
+    expect(userRepo.updatePassword).toHaveBeenCalledWith(userId, 'argon2id$baru');
+  });
+
+  it('menolak token yang sudah dipakai (is_used) - tidak menyentuh password', async () => {
     const { useCase, userRepo } = makeDeps(makeRecord({ isUsed: true }));
 
     await expect(useCase.execute(dto)).rejects.toMatchObject({ errorCode: 'RESET_TOKEN_INVALID' });
@@ -92,7 +117,7 @@ describe('ResetPasswordUseCase', () => {
   });
 
   it('race konkuren: consume mengembalikan false → ditolak, password TIDAK diubah', async () => {
-    // Simulasi request kedua kalah race — token sudah dikonsumsi request pertama
+    // Simulasi request kedua kalah race - token sudah dikonsumsi request pertama
     const { useCase, userRepo } = makeDeps(makeRecord(), /* consumeResult */ false);
 
     await expect(useCase.execute(dto)).rejects.toMatchObject({ errorCode: 'RESET_TOKEN_INVALID' });
@@ -107,7 +132,7 @@ describe('ResetPasswordUseCase', () => {
     ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
   });
 
-  it('mencatat audit password_change — new_data tanpa hash password', async () => {
+  it('mencatat audit password_change - new_data tanpa hash password', async () => {
     const { useCase, auditRepo } = makeDeps(makeRecord());
 
     await useCase.execute({ token: 'token-benar', newPassword: 'PasswordBaru1' }, 'req-456');

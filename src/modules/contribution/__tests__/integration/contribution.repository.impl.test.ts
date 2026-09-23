@@ -72,6 +72,7 @@ describe.skipIf(!hasTestDb)('ContributionRepositoryImpl', () => {
       entityId: wordId,
       status: 'pending',
       contributorUsername: 'kontributor',
+      wordLemma: 'kalintiak',
     });
   });
 
@@ -79,7 +80,14 @@ describe.skipIf(!hasTestDb)('ContributionRepositoryImpl', () => {
     // anak-anak kata ikut submit kata → pending_review
     const [meaning] = await db
       .insert(meanings)
-      .values({ wordId, wordClassId: NOMINA, definition: 'ikan kecil', orderIndex: 1, createdBy: KONTRIBUTOR })
+      .values({
+        wordId,
+        wordClassId: NOMINA,
+        definition: 'ikan kecil',
+        orderIndex: 1,
+        status: 'pending_review',
+        createdBy: KONTRIBUTOR,
+      })
       .returning();
     await db.insert(examples).values({
       meaningId: meaning.id,
@@ -105,6 +113,8 @@ describe.skipIf(!hasTestDb)('ContributionRepositoryImpl', () => {
     expect(wordRow).toMatchObject({ status: 'published', isVerified: true, verifiedBy: REVIEWER });
     expect(wordRow.verifiedAt).not.toBeNull();
 
+    const [meaningRow] = await db.select().from(meanings).where(eq(meanings.id, meaning.id));
+    expect(meaningRow).toMatchObject({ status: 'published', isVerified: true });
     const [exampleRow] = await db.select().from(examples);
     expect(exampleRow).toMatchObject({ status: 'published', isVerified: true });
     const [pronRow] = await db.select().from(pronunciations);
@@ -124,6 +134,26 @@ describe.skipIf(!hasTestDb)('ContributionRepositoryImpl', () => {
     expect(wordRow.status).toBe('rejected');
     const [reviewRow] = await db.select().from(contributionReviews);
     expect(reviewRow).toMatchObject({ status: 'rejected', comment: 'bukan kosakata Sambas' });
+  });
+
+  it('list word_id membatasi antrean ke kata itu', async () => {
+    const page = await repo.list({ wordId, status: 'pending', limit: 20 });
+    expect(page.items.map((item) => item.entityId)).toEqual([wordId]);
+    const other = await repo.list({ wordId: ulid26('01TESTLAIN'), status: 'pending', limit: 20 });
+    expect(other.items).toHaveLength(0);
+  });
+
+  it('approve kata yang sudah terverifikasi menutup antrean tanpa menimpa verified_by', async () => {
+    await db
+      .update(words)
+      .set({ status: 'published', isVerified: true, verifiedBy: KONTRIBUTOR, verifiedAt: new Date('2020-01-01T00:00:00.000Z') })
+      .where(eq(words.id, wordId));
+    const cid = await contributionIdOf(wordId);
+    await repo.review({ contributionId: cid, decision: 'approve', reviewerId: REVIEWER, comment: null });
+    const [wordRow] = await db.select().from(words).where(eq(words.id, wordId));
+    expect(wordRow).toMatchObject({ status: 'published', isVerified: true, verifiedBy: KONTRIBUTOR });
+    const [contribRow] = await db.select().from(contributions).where(eq(contributions.id, cid));
+    expect(contribRow.status).toBe('approved');
   });
 
   it('double review → 409 CONTRIBUTION_ALREADY_REVIEWED (race-safe di dalam transaksi)', async () => {
@@ -181,5 +211,70 @@ describe.skipIf(!hasTestDb)('ContributionRepositoryImpl', () => {
       status: 'pending_review',
     });
     expect(child?.data).toMatchObject({ url: 'https://x.test/k.jpg' });
+  });
+
+  it('approve word saat lemma published sudah ada → merge meanings + soft-delete sumber', async () => {
+    const publishedId = ulid26('01TESTWORDPUB');
+    await db.insert(words).values({
+      id: publishedId,
+      languageId: SMB,
+      lemma: 'kalintiak',
+      status: 'published',
+      isVerified: true,
+      createdBy: REVIEWER,
+    });
+    await db.insert(meanings).values({
+      wordId: publishedId,
+      wordClassId: NOMINA,
+      definition: 'makna A (sudah tayang)',
+      orderIndex: 0,
+      createdBy: REVIEWER,
+    });
+
+    const [pendingMeaning] = await db
+      .insert(meanings)
+      .values({
+        wordId,
+        wordClassId: NOMINA,
+        definition: 'makna B (kontribusi kedua)',
+        orderIndex: 0,
+        createdBy: KONTRIBUTOR,
+      })
+      .returning();
+
+    const cid = await contributionIdOf(wordId);
+    const outcome = await repo.review({
+      contributionId: cid,
+      decision: 'approve',
+      reviewerId: REVIEWER,
+      comment: null,
+    });
+
+    expect(outcome).toMatchObject({
+      status: 'approved',
+      entityId: publishedId,
+      mergedIntoWordId: publishedId,
+    });
+
+    const publishedMeanings = await db
+      .select()
+      .from(meanings)
+      .where(eq(meanings.wordId, publishedId));
+    expect(publishedMeanings.map((m) => m.definition).sort()).toEqual([
+      'makna A (sudah tayang)',
+      'makna B (kontribusi kedua)',
+    ]);
+    expect(publishedMeanings.find((m) => m.id === pendingMeaning.id)?.orderIndex).toBe(1);
+
+    const [source] = await db.select().from(words).where(eq(words.id, wordId));
+    expect(source.deletedAt).not.toBeNull();
+    expect(source.status).toBe('rejected');
+
+    const stillPublished = await db
+      .select()
+      .from(words)
+      .where(eq(words.status, 'published'));
+    expect(stillPublished).toHaveLength(1);
+    expect(stillPublished[0].id).toBe(publishedId);
   });
 });

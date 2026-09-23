@@ -1,15 +1,16 @@
 import { and, desc, eq, gte, lt, lte } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { auditLogs } from '@/shared/database/drizzle/schema';
-import type * as schema from '@/shared/database/drizzle/schema';
+import { ilikeCompat } from '@/shared/database/drizzle/ilike-compat';
+import { auditLogs, users } from '@/shared/database/drizzle/schema';
+import type { AppDatabase } from '@/shared/database/drizzle/client';
 import { logger } from '@/shared/logging/logger';
 import type { AuditLog, AuditLogFilter, AuditLogPage, NewAuditLog } from '../domain/entities/audit-log.entity';
 import type { AuditLogRepository } from '../domain/repositories/audit-log.repository';
 
-function toEntity(row: typeof auditLogs.$inferSelect): AuditLog {
+function toEntity(row: typeof auditLogs.$inferSelect, userName: string | null): AuditLog {
   return {
     id: row.id,
     userId: row.userId,
+    userName,
     action: row.action,
     entityType: row.entityType,
     entityId: row.entityId,
@@ -21,9 +22,9 @@ function toEntity(row: typeof auditLogs.$inferSelect): AuditLog {
 }
 
 export class AuditLogRepositoryImpl implements AuditLogRepository {
-  constructor(private readonly db: NodePgDatabase<typeof schema>) {}
+  constructor(private readonly db: AppDatabase) {}
 
-  // Best-effort — kontrak Section 21: gagal insert tidak boleh
+  // Best-effort - kontrak Section 21: gagal insert tidak boleh
   // meruntuhkan request utama, cukup tercatat di log aplikasi.
   async record(entry: NewAuditLog): Promise<void> {
     try {
@@ -36,8 +37,12 @@ export class AuditLogRepositoryImpl implements AuditLogRepository {
   // Cursor-based (Section 13): id ULID ≈ created_at (time-sortable),
   // jadi ORDER BY id DESC = terbaru dulu; fetch limit+1 untuk has_more
   async list(filter: AuditLogFilter): Promise<AuditLogPage> {
+    // Escape wildcard LIKE supaya input user tidak jadi pola pencarian
+    const term = filter.userName?.replace(/[\\%_]/g, '\\$&');
     const where = and(
       filter.userId ? eq(auditLogs.userId, filter.userId) : undefined,
+      term ? ilikeCompat(users.username, `%${term}%`) : undefined,
+      filter.action ? eq(auditLogs.action, filter.action) : undefined,
       filter.entityType ? eq(auditLogs.entityType, filter.entityType) : undefined,
       filter.entityId ? eq(auditLogs.entityId, filter.entityId) : undefined,
       filter.from ? gte(auditLogs.createdAt, filter.from) : undefined,
@@ -46,14 +51,15 @@ export class AuditLogRepositoryImpl implements AuditLogRepository {
     );
 
     const rows = await this.db
-      .select()
+      .select({ log: auditLogs, userName: users.username })
       .from(auditLogs)
+      .leftJoin(users, eq(auditLogs.userId, users.id))
       .where(where)
       .orderBy(desc(auditLogs.id))
       .limit(filter.limit + 1);
 
     const hasMore = rows.length > filter.limit;
-    const page = (hasMore ? rows.slice(0, filter.limit) : rows).map(toEntity);
+    const page = (hasMore ? rows.slice(0, filter.limit) : rows).map((row) => toEntity(row.log, row.userName));
 
     return {
       items: page,
