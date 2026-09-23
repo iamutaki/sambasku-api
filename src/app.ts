@@ -729,7 +729,7 @@ app.route(
 );
 
 // Lookup definisi lemma (KBBI via port) - prefill field definition di form
-// mobile/admin. Tidak menulis DB. docs/api/13-api-kbbi-lemma-definition.md
+// form kontribusi web (anonim). Tidak menulis DB. docs/api/13-api-kbbi-lemma-definition.md
 const lemmaDefinitionRegistry = createLemmaDefinitionProviderRegistry();
 const lemmaDefinitionController = new LemmaDefinitionController({
   lookup: new LookupLemmaDefinitionUseCase(
@@ -739,7 +739,7 @@ const lemmaDefinitionController = new LemmaDefinitionController({
 });
 app.route(
   '/api/v1/lemma-definitions',
-  createLemmaDefinitionRoutes({ controller: lemmaDefinitionController, authenticate }),
+  createLemmaDefinitionRoutes({ controller: lemmaDefinitionController }),
 );
 
 // Latar kartu share — proxy Unsplash (docs/backlogs/SHARE.md). Publik.

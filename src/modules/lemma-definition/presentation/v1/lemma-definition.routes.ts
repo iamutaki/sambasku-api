@@ -1,10 +1,8 @@
-import type { MiddlewareHandler } from 'hono';
 import { createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { rateLimit } from '@/shared/middlewares/rate-limit.middleware';
 import { createOpenApiApp } from '@/shared/openapi/openapi-app';
 import { errorResponseSchema } from '@/shared/openapi/error-response.schema';
-import type { AppVariables, AuthUser } from '@/shared/types';
 import type { LemmaDefinitionController } from './lemma-definition.controller';
 import {
   lookupLemmaDefinitionQuerySchema,
@@ -17,21 +15,18 @@ const json = <T extends z.ZodType>(schema: T) => ({
 
 export function createLemmaDefinitionRoutes(deps: {
   controller: LemmaDefinitionController;
-  authenticate: MiddlewareHandler<{ Variables: AppVariables }>;
 }) {
   const routes = createOpenApiApp();
 
-  // Auth + 20/menit per user (kontrak 13 - lookup mahal / outbound)
+  // Publik (tanpa auth) supaya form kontribusi web anonim bisa prefill
+  // definisi KBBI. Lookup mahal (outbound pihak ketiga) - rate limit
+  // 20/menit per IP cukup ketat untuk guard abuse (kontrak 13).
   routes.use(
     '/lookup',
-    deps.authenticate,
     rateLimit({
       points: 20,
       duration: 60,
-      keyFn: (c) => {
-        const user = (c.get('user') as AuthUser | undefined) ?? null;
-        return `lemma-def:${user?.user_id ?? c.req.header('cf-connecting-ip') ?? 'unknown'}`;
-      },
+      keyFn: (c) => `lemma-def:${c.req.header('cf-connecting-ip') ?? 'unknown'}`,
     }),
   );
 
@@ -39,7 +34,7 @@ export function createLemmaDefinitionRoutes(deps: {
     method: 'get',
     path: '/lookup',
     tags: ['Lemma Definitions'],
-    summary: 'Lookup definisi lemma dari KBBI (standarisasi untuk prefill form makna)',
+    summary: 'Lookup definisi lemma dari KBBI (publik - prefill form makna/kontribusi)',
     description:
       'Memanggil penyedia KBBI pihak ketiga, lalu memetakan ke bentuk standar ' +
       '(entries + suggestions). Query opsional `provider` (whitelist, mis. raf555) ' +
@@ -52,7 +47,6 @@ export function createLemmaDefinitionRoutes(deps: {
         content: json(lookupLemmaDefinitionResponseSchema),
       },
       400: { description: 'Query lemma/provider tidak valid', content: json(errorResponseSchema) },
-      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
       429: { description: 'Rate limit', content: json(errorResponseSchema) },
       502: { description: 'Provider KBBI gagal', content: json(errorResponseSchema) },
       503: { description: 'Provider belum dikonfigurasi', content: json(errorResponseSchema) },
