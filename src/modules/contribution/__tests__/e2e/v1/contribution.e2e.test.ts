@@ -125,7 +125,8 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     const detailBody = await detail.json();
     expect(detailBody.data.contribution.id).toBe(item.id);
     expect(detailBody.data.review).toBeNull();
-    expect(detailBody.data.entity).toMatchObject({ lemma: 'kalintiak', status: 'published', is_verified: false });
+    // entity word = WordDetail camelCase (serializer detail kontribusi)
+    expect(detailBody.data.entity).toMatchObject({ lemma: 'kalintiak', status: 'published', isVerified: false });
 
     // 4. Approve → kata tayang + is_verified true
     const approve = await post(`/api/v1/admin/contributions/${item.id}/approve`, { comment: 'valid' }, adminToken);
@@ -270,7 +271,7 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     )).toBe(true);
   });
 
-  it('correct publish=false → koreksi saja: kontribusi tetap pending & belum tayang', async () => {
+  it('correct publish=false → koreksi saja: kontribusi tetap pending; yang sudah tayang tetap tayang', async () => {
     const create = await post('/api/v1/admin/words', validWordBody('kata koreksi tunda'), adminToken);
     const { data } = await create.json();
     const detail = await get(`/api/v1/words/${data.word_id}`);
@@ -298,11 +299,15 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     const stillPending = await get('/api/v1/admin/contributions?status=pending&entity_type=example', adminToken);
     expect((await stillPending.json()).data.some((c: { id: string }) => c.id === item.id)).toBe(true);
 
-    // contoh belum tayang di detail publik
+    // contoh kontributor login sudah published: koreksi tanpa publish
+    // menimpa kalimat dan tetap tayang (belum diverifikasi)
     const after = await get(`/api/v1/words/${data.word_id}`);
     const afterBody = await after.json();
     expect(afterBody.data.meanings[0].examples.some(
       (e: { source_sentence: string }) => e.source_sentence === 'Sudah diperbaiki.',
+    )).toBe(true);
+    expect(afterBody.data.meanings[0].examples.some(
+      (e: { source_sentence: string }) => e.source_sentence === 'Salah ejaan.',
     )).toBe(false);
   });
 

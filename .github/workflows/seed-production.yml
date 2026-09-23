@@ -1,0 +1,61 @@
+name: Seed Production (manual)
+
+# HANYA dipicu manual (workflow_dispatch) - TIDAK pernah jalan otomatis saat
+# push / deploy. Deploy production hanya migrate + wrangler; seed sengaja
+# dipisah karena menimpa password admin/root/contributor/reviewer jadi
+# `pass1234`.
+#
+# CLI: gh workflow run seed-production.yml --ref main -f confirm=true
+#
+# Secrets:
+#   TURSO_PRODUCTION_DATABASE_URL
+#   TURSO_PRODUCTION_AUTH_TOKEN
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Centang untuk benar-benar seed DB PRODUCTION (menimpa password admin/root jadi pass1234)'
+        type: boolean
+        required: true
+        default: false
+
+jobs:
+  seed:
+    if: ${{ inputs.confirm }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      - name: Cek secrets Turso production
+        env:
+          DATABASE_URL: ${{ secrets.TURSO_PRODUCTION_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_PRODUCTION_AUTH_TOKEN }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Secret TURSO_PRODUCTION_DATABASE_URL kosong — set di GitHub → Settings → Secrets"
+            exit 1
+          fi
+          if [ -z "$DATABASE_AUTH_TOKEN" ]; then
+            echo "::error::Secret TURSO_PRODUCTION_AUTH_TOKEN kosong — set di GitHub → Settings → Secrets"
+            exit 1
+          fi
+          echo "Turso URL host: $(echo "$DATABASE_URL" | sed -E 's#^[a-z]+://##')"
+
+      - name: Seed database production
+        run: pnpm seed
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.TURSO_PRODUCTION_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_PRODUCTION_AUTH_TOKEN }}
+          JWT_PRIVATE_KEY: dummy
+          JWT_PUBLIC_KEY: dummy
+          CORS_ALLOWED_ORIGINS: https://sambasku.com,https://console.sambasku.com

@@ -126,12 +126,22 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
   });
 
   it('Section 22 approval gate: baris review HANYA dibuat saat keputusan - status antrean turunan', async () => {
-    // input 'published' (setara submit verifikator) → contributions.status approved
-    const word = await repo.saveWithRelations(baseWord(), ACTOR);
-    const [contribRow] = await db.select().from(contributions).where(eq(contributions.entityId, word.id));
-    expect(contribRow.status).toBe('approved');
+    // verifikator: published + verified → tidak mengantre
+    const verified = await repo.saveWithRelations(baseWord({ isVerified: true }), ACTOR);
+    const [verifiedContrib] = await db
+      .select()
+      .from(contributions)
+      .where(eq(contributions.entityId, verified.id));
+    expect(verifiedContrib.status).toBe('approved');
 
-    // input 'pending_review' (setara submit contributor) → contributions.status pending
+    // kontributor login: published + belum diverifikasi → pending
+    const live = await repo.saveWithRelations(baseWord({ lemma: 'makatn-cek' }), ACTOR);
+    expect(live.status).toBe('published');
+    expect(live.isVerified).toBe(false);
+    const [liveContrib] = await db.select().from(contributions).where(eq(contributions.entityId, live.id));
+    expect(liveContrib.status).toBe('pending');
+
+    // tamu: pending_review → pending
     const pending = await repo.saveWithRelations(
       baseWord({ lemma: 'kalintiak', status: 'pending_review' }),
       ACTOR,
