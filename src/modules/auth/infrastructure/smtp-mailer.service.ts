@@ -3,6 +3,7 @@ import { env } from '@/shared/config/env';
 import { logger } from '@/shared/logging/logger';
 import type { MailerPort } from '../application/ports/mailer.port';
 import { rememberOtp } from './otp-capture';
+import { accountDeletionEmailHtml, accountDeletionEmailText } from './account-deletion-email';
 import { otpEmailHtml, otpEmailText } from './otp-email';
 import { resetPasswordEmailHtml, resetPasswordEmailText } from './reset-password-email';
 import {
@@ -43,6 +44,22 @@ export class SmtpMailerService implements MailerPort {
           cid: OTP_EMAIL_LOGO_CONTENT_ID,
         },
       ],
+    });
+  }
+
+  async sendAccountDeletionEmail(to: string, displayCode: string, pageUrl: string): Promise<void> {
+    rememberOtp(to, displayCode);
+    const text = accountDeletionEmailText(displayCode, pageUrl);
+    if (!this.transporter) {
+      logger.info({ to, displayCode }, 'DEV: email hapus akun tidak dikirim, SMTP belum di-set');
+      return;
+    }
+    await this.transporter.sendMail({
+      from: env.SMTP_USER,
+      to,
+      subject: 'Kode hapus akun - SambasKu',
+      text,
+      html: accountDeletionEmailHtml(displayCode),
     });
   }
 

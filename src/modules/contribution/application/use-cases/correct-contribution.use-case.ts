@@ -116,7 +116,13 @@ export class CorrectContributionUseCase {
             contributorUserId: contrib.userId,
           };
         }
-        return this.contributionRepo.review(reviewCmd, tx);
+        // alreadyClaimed: withPendingLock sudah klaim. wordAlreadyLive: anak
+        // sudah published+verified lewat updateWithRelations - review hanya
+        // tutup kontribusi (+ merge twin bila ada), tanpa re-publish penuh.
+        return this.contributionRepo.review(
+          { ...reviewCmd, alreadyClaimed: true, wordAlreadyLive: true },
+          tx,
+        );
       });
     } else if (publish) {
       outcome = await this.contributionRepo.review(reviewCmd);
@@ -171,9 +177,10 @@ export class CorrectContributionUseCase {
 
   private async snapshot(entityType: string, entityId: string): Promise<Record<string, unknown> | null> {
     if (entityType === 'word') {
-      const detail = await this.wordRepo.findDetailById(entityId, { includeAllStatuses: true });
-      if (!detail) return null;
-      return { lemma: detail.lemma, status: detail.status, is_verified: detail.isVerified };
+      // Satu SELECT 3 kolom - jangan findDetailById (~12 RT Turso/Workers)
+      const snap = await this.wordRepo.findAuditSnapshotById(entityId);
+      if (!snap) return null;
+      return { lemma: snap.lemma, status: snap.status, is_verified: snap.isVerified };
     }
     const child = await this.contributionRepo.findChildWithParent(
       entityType as 'pronunciation' | 'word_image' | 'word_audio' | 'example',
@@ -223,8 +230,13 @@ export class CorrectContributionUseCase {
     const details = mapMissingToDetails(dto, missing);
     if (details.length > 0) throw new ValidationError(details);
 
-    const current = await this.wordRepo.findDetailById(wordId, { includeAllStatuses: true });
-    const stayLive = !publish && current?.status === 'published';
+    // publish=true → status akhir sudah pasti published; jangan load detail penuh.
+    // publish=false → stayLive kalau kata sudah tayang (snapshot tipis cukup).
+    let stayLive = false;
+    if (!publish) {
+      const current = await this.wordRepo.findAuditSnapshotById(wordId);
+      stayLive = current?.status === 'published';
+    }
     return {
       ...dto,
       status: (publish || stayLive ? 'published' : 'pending_review') as 'published' | 'pending_review',

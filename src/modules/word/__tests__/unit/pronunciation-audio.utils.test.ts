@@ -41,9 +41,9 @@ describe('slugifyLemma + buildPronunciationAudioPath', () => {
 
 describe('parseGithubRepoUrl', () => {
   it('parse owner/repo', () => {
-    expect(parseGithubRepoUrl('https://github.com/iamutaki/sambasku-pronunciation')).toEqual({
-      owner: 'iamutaki',
-      repo: 'sambasku-pronunciation',
+    expect(parseGithubRepoUrl('https://github.com/sambasku/audios')).toEqual({
+      owner: 'sambasku',
+      repo: 'audios',
     });
   });
 });
@@ -52,13 +52,13 @@ describe('buildJsDelivrPublicUrl', () => {
   it('bentuk CDN: cdn.jsdelivr.net/gh/owner/repo@branch/path', () => {
     expect(
       buildJsDelivrPublicUrl({
-        owner: 'iamutaki',
-        repo: 'sambasku-pronunciation',
+        owner: 'sambasku',
+        repo: 'audios',
         branch: 'main',
         path: 'assets/audio/umum/makatn/01J8ZQTESTULID00000000000.m4a',
       }),
     ).toBe(
-      'https://cdn.jsdelivr.net/gh/iamutaki/sambasku-pronunciation@main/assets/audio/umum/makatn/01J8ZQTESTULID00000000000.m4a',
+      'https://cdn.jsdelivr.net/gh/sambasku/audios@main/assets/audio/umum/makatn/01J8ZQTESTULID00000000000.m4a',
     );
   });
 

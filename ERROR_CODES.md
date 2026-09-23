@@ -13,6 +13,7 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `UNAUTHORIZED` | 401 | Token tidak ada/invalid, atau refresh token tidak valid |
 | `TOKEN_EXPIRED` | 401 | Access token kadaluarsa |
 | `RESET_TOKEN_INVALID` | 401 | Token reset password tidak valid, kadaluarsa, atau sudah dipakai |
+| `DELETION_CODE_INVALID` | 401 | Kode hapus akun tidak valid, kedaluwarsa, sudah dipakai, atau email tidak cocok |
 | `OAUTH_NO_PASSWORD` | 400 | Ubah password pada akun tanpa password (OAuth-only) - arahkan ke lupa password |
 | `INVALID_GOOGLE_TOKEN` | 401 | ID token Google gagal verifikasi / akun Google tidak bisa dipakai |
 | `INVALID_FACEBOOK_TOKEN` | 401 | Access token Facebook gagal verifikasi / akun Facebook tidak bisa dipakai |

@@ -70,6 +70,16 @@ export interface ReviewCommand {
     wordAudio?: WordAudioPatch;
     example?: ExamplePatch;
   };
+  /**
+   * true = caller sudah klaim lewat withPendingLock - jangan claimPending lagi
+   * (hemat 2 round-trip Turso di Workers).
+   */
+  alreadyClaimed?: boolean;
+  /**
+   * true = kata sudah published+verified oleh updateWithRelations dalam lock
+   * yang sama. reviewWord skip re-publish penuh; tetap cek twin merge.
+   */
+  wordAlreadyLive?: boolean;
 }
 
 // Koreksi entity anak TANPA publish (publish=false pada endpoint correct):

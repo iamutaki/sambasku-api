@@ -32,6 +32,9 @@ import { LogoutAllDevicesUseCase } from '@/modules/auth/application/use-cases/lo
 import { ForgotPasswordUseCase } from '@/modules/auth/application/use-cases/forgot-password.use-case';
 import { ResetPasswordUseCase } from '@/modules/auth/application/use-cases/reset-password.use-case';
 import { ChangePasswordUseCase } from '@/modules/auth/application/use-cases/change-password.use-case';
+import { AccountDeletionUseCase } from '@/modules/auth/application/use-cases/account-deletion.use-case';
+import { AccountErasureRepositoryImpl } from '@/modules/auth/infrastructure/account-erasure.repository.impl';
+import { AccountDeletionTokenRepositoryImpl } from '@/modules/auth/infrastructure/account-deletion-token.repository.impl';
 import { AuthController } from '@/modules/auth/presentation/v1/auth.controller';
 import { createAuthRoutes } from '@/modules/auth/presentation/v1/auth.routes';
 import { AuthIdentityRepositoryImpl } from '@/modules/auth/infrastructure/auth-identity.repository.impl';
@@ -563,7 +566,18 @@ app.openapi(pingRoute, (c) =>
   }),
 );
 
-app.route('/api/v1/auth', createAuthRoutes({ controller, authenticate }));
+const accountDeletion = new AccountDeletionUseCase(
+  userRepo,
+  hasher,
+  new AccountErasureRepositoryImpl(db),
+  new AccountDeletionTokenRepositoryImpl(db),
+  mailer,
+  publicImageStorage,
+  imageStorage,
+  auditRepo,
+  `${env.APP_URL}/hapus-akun`,
+);
+app.route('/api/v1/auth', createAuthRoutes({ controller, authenticate, accountDeletion }));
 
 // Modul word - admin (write) + publik (read)
 app.route('/api/v1/admin/words', createAdminWordRoutes({ controller: wordController, authenticate }));

@@ -167,6 +167,13 @@ export function decodeLatestCursor(s: string): { approvedAt: Date; id: string } 
 }
 
 // Kontrak repository modul word - implementasi Drizzle di infrastructure/.
+/** Field audit koreksi kata - tanpa memuat anak (meanings/media/relasi). */
+export interface WordAuditSnapshot {
+  lemma: string;
+  status: WordStatus;
+  isVerified: boolean;
+}
+
 // saveWithRelations & saveWithInlineRelations DIJAMIN atomik (satu
 // db.transaction) - use case tidak perlu tahu soal transaction
 // (docs/api/01-api-tambah-kata.md & 04-api-sinonim-inline.md).
@@ -188,6 +195,11 @@ export interface WordRepository {
   findDuplicate(languageId: string, lemma: string, excludeWordId?: string): Promise<boolean>;
   /** hanya published + belum soft-deleted; includeAllStatuses = layar review */
   findDetailById(id: string, opts?: { includeAllStatuses?: boolean }): Promise<WordDetail | null>;
+  /**
+   * Snapshot tipis untuk audit koreksi (lemma/status/is_verified saja).
+   * Hindari findDetailById (~12 round-trip) saat old_data audit hanya butuh 3 field.
+   */
+  findAuditSnapshotById(id: string): Promise<WordAuditSnapshot | null>;
   /** Resolusi URL publik /words/<lemma> → id entri published. Homonim
    *  (lemma sama di >1 entri): terverifikasi & terlama menang (deterministik). */
   findPublishedIdByLemma(lemma: string): Promise<string | null>;

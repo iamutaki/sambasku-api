@@ -1,6 +1,7 @@
 import type { AppDatabase } from './client';
 import { ensureTestDbReady } from './test-client';
 import {
+  accountDeletionTokens,
   auditLogs,
   authIdentities,
   bookmarks,
@@ -60,6 +61,7 @@ export async function truncateAll(db: AppDatabase): Promise<void> {
     examples,
     meaningTranslations,
     passwordResetTokens,
+    accountDeletionTokens,
     refreshTokens,
     authIdentities,
     emailVerificationOtps,

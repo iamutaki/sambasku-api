@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNull, lt } from 'drizzle-orm';
+import { publicAccountName } from '@/shared/constants/deleted-account';
 import { comments, users, words } from '@/shared/database/drizzle/schema';
 import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type { Comment, CommentStatus, CursorPage } from '../domain/entities/comment.entity';
@@ -19,6 +20,7 @@ export class CommentRepositoryImpl implements CommentRepository {
       .select({
         comment: comments,
         username: users.username,
+        authorDeletedAt: users.deletedAt,
         wordLemma: words.lemma,
       })
       .from(comments)
@@ -59,7 +61,9 @@ export class CommentRepositoryImpl implements CommentRepository {
     const [row] = await this.selectBase()
       .where(and(eq(comments.id, id), isNull(comments.deletedAt)))
       .limit(1);
-    return row ? this.toComment(row.comment, row.username, row.wordLemma) : null;
+    return row
+      ? this.toComment(row.comment, publicAccountName(row.username, row.authorDeletedAt), row.wordLemma)
+      : null;
   }
 
   async softDelete(id: string, actorId: string): Promise<boolean> {
@@ -169,7 +173,7 @@ export class CommentRepositoryImpl implements CommentRepository {
 
     const hasMore = rows.length > limit;
     const items = (hasMore ? rows.slice(0, limit) : rows).map((r) =>
-      this.toComment(r.comment, r.username, r.wordLemma),
+      this.toComment(r.comment, publicAccountName(r.username, r.authorDeletedAt), r.wordLemma),
     );
     return { items, nextCursor: hasMore ? items[items.length - 1].id : null, hasMore };
   }

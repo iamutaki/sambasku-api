@@ -650,8 +650,10 @@ export class ContributionRepositoryImpl implements ContributionRepository {
   }
 
   private async reviewOn(tx: Tx, cmd: ReviewCommand): Promise<ReviewOutcome> {
-      // Klaim baris dulu. Dua verifikator bersamaan: satu sukses, satu 409.
-      await this.claimPending(tx, cmd.contributionId);
+      // Klaim baris dulu kecuali caller sudah memegang lock (withPendingLock).
+      if (!cmd.alreadyClaimed) {
+        await this.claimPending(tx, cmd.contributionId);
+      }
       const [contrib] = await tx
         .select()
         .from(contributions)
@@ -871,6 +873,19 @@ export class ContributionRepositoryImpl implements ContributionRepository {
       // Isi sudah di-update use case; publishOrMerge agar tidak ada 2 published
       // lemma sama (12-api §8). Kalau sudah soft-deleted oleh merge, skip jejak.
       // Kata yang sudah terverifikasi: jangan timpa verified_by / verified_at.
+      //
+      // wordAlreadyLive: updateWithRelations sudah published+verified dalam
+      // lock yang sama - skip re-publish children kalau tidak ada twin.
+      if (cmd.wordAlreadyLive) {
+        const merge = await publishOrMergeMeaningsInTx(tx, wordId, cmd.reviewerId, {
+          skipPublishIfNoTwin: true,
+        });
+        if (merge?.mergedIntoWordId) {
+          return { entityId: merge.wordId, mergedIntoWordId: merge.mergedIntoWordId };
+        }
+        return { entityId: wordId, mergedIntoWordId: null };
+      }
+
       const [before] = await tx
         .select({ isVerified: words.isVerified })
         .from(words)

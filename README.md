@@ -117,12 +117,12 @@ secret yang sudah terpasang. Seed staging manual:
 ## Audio pelafalan (GitHub asset repo)
 
 File audio **tidak** disimpan di Turso. Backend menulis file ke repo publik
-[sambasku-pronunciation](https://github.com/iamutaki/sambasku-pronunciation),
+[sambasku/audios](https://github.com/sambasku/audios),
 lalu menyimpan **record metadata + URL** di tabel `word_audios`.
 
 README asset (asal audio, struktur path, URL raw):
 [`pronunciation/README.md`](../pronunciation/README.md) ·
-[raw di GitHub](https://github.com/iamutaki/sambasku-pronunciation/blob/main/README.md).
+[raw di GitHub](https://github.com/sambasku/audios/blob/main/README.md).
 
 Kontrak API lengkap: `docs/api/29-api-pronunciation-audio.md`.
 
@@ -130,7 +130,7 @@ Kontrak API lengkap: `docs/api/29-api-pronunciation-audio.md`.
 
 ```env
 PRONUNCIACION_PROVIDER=github
-PRONUNCIACION_GITHUB_URL=https://github.com/iamutaki/sambasku-pronunciation
+PRONUNCIACION_GITHUB_URL=https://github.com/sambasku/audios
 PRONUNCIACION_GITHUB_TOKEN=          # PAT Contents RW — secret, jangan commit
 ```
 
@@ -165,7 +165,7 @@ Client (admin / mobile)
 Contoh URL asset setelah upload:
 
 ```text
-https://cdn.jsdelivr.net/gh/iamutaki/sambasku-pronunciation@main/assets/audio/umum/makatn/<ulid>.m4a
+https://cdn.jsdelivr.net/gh/sambasku/audios@main/assets/audio/umum/makatn/<ulid>.m4a
 ```
 
 (jsDelivr CDN di depan repo GitHub publik; path file immutable / ULID.)
@@ -184,12 +184,12 @@ Baca di word detail: `audios[]` (lemma) dan
 
 File gambar kata dan avatar **tidak** disimpan di Turso. Backend menulis
 file ke repo publik
-[sambasku-images](https://github.com/iamutaki/sambasku-images), lalu
+[sambasku/images](https://github.com/sambasku/images), lalu
 menyimpan **URL + path** di database.
 
 README asset (asal gambar, struktur path, URL CDN):
 [`images/README.md`](../images/README.md) ·
-[raw di GitHub](https://github.com/iamutaki/sambasku-images/blob/main/README.md).
+[raw di GitHub](https://github.com/sambasku/images/blob/main/README.md).
 
 Pola yang sama dengan audio pelafalan di atas. Bedanya: gambar kata tidak
 punya slug lemma (ULID dibuat sebelum kata tersimpan), dan tampilan client
@@ -199,7 +199,7 @@ membungkus URL jsDelivr dengan wsrv.nl.
 
 ```env
 PUBLIC_IMAGE_PROVIDER=github
-PUBLIC_IMAGE_GITHUB_URL=https://github.com/iamutaki/sambasku-images
+PUBLIC_IMAGE_GITHUB_URL=https://github.com/sambasku/images
 PUBLIC_IMAGE_GITHUB_TOKEN=          # PAT Contents RW, secret, jangan commit
 ```
 
@@ -236,7 +236,7 @@ Client (admin / mobile)
 Contoh URL aset setelah upload:
 
 ```text
-https://cdn.jsdelivr.net/gh/iamutaki/sambasku-images@main/assets/words/<ulid>.webp
+https://cdn.jsdelivr.net/gh/sambasku/images@main/assets/words/<ulid>.webp
 ```
 
 ### Endpoint ringkas
