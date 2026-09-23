@@ -62,6 +62,7 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `INVALID_SUGGESTION_CHANGES` | 400 | proposed_changes kosong / tidak valid |
 | `RATE_LIMITED` | 429 | Terlalu banyak percobaan (lihat tabel limit di api-base-stack.md Section 15). Resend OTP: 1/2 menit per IP, dan cooldown 2 menit per email |
 | `INTERNAL_ERROR` | 500 | Error tak terduga (bug, koneksi DB putus, dst) |
+| `UPSTREAM_CAPACITY` | 503 | Kapasitas runtime habis, bukan bug: batas subrequest / CPU Workers terlampaui. SATU-SATUNYA kode yang memicu circuit breaker klien pindah tier (lihat `docs/backlogs/FAILOVER.md`). Hanya muncul di tier 1 (Workers); tier 2/3 proses Node tanpa batas subrequest |
 | `IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider penyimpanan gambar belum dikonfigurasi (env `IMAGEKIT_*`) |
 | `PUBLIC_IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider gambar publik belum dikonfigurasi / token GitHub invalid (`PUBLIC_IMAGE_GITHUB_*`) |
 | `PUBLIC_IMAGE_UPLOAD_FAILED` | 502 | Upload gambar publik ke GitHub Contents API gagal |

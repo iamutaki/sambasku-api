@@ -27,6 +27,15 @@ import type { VerifyEmailBody, ResendOtpBody } from './validators/verify-email.v
 const REFRESH_TOKEN_COOKIE = 'refresh_token';
 const COOKIE_PATH = '/api/v1/auth'; // cookie hanya dikirim ke endpoint auth
 
+// Atribut penentu SCOPE cookie. Set dan hapus WAJIB memakai atribut yang sama:
+// browser mencocokkan name+path+domain, jadi domain yang tidak ikut saat
+// deleteCookie membuat logout gagal membersihkan cookie secara senyap.
+// REFRESH_COOKIE_DOMAIN kosong (dev/test) = host-only seperti semula.
+const cookieScope = {
+  path: COOKIE_PATH,
+  domain: env.REFRESH_COOKIE_DOMAIN,
+} as const;
+
 export class AuthController {
   constructor(
     private readonly deps: {
@@ -141,7 +150,7 @@ export class AuthController {
   async logout(c: Context, body: { refresh_token?: string } = {}) {
     const token = body.refresh_token ?? getCookie(c, REFRESH_TOKEN_COOKIE);
     if (token) await this.deps.logout.execute(token);
-    deleteCookie(c, REFRESH_TOKEN_COOKIE, { path: COOKIE_PATH });
+    deleteCookie(c, REFRESH_TOKEN_COOKIE, cookieScope);
     return c.json({ success: true as const, data: null });
   }
 
@@ -149,7 +158,7 @@ export class AuthController {
     const user = (c as Context<{ Variables: AppVariables }>).get('user');
     if (!user) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
     await this.deps.logoutAll.execute(user.user_id);
-    deleteCookie(c, REFRESH_TOKEN_COOKIE, { path: COOKIE_PATH });
+    deleteCookie(c, REFRESH_TOKEN_COOKIE, cookieScope);
     return c.json({ success: true as const, data: null });
   }
 
@@ -240,8 +249,9 @@ export class AuthController {
     setCookie(c, REFRESH_TOKEN_COOKIE, token, {
       httpOnly: true,
       secure: env.NODE_ENV === 'production',
+      // Strict tetap aman: console./api./deno./render. satu registrable domain.
       sameSite: 'Strict',
-      path: COOKIE_PATH,
+      ...cookieScope,
       maxAge: env.JWT_REFRESH_TOKEN_TTL,
     });
   }

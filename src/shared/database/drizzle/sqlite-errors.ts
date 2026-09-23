@@ -1,31 +1,6 @@
 /** Deteksi constraint SQLite/libSQL (pengganti kode Postgres 23505 / 23503). */
 
-function collectMessages(err: unknown, depth = 0): string[] {
-  if (depth > 4 || err == null) return [];
-  const out: string[] = [];
-  if (err instanceof Error) {
-    out.push(err.message);
-    out.push(...collectMessages((err as Error & { cause?: unknown }).cause, depth + 1));
-  } else if (typeof err === 'object') {
-    const o = err as { message?: unknown; cause?: unknown; code?: unknown };
-    if (o.message != null) out.push(String(o.message));
-    if (o.code != null) out.push(String(o.code));
-    out.push(...collectMessages(o.cause, depth + 1));
-  } else {
-    out.push(String(err));
-  }
-  return out;
-}
-
-function collectCodes(err: unknown, depth = 0): string[] {
-  if (depth > 4 || err == null || typeof err !== 'object') return [];
-  const o = err as { code?: unknown; cause?: unknown; extendedCode?: unknown };
-  const out: string[] = [];
-  if (o.code != null) out.push(String(o.code));
-  if (o.extendedCode != null) out.push(String(o.extendedCode));
-  out.push(...collectCodes(o.cause, depth + 1));
-  return out;
-}
+import { collectCodes, collectMessages } from '@/shared/errors/error-chain';
 
 export function isUniqueViolation(err: unknown): boolean {
   const codes = collectCodes(err);

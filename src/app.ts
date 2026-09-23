@@ -543,6 +543,7 @@ const pingRoute = createRoute({
               time: z.string(),
               env: z.string(),
               runtime: z.enum(['node', 'cloudflare-workers']),
+              host: z.string(),
             }),
           }),
         },
@@ -562,6 +563,10 @@ app.openapi(pingRoute, (c) =>
         typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers'
           ? 'cloudflare-workers'
           : 'node',
+      // `runtime` tidak cukup memilah tier: tier 2 dan 3 dua-duanya 'node'.
+      // Host yang diminta memastikan tier mana yang benar-benar melayani -
+      // dipakai memverifikasi failover mendarat di tempat yang diharapkan.
+      host: c.req.header('host') ?? 'unknown',
     },
   }),
 );

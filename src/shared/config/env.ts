@@ -94,6 +94,17 @@ const envSchema = z.object({
 
   APP_URL: z.url().default('http://localhost:5173'), // basis link reset password
 
+  // Domain cookie refresh_token. Kosong (dev/test) = host-only seperti semula.
+  // Di production diisi `.sambasku.com` supaya browser mengirim cookie ke SEMUA
+  // tier API (api./deno./render.), jadi sesi console tidak putus saat circuit
+  // breaker pindah tier. Wajib identik di ketiga tier.
+  // String kosong dinormalkan ke undefined: `Domain=` bukan atribut yang sah,
+  // dan wrangler.toml [vars] tidak bisa "tidak men-set" sebuah kunci.
+  REFRESH_COOKIE_DOMAIN: z
+    .string()
+    .transform((v) => (v.trim() === '' ? undefined : v.trim()))
+    .optional(),
+
   // Web OAuth client ID (publik, bukan secret). Flutter serverClientId harus
   // SAMA supaya klaim `aud` ID token cocok. Kosong = fitur mati (503
   // GOOGLE_AUTH_UNAVAILABLE), API tidak crash.

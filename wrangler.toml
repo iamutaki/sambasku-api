@@ -30,6 +30,10 @@ NODE_ENV = "production"
 APP_URL = "https://api.sambasku.com"
 # Hanya origin browser produksi (mobile tidak kena CORS).
 CORS_ALLOWED_ORIGINS = "https://sambasku.com,https://console.sambasku.com"
+# Cookie refresh_token berlaku untuk SEMUA tier API (api./deno./render.) supaya
+# sesi console tidak putus saat circuit breaker pindah tier. WAJIB identik di
+# deployment Deno dan Render.
+REFRESH_COOKIE_DOMAIN = ".sambasku.com"
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
 MAIL_FROM = "SambasKu <no-reply@sambasku.com>"
@@ -68,6 +72,8 @@ custom_domain = true
 NODE_ENV = "staging"
 APP_URL = "https://sambasku-staging.iamutaki.com"
 CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://console-sambasku-staging.iamutaki.com,https://sambasku-web-staging.iamutaki.com,https://sambasku-web-staging.ibnuul.workers.dev"
+# Staging belum punya tier cadangan - biarkan host-only (kosong = tidak di-set).
+REFRESH_COOKIE_DOMAIN = ""
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
 MAIL_FROM = "SambasKu <no-reply@sambasku.com>"
