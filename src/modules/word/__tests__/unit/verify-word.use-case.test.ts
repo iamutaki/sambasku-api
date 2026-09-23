@@ -1,4 +1,18 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Use case impor db langsung (cek usulan edit pending) → mock agar unit
+// test tidak memuat env.ts / koneksi Turso.
+const limit = vi.fn().mockResolvedValue([]);
+vi.mock('@/shared/database/drizzle/client', () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: () => ({ limit }),
+      }),
+    }),
+  },
+}));
+
 import { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-case';
 import type { WordRepository } from '../../domain/repositories/word.repository';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
@@ -19,6 +33,11 @@ function makeDeps(setVerifiedResult = true, isVerified = false, found = true) {
 }
 
 describe('VerifyWordUseCase', () => {
+  beforeEach(() => {
+    limit.mockReset();
+    limit.mockResolvedValue([]);
+  });
+
   it('verify → setVerified(true) + audit action verify', async () => {
     const { useCase, wordRepo, auditRepo } = makeDeps();
     await useCase.execute({ wordId: '01JDWORDMAKATN0000000000A', verified: true, actorId: '01JDUSERADMIN00000000000000A', requestId: 'req-1' });
@@ -63,6 +82,16 @@ describe('VerifyWordUseCase', () => {
     await expect(
       useCase.execute({ wordId: '01JDWORDMAKATN0000000000A', verified: false, actorId: '01JDUSERADMIN00000000000000A' }),
     ).rejects.toMatchObject({ errorCode: 'WORD_ALREADY_UNVERIFIED', statusCode: 409 });
+    expect(wordRepo.setVerified).not.toHaveBeenCalled();
+    expect(auditRepo.record).not.toHaveBeenCalled();
+  });
+
+  it('ada usulan edit pending → SUGGESTION_ALREADY_PENDING 409, tanpa setVerified/audit', async () => {
+    limit.mockResolvedValue([{ id: '01JDSUGGESTION00000000000A' }]);
+    const { useCase, auditRepo, wordRepo } = makeDeps();
+    await expect(
+      useCase.execute({ wordId: '01JDWORDMAKATN0000000000A', verified: true, actorId: '01JDUSERADMIN00000000000000A' }),
+    ).rejects.toMatchObject({ errorCode: 'SUGGESTION_ALREADY_PENDING', statusCode: 409 });
     expect(wordRepo.setVerified).not.toHaveBeenCalled();
     expect(auditRepo.record).not.toHaveBeenCalled();
   });

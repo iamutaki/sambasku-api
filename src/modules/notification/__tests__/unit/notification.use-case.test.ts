@@ -30,7 +30,7 @@ describe('RecordInboxNotificationUseCase', () => {
       expect.objectContaining({
         userId: '01CONTRIBUTORULID0000000000',
         type: 'contribution_rejected',
-        title: 'Usulan ditolak',
+        title: 'Kata ditarik',
         targetKind: 'contribution',
         targetId: '01CONTRIBULID0000000000000',
       }),
