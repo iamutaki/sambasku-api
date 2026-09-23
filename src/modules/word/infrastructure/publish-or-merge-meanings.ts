@@ -41,13 +41,15 @@ export async function publishOrMergeMeaningsInTx(
     .limit(1);
 
   if (!twin) {
+    // Sudah terverifikasi: tutup antrean tanpa menimpa siapa yang menandai.
+    const preserve = word.isVerified === true && word.verifiedBy != null;
     await tx
       .update(words)
       .set({
         status: 'published',
         isVerified: true,
-        verifiedBy: actorId,
-        verifiedAt: now,
+        verifiedBy: preserve ? word.verifiedBy : actorId,
+        verifiedAt: preserve ? (word.verifiedAt ?? now) : now,
         updatedBy: actorId,
         updatedAt: now,
       })

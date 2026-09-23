@@ -28,6 +28,7 @@ export class ContributionController {
       status: query.status,
       entityType: query.entity_type,
       action: query.action,
+      wordId: query.word_id,
       limit: query.limit,
       cursor: query.cursor,
     });

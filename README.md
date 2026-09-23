@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="SambasKu" width="320" />
+</p>
+
 # SambasKu-API
 
 Backend API Kamus Digital Sambas-Indonesia.
@@ -175,6 +179,74 @@ Baca di word detail: `audios[]` (lemma) dan
 | ------ | ---- | ---------- |
 | `POST` | `/api/v1/words/:wordId/pronunciations/audio` | Upload + buat record |
 | `DELETE` | `/api/v1/words/:wordId/pronunciations/audio/:audioId` | Soft-delete DB + hapus file (best-effort) |
+
+## Gambar publik (GitHub asset repo)
+
+File gambar kata dan avatar **tidak** disimpan di Turso. Backend menulis
+file ke repo publik
+[sambasku-images](https://github.com/iamutaki/sambasku-images), lalu
+menyimpan **URL + path** di database.
+
+README asset (asal gambar, struktur path, URL CDN):
+[`images/README.md`](../images/README.md) ·
+[raw di GitHub](https://github.com/iamutaki/sambasku-images/blob/main/README.md).
+
+Pola yang sama dengan audio pelafalan di atas. Bedanya: gambar kata tidak
+punya slug lemma (ULID dibuat sebelum kata tersimpan), dan tampilan client
+membungkus URL jsDelivr dengan wsrv.nl.
+
+### Env (lokal / Workers)
+
+```env
+PUBLIC_IMAGE_PROVIDER=github
+PUBLIC_IMAGE_GITHUB_URL=https://github.com/iamutaki/sambasku-images
+PUBLIC_IMAGE_GITHUB_TOKEN=          # PAT Contents RW, secret, jangan commit
+```
+
+Lokal: isi ketiga variabel di `.env` (lihat `.env.example`).
+Di Workers, provider + URL jadi vars; token lewat
+`npx wrangler secret put PUBLIC_IMAGE_GITHUB_TOKEN`.
+
+Tanpa token/URL → upload balas **503** `PUBLIC_IMAGE_UPLOAD_UNAVAILABLE`.
+
+Bukti verifikator dan lampiran laporan bug **tetap ImageKit**
+(`IMAGE_PROVIDER` / `IMAGEKIT_*`). Jangan campur ke repo ini.
+
+### Alur record (DB + asset)
+
+```text
+Client (admin / mobile)
+  → POST /api/v1/images?purpose=word          (gambar kata)
+     atau POST /api/v1/users/me/avatar        (avatar)
+  → API validasi MIME/ukuran (jpeg, png, webp, maks 5 MB)
+  → GitHub Contents API PUT
+       assets/words/<ulid>.<ext>
+       assets/avatars/<userId>/<ulid>.<ext>
+  → Client mengirim url + provider_file_id (+ sha) saat menyimpan kata
+     atau API langsung menulis users.avatar_url
+```
+
+| Field | Arti |
+| ----- | ---- |
+| `word_images.url` / `users.avatar_url` | Link aset publik (jsDelivr) |
+| `provider` | `github` |
+| `provider_file_id` | Path relatif di repo images |
+| `sha` | Blob SHA, dipakai saat hapus |
+
+Contoh URL aset setelah upload:
+
+```text
+https://cdn.jsdelivr.net/gh/iamutaki/sambasku-images@main/assets/words/<ulid>.webp
+```
+
+### Endpoint ringkas
+
+| Method | Path | Keterangan |
+| ------ | ---- | ---------- |
+| `POST` | `/api/v1/images?purpose=word` | Upload gambar kata ke GitHub |
+| `POST` | `/api/v1/words/:wordId/images` | Simpan referensi ke `word_images` |
+| `POST` | `/api/v1/users/me/avatar` | Upload avatar + update user |
+| `DELETE` | `/api/v1/users/me/avatar` | Hapus avatar (file best-effort) |
 
 ## Akses Database
 

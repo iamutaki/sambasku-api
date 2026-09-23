@@ -3,7 +3,12 @@ import type { CommentBlocklistRepository } from '../../domain/repositories/comme
 export class ListBlocklistWordsUseCase {
   constructor(private readonly repo: CommentBlocklistRepository) {}
 
-  execute(params: { limit: number; cursor?: string }) {
-    return this.repo.listActive(params);
+  execute(params: { limit: number; cursor?: string; q?: string }) {
+    const q = params.q?.trim();
+    return this.repo.listActive({
+      limit: params.limit,
+      cursor: params.cursor,
+      q: q ? q : undefined,
+    });
   }
 }

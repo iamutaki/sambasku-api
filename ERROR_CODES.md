@@ -38,8 +38,10 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `WORD_REPORT_ALREADY_RESOLVED` | 409 | Laporan entri sudah ditutup |
 | `WORD_ALREADY_MODERATED` | 409 | Takedown pada kata bukan published, atau restore pada kata bukan taken_down |
 | `COMMENT_NOT_CENSORED` | 400 | Uncensor dipanggil tapi komentar tidak punya body_original |
-| `BLOCKLIST_WORD_EXISTS` | 409 | Kata blocklist sudah ada (aktif) |
+| `BLOCKLIST_WORD_EXISTS` | 409 | Kata blocklist sudah ada (aktif) — hanya endpoint satu kata |
 | `BLOCKLIST_WORD_NOT_FOUND` | 404 | Entry blocklist tidak ditemukan |
+| `BLOCKLIST_BULK_EMPTY` | 400 | Batch blocklist tidak berisi kata |
+| `BLOCKLIST_BULK_TOO_LARGE` | 400 | Batch blocklist lebih dari 2000 kata |
 | `EMAIL_ALREADY_EXISTS` | 409 | Registrasi dengan email yang sudah dipakai |
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan nama (username) yang sudah dipakai |
 | `PHONE_ALREADY_EXISTS` | 409 | Registrasi / pengajuan verifikator dengan nomor HP yang sudah dipakai user lain |
@@ -49,7 +51,9 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `ALREADY_VERIFIER` | 403 | POST/PATCH pengajuan oleh user yang role-nya bukan contributor; juga approve jika pemohon sudah bukan contributor |
 | `APPLICATION_ALREADY_EXISTS` | 409 | POST pengajuan padahal user sudah punya baris verifier_applications |
 | `APPLICATION_ALREADY_REVIEWED` | 409 | Approve/reject pengajuan yang statusnya bukan pending |
-| `CONTRIBUTION_ALREADY_REVIEWED` | 409 | Kontribusi sudah punya keputusan (approve/reject/correct) |
+| `CONTRIBUTION_ALREADY_REVIEWED` | 409 | Kontribusi sudah punya keputusan (approve/reject/correct), termasuk dua verifikator yang mengirim bersamaan |
+| `WORD_ALREADY_VERIFIED` | 409 | Verify dipanggil pada kata yang sudah `is_verified = true` (tanpa audit baru) |
+| `WORD_ALREADY_UNVERIFIED` | 409 | Unverify dipanggil pada kata yang sudah `is_verified = false` (tanpa audit baru) |
 | `SUGGESTION_NOT_FOUND` | 404 | Usulan perubahan kata tidak ditemukan |
 | `SUGGESTION_ALREADY_REVIEWED` | 400/409 | Usulan sudah punya keputusan (approve/reject/correct) |
 | `WORD_NOT_PUBLISHED` | 400 | Usul edit hanya untuk kata berstatus published |

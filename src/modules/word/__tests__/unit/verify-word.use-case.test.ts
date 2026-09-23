@@ -3,10 +3,11 @@ import { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-c
 import type { WordRepository } from '../../domain/repositories/word.repository';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 
-function makeDeps(setVerifiedResult = true) {
+function makeDeps(setVerifiedResult = true, isVerified = false, found = true) {
   const wordRepo = {
     saveWithRelations: vi.fn(),
     findDuplicate: vi.fn(),
+    findById: vi.fn().mockResolvedValue(found ? { id: '01JDWORDMAKATN0000000000A', isVerified } : null),
     findDetailById: vi.fn(),
     search: vi.fn(),
     findMissingReferences: vi.fn(),
@@ -32,7 +33,7 @@ describe('VerifyWordUseCase', () => {
   });
 
   it('unverify → audit action unverify', async () => {
-    const { useCase, auditRepo } = makeDeps();
+    const { useCase, auditRepo } = makeDeps(true, true);
     await useCase.execute({ wordId: '01JDWORDMAKATN0000000000A', verified: false, actorId: '01JDUSERADMIN00000000000000A' });
     expect(auditRepo.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'unverify', newData: { is_verified: false } }),
@@ -40,10 +41,29 @@ describe('VerifyWordUseCase', () => {
   });
 
   it('kata tidak ditemukan → WORD_NOT_FOUND 404, tanpa audit', async () => {
-    const { useCase, auditRepo } = makeDeps(false);
+    const { useCase, auditRepo, wordRepo } = makeDeps(false, false, false);
     await expect(
       useCase.execute({ wordId: '01JDWORDNGACAK00000000000X', verified: true, actorId: '01JDUSERADMIN00000000000000A' }),
     ).rejects.toMatchObject({ errorCode: 'WORD_NOT_FOUND', statusCode: 404 });
+    expect(wordRepo.setVerified).not.toHaveBeenCalled();
+    expect(auditRepo.record).not.toHaveBeenCalled();
+  });
+
+  it('sudah terverifikasi → WORD_ALREADY_VERIFIED 409, tanpa audit', async () => {
+    const { useCase, auditRepo, wordRepo } = makeDeps(true, true);
+    await expect(
+      useCase.execute({ wordId: '01JDWORDMAKATN0000000000A', verified: true, actorId: '01JDUSERADMIN00000000000000A' }),
+    ).rejects.toMatchObject({ errorCode: 'WORD_ALREADY_VERIFIED', statusCode: 409 });
+    expect(wordRepo.setVerified).not.toHaveBeenCalled();
+    expect(auditRepo.record).not.toHaveBeenCalled();
+  });
+
+  it('belum terverifikasi lalu unverify → WORD_ALREADY_UNVERIFIED 409, tanpa audit', async () => {
+    const { useCase, auditRepo, wordRepo } = makeDeps(true, false);
+    await expect(
+      useCase.execute({ wordId: '01JDWORDMAKATN0000000000A', verified: false, actorId: '01JDUSERADMIN00000000000000A' }),
+    ).rejects.toMatchObject({ errorCode: 'WORD_ALREADY_UNVERIFIED', statusCode: 409 });
+    expect(wordRepo.setVerified).not.toHaveBeenCalled();
     expect(auditRepo.record).not.toHaveBeenCalled();
   });
 });

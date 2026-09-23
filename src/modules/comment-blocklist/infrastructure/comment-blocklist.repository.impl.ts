@@ -1,15 +1,30 @@
-import { and, desc, eq, isNull, lt } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { commentBlocklistWords } from '@/shared/database/drizzle/schema';
 import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type { CommentBlocklistWord, CursorPage } from '../domain/entities/comment-blocklist-word.entity';
 import type { CommentBlocklistRepository } from '../domain/repositories/comment-blocklist.repository';
 
+const WORD_CHUNK = 200;
+
+/** LIKE contains; `%` dan `_` dari input user jadi literal. */
+function wordContains(q: string) {
+  const escaped = q.trim().toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`);
+  const pattern = `%${escaped}%`;
+  return sql`lower(${commentBlocklistWords.word}) like ${pattern} escape '\\'`;
+}
+
 export class CommentBlocklistRepositoryImpl implements CommentBlocklistRepository {
   constructor(private readonly db: AppDatabase) {}
 
-  async listActive(params: { limit: number; cursor?: string }): Promise<CursorPage<CommentBlocklistWord>> {
+  async listActive(params: {
+    limit: number;
+    cursor?: string;
+    q?: string;
+  }): Promise<CursorPage<CommentBlocklistWord>> {
+    const q = params.q?.trim();
     const where = and(
       isNull(commentBlocklistWords.deletedAt),
+      q ? wordContains(q) : undefined,
       params.cursor ? lt(commentBlocklistWords.id, params.cursor) : undefined,
     );
     const rows = await this.db
@@ -40,6 +55,42 @@ export class CommentBlocklistRepositoryImpl implements CommentBlocklistRepositor
       .where(and(eq(commentBlocklistWords.word, word), isNull(commentBlocklistWords.deletedAt)))
       .limit(1);
     return row ? this.toEntity(row) : null;
+  }
+
+  async findActiveWordSet(words: string[]): Promise<Set<string>> {
+    const found = new Set<string>();
+    if (words.length === 0) return found;
+
+    for (let i = 0; i < words.length; i += WORD_CHUNK) {
+      const chunk = words.slice(i, i + WORD_CHUNK);
+      const rows = await this.db
+        .select({ word: commentBlocklistWords.word })
+        .from(commentBlocklistWords)
+        .where(and(inArray(commentBlocklistWords.word, chunk), isNull(commentBlocklistWords.deletedAt)));
+      for (const row of rows) found.add(row.word);
+    }
+    return found;
+  }
+
+  async createMany(
+    items: { word: string; createdBy: string }[],
+  ): Promise<{ count: number; firstId: string | null }> {
+    if (items.length === 0) return { count: 0, firstId: null };
+
+    return this.db.transaction(async (tx) => {
+      let count = 0;
+      let firstId: string | null = null;
+      for (let i = 0; i < items.length; i += WORD_CHUNK) {
+        const chunk = items.slice(i, i + WORD_CHUNK);
+        const rows = await tx
+          .insert(commentBlocklistWords)
+          .values(chunk.map((item) => ({ word: item.word, createdBy: item.createdBy })))
+          .returning({ id: commentBlocklistWords.id });
+        count += rows.length;
+        if (!firstId && rows[0]) firstId = rows[0].id;
+      }
+      return { count, firstId };
+    });
   }
 
   async create(data: { word: string; createdBy: string }): Promise<CommentBlocklistWord> {

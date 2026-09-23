@@ -8,6 +8,8 @@ import { errorResponseSchema } from '@/shared/openapi/error-response.schema';
 import type { AppVariables } from '@/shared/types';
 import type { CommentBlocklistController } from './comment-blocklist.controller';
 import {
+  bulkCreateBlocklistBodySchema,
+  bulkCreateBlocklistResponseSchema,
   createBlocklistResponseSchema,
   createBlocklistWordBodySchema,
   listBlocklistQuerySchema,
@@ -33,6 +35,7 @@ export function createAdminCommentBlocklistRoutes(deps: AdminCommentBlocklistRou
   ] as const;
 
   routes.use('/', ...admin);
+  routes.use('/bulk', ...admin);
   routes.use('/:id', ...admin);
 
   const listRoute = createRoute({
@@ -62,6 +65,20 @@ export function createAdminCommentBlocklistRoutes(deps: AdminCommentBlocklistRou
     },
   });
 
+  const bulkCreateRoute = createRoute({
+    method: 'post',
+    path: '/bulk',
+    tags: ['Comment Blocklist', 'Admin'],
+    summary: 'Tambah banyak kata ke blocklist; duplikat diabaikan',
+    request: { body: { content: json(bulkCreateBlocklistBodySchema), required: true } },
+    responses: {
+      200: { description: 'Batch diproses', content: json(bulkCreateBlocklistResponseSchema) },
+      400: { description: 'Tidak ada kata valid', content: json(errorResponseSchema) },
+      401: { description: 'Unauthorized', content: json(errorResponseSchema) },
+      403: { description: 'Forbidden', content: json(errorResponseSchema) },
+    },
+  });
+
   const deleteRoute = createRoute({
     method: 'delete',
     path: '/:id',
@@ -82,6 +99,9 @@ export function createAdminCommentBlocklistRoutes(deps: AdminCommentBlocklistRou
   routes.openapi(listRoute, (c) => deps.controller.list(c, c.req.valid('query')) as never);
   routes.openapi(createRouteDef, (c) =>
     deps.controller.create(c, c.req.valid('json')) as never,
+  );
+  routes.openapi(bulkCreateRoute, (c) =>
+    deps.controller.bulkCreate(c, c.req.valid('json')) as never,
   );
   routes.openapi(deleteRoute, (c) => deps.controller.delete(c, c.req.param('id')) as never);
 

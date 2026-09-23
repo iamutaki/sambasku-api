@@ -13,6 +13,8 @@ export interface ContributionListFilter {
   status?: ContributionStatus;
   entityType?: string;
   action?: string;
+  /** Batasi antrean ke kontribusi kata ini (entity word atau anaknya). */
+  wordId?: string;
   limit: number;
   /** cursor-based (Section 13): ULID id item terakhir halaman sebelumnya */
   cursor?: string;
@@ -100,11 +102,11 @@ export type { CursorPage };
 export type { ContributionEntityType };
 
 // Kontrak repository modul contribution. review() DIJAMIN satu transaksi:
-// update entity + contributions.status + INSERT contribution_reviews, dengan
-// cek pending DI DALAM transaksi (race double-review → 409, bukan 500).
-// Entity 'word' saat 'correct' TIDAK diubah di sini - use case memakai
-// WordRepository.updateWithRelations lebih dulu (dua tulis, window kecil,
-// didokumentasikan di docs/api/03-api-kontribusi-verifikasi.md).
+// update entity + contributions.status + INSERT contribution_reviews.
+// Klaim atomik: UPDATE contributions WHERE status='pending' (LibSQL/SQLite
+// tidak punya SELECT FOR UPDATE). Yang kalah dapat 409, bukan 500.
+// Koreksi kata memegang klaim yang sama lewat withPendingLock sebelum
+// updateWithRelations, supaya dua tulis tidak saling menimpa.
 export interface ContributionRepository {
   list(filter: ContributionListFilter): Promise<CursorPage<Contribution>>;
   /** Daftar kontribusi milik satu user (halaman Kontribusi Saya). */
@@ -116,7 +118,13 @@ export interface ContributionRepository {
     entityType: 'pronunciation' | 'word_image' | 'word_audio' | 'example' | 'meaning',
     entityId: string,
   ): Promise<ChildEntityWithParent | null>;
-  review(cmd: ReviewCommand): Promise<ReviewOutcome>;
+  review(cmd: ReviewCommand, tx?: unknown): Promise<ReviewOutcome>;
+  /**
+   * Buka transaksi, klaim baris masih pending, lalu jalankan kerja
+   * (koreksi kata) pada transaksi yang sama. tx diteruskan ke review /
+   * updateWithRelations. 404 jika id hilang, 409 jika bukan pending.
+   */
+  withPendingLock<T>(id: string, work: (tx: unknown) => Promise<T>): Promise<T>;
   /** koreksi entity anak tanpa publish (lihat ApplyChildCorrectionCommand) */
   applyChildCorrection(cmd: ApplyChildCorrectionCommand): Promise<void>;
 }

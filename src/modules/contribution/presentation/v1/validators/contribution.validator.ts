@@ -20,6 +20,7 @@ export const listContributionsQuerySchema = z.object({
   status: contributionStatusSchema.optional(),
   entity_type: entityTypeSchema.optional(),
   action: z.string().trim().min(1).optional(),
+  word_id: opaqueId.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().length(26).optional(),
 });

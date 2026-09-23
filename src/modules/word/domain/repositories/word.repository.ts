@@ -201,7 +201,7 @@ export interface WordRepository {
   findById(id: string): Promise<Word | null>;
   /** replace semantics: hapus children lama, insert baru - satu transaksi.
    *  Dipakai correct-contribution (modul contribution) & update admin (menyusul) */
-  updateWithRelations(id: string, word: WordToSave, actorId: string): Promise<Word | null>;
+  updateWithRelations(id: string, word: WordToSave, actorId: string, tx?: unknown): Promise<Word | null>;
   search(params: SearchParams): Promise<CursorPage<WordSummary>>;
   /**
    * 18-api-list-words.md: daftar semua kata published urut

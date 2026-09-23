@@ -172,6 +172,7 @@ import { createCommentRoutes, createWordCommentRoutes } from '@/modules/comment/
 import { createAdminCommentRoutes } from '@/modules/comment/presentation/v1/admin-comment.routes';
 import { CommentBlocklistRepositoryImpl } from '@/modules/comment-blocklist/infrastructure/comment-blocklist.repository.impl';
 import { CreateBlocklistWordUseCase } from '@/modules/comment-blocklist/application/use-cases/create-blocklist-word.use-case';
+import { BulkCreateBlocklistWordsUseCase } from '@/modules/comment-blocklist/application/use-cases/bulk-create-blocklist-words.use-case';
 import { ListBlocklistWordsUseCase } from '@/modules/comment-blocklist/application/use-cases/list-blocklist-words.use-case';
 import { DeleteBlocklistWordUseCase } from '@/modules/comment-blocklist/application/use-cases/delete-blocklist-word.use-case';
 import { CommentBlocklistController } from '@/modules/comment-blocklist/presentation/v1/comment-blocklist.controller';
@@ -433,6 +434,7 @@ const commentController = new CommentController({
 });
 const commentBlocklistController = new CommentBlocklistController({
   create: new CreateBlocklistWordUseCase(commentBlocklistRepo, auditRepo),
+  bulkCreate: new BulkCreateBlocklistWordsUseCase(commentBlocklistRepo, auditRepo),
   list: new ListBlocklistWordsUseCase(commentBlocklistRepo),
   delete: new DeleteBlocklistWordUseCase(commentBlocklistRepo, auditRepo),
 });

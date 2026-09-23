@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lt, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
 import {
   contributionReviews,
   contributions,
@@ -107,6 +107,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
           filter.status ? eq(contributions.status, filter.status) : undefined,
           filter.entityType ? eq(contributions.entityType, filter.entityType) : undefined,
           filter.action ? eq(contributions.action, filter.action) : undefined,
+          filter.wordId ? this.belongsToWord(filter.wordId) : undefined,
           filter.cursor ? lt(contributions.id, filter.cursor) : undefined,
         ),
       )
@@ -554,10 +555,103 @@ export class ContributionRepositoryImpl implements ContributionRepository {
     };
   }
 
-  async review(cmd: ReviewCommand): Promise<ReviewOutcome> {
+  /**
+   * Kontribusi milik satu kata: baris word itu sendiri, atau anak
+   * (pelafalan, gambar, audio, makna, contoh) yang parent-nya kata itu.
+   */
+  private belongsToWord(wordId: string) {
+    return or(
+      and(eq(contributions.entityType, 'word'), eq(contributions.entityId, wordId)),
+      and(
+        eq(contributions.entityType, 'pronunciation'),
+        inArray(
+          contributions.entityId,
+          this.db.select({ id: pronunciations.id }).from(pronunciations).where(eq(pronunciations.wordId, wordId)),
+        ),
+      ),
+      and(
+        eq(contributions.entityType, 'word_image'),
+        inArray(
+          contributions.entityId,
+          this.db.select({ id: wordImages.id }).from(wordImages).where(eq(wordImages.wordId, wordId)),
+        ),
+      ),
+      and(
+        eq(contributions.entityType, 'word_audio'),
+        inArray(
+          contributions.entityId,
+          this.db.select({ id: wordAudios.id }).from(wordAudios).where(eq(wordAudios.wordId, wordId)),
+        ),
+      ),
+      and(
+        eq(contributions.entityType, 'meaning'),
+        inArray(
+          contributions.entityId,
+          this.db.select({ id: meanings.id }).from(meanings).where(eq(meanings.wordId, wordId)),
+        ),
+      ),
+      and(
+        eq(contributions.entityType, 'example'),
+        inArray(
+          contributions.entityId,
+          this.db
+            .select({ id: examples.id })
+            .from(examples)
+            .innerJoin(meanings, eq(examples.meaningId, meanings.id))
+            .where(eq(meanings.wordId, wordId)),
+        ),
+      ),
+    );
+  }
+
+  async withPendingLock<T>(id: string, work: (tx: unknown) => Promise<T>): Promise<T> {
     return this.db.transaction(async (tx) => {
-      // Kunci baris kontribsi - dua verifikator klik bersamaan: satu
-      // sukses, satu dapat 409 (bukan 500). Cek pending DI DALAM transaksi.
+      await this.claimPending(tx, id);
+      return work(tx);
+    });
+  }
+
+  /**
+   * LibSQL/SQLite tidak punya SELECT FOR UPDATE. Klaim = UPDATE yang hanya
+   * cocok selagi status masih pending; menulis baris itu memegang write
+   * lock sampai transaksi commit. Panggilan kedua menunggu, lalu 409.
+   */
+  private async claimPending(tx: Tx, id: string): Promise<void> {
+    const [contrib] = await tx
+      .select({ id: contributions.id, description: contributions.description, status: contributions.status })
+      .from(contributions)
+      .where(and(eq(contributions.id, id), isNull(contributions.deletedAt)))
+      .limit(1);
+    if (!contrib) {
+      throw new NotFoundError('CONTRIBUTION_NOT_FOUND', 'Kontribusi dengan id tersebut tidak ditemukan');
+    }
+    if (contrib.status !== 'pending') {
+      throw new ConflictError(
+        'CONTRIBUTION_ALREADY_REVIEWED',
+        'Kontribusi ini sudah diproses - sudah ada keputusan review',
+      );
+    }
+    const claimed = await tx
+      .update(contributions)
+      .set({ description: contrib.description })
+      .where(and(eq(contributions.id, id), eq(contributions.status, 'pending'), isNull(contributions.deletedAt)))
+      .returning({ id: contributions.id });
+    if (claimed.length === 0) {
+      throw new ConflictError(
+        'CONTRIBUTION_ALREADY_REVIEWED',
+        'Kontribusi ini sudah diproses - sudah ada keputusan review',
+      );
+    }
+  }
+
+  async review(cmd: ReviewCommand, tx?: unknown): Promise<ReviewOutcome> {
+    if (tx) return this.reviewOn(tx as Tx, cmd);
+    return this.db.transaction((inner) => this.reviewOn(inner, cmd));
+  }
+
+  private async reviewOn(tx: Tx, cmd: ReviewCommand): Promise<ReviewOutcome> {
+      // Klaim baris dulu. Dua verifikator bersamaan: satu sukses, satu 409.
+      await this.claimPending(tx, cmd.contributionId);
       const [contrib] = await tx
         .select()
         .from(contributions)
@@ -603,7 +697,17 @@ export class ContributionRepositoryImpl implements ContributionRepository {
       }
 
       const status = decisionToStatus(cmd.decision);
-      await tx.update(contributions).set({ status }).where(eq(contributions.id, contrib.id));
+      const closed = await tx
+        .update(contributions)
+        .set({ status })
+        .where(and(eq(contributions.id, contrib.id), eq(contributions.status, 'pending')))
+        .returning({ id: contributions.id });
+      if (closed.length === 0) {
+        throw new ConflictError(
+          'CONTRIBUTION_ALREADY_REVIEWED',
+          'Kontribusi ini sudah diproses - sudah ada keputusan review',
+        );
+      }
       await tx.insert(contributionReviews).values({
         contributionId: contrib.id,
         reviewerId: cmd.reviewerId,
@@ -619,7 +723,6 @@ export class ContributionRepositoryImpl implements ContributionRepository {
         contributorUserId: contrib.userId,
         ...(mergedIntoWordId ? { mergedIntoWordId } : {}),
       };
-    });
   }
 
   // Koreksi tanpa publish: isi berubah, is_corrected true, kontribusi tetap pending.
@@ -658,6 +761,25 @@ export class ContributionRepositoryImpl implements ContributionRepository {
   async applyChildCorrection(cmd: ApplyChildCorrectionCommand): Promise<void> {
     const now = new Date();
     await this.db.transaction(async (tx) => {
+      const [pending] = await tx
+        .select({ id: contributions.id })
+        .from(contributions)
+        .where(
+          and(
+            eq(contributions.entityType, cmd.entityType),
+            eq(contributions.entityId, cmd.entityId),
+            eq(contributions.status, 'pending'),
+            isNull(contributions.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!pending) {
+        throw new ConflictError(
+          'CONTRIBUTION_ALREADY_REVIEWED',
+          'Kontribusi ini sudah diproses - sudah ada keputusan review',
+        );
+      }
+      await this.claimPending(tx, pending.id);
       const nextStatus = await this.childStatusAfterQuietCorrection(tx, cmd);
       switch (cmd.entityType) {
         case 'pronunciation': {
@@ -748,14 +870,22 @@ export class ContributionRepositoryImpl implements ContributionRepository {
     if (cmd.decision === 'correct') {
       // Isi sudah di-update use case; publishOrMerge agar tidak ada 2 published
       // lemma sama (12-api §8). Kalau sudah soft-deleted oleh merge, skip jejak.
+      // Kata yang sudah terverifikasi: jangan timpa verified_by / verified_at.
+      const [before] = await tx
+        .select({ isVerified: words.isVerified })
+        .from(words)
+        .where(and(eq(words.id, wordId), isNull(words.deletedAt)))
+        .limit(1);
       const merge = await publishOrMergeMeaningsInTx(tx, wordId, cmd.reviewerId);
       if (merge?.mergedIntoWordId) {
         return { entityId: merge.wordId, mergedIntoWordId: merge.mergedIntoWordId };
       }
-      await tx
-        .update(words)
-        .set({ verifiedBy: cmd.reviewerId, verifiedAt: now, updatedBy: cmd.reviewerId, updatedAt: now })
-        .where(and(eq(words.id, wordId), isNull(words.deletedAt)));
+      if (!before?.isVerified) {
+        await tx
+          .update(words)
+          .set({ verifiedBy: cmd.reviewerId, verifiedAt: now, updatedBy: cmd.reviewerId, updatedAt: now })
+          .where(and(eq(words.id, wordId), isNull(words.deletedAt)));
+      }
       return { entityId: wordId, mergedIntoWordId: null };
     }
 

@@ -136,6 +136,26 @@ describe.skipIf(!hasTestDb)('ContributionRepositoryImpl', () => {
     expect(reviewRow).toMatchObject({ status: 'rejected', comment: 'bukan kosakata Sambas' });
   });
 
+  it('list word_id membatasi antrean ke kata itu', async () => {
+    const page = await repo.list({ wordId, status: 'pending', limit: 20 });
+    expect(page.items.map((item) => item.entityId)).toEqual([wordId]);
+    const other = await repo.list({ wordId: ulid26('01TESTLAIN'), status: 'pending', limit: 20 });
+    expect(other.items).toHaveLength(0);
+  });
+
+  it('approve kata yang sudah terverifikasi menutup antrean tanpa menimpa verified_by', async () => {
+    await db
+      .update(words)
+      .set({ status: 'published', isVerified: true, verifiedBy: KONTRIBUTOR, verifiedAt: new Date('2020-01-01T00:00:00.000Z') })
+      .where(eq(words.id, wordId));
+    const cid = await contributionIdOf(wordId);
+    await repo.review({ contributionId: cid, decision: 'approve', reviewerId: REVIEWER, comment: null });
+    const [wordRow] = await db.select().from(words).where(eq(words.id, wordId));
+    expect(wordRow).toMatchObject({ status: 'published', isVerified: true, verifiedBy: KONTRIBUTOR });
+    const [contribRow] = await db.select().from(contributions).where(eq(contributions.id, cid));
+    expect(contribRow.status).toBe('approved');
+  });
+
   it('double review → 409 CONTRIBUTION_ALREADY_REVIEWED (race-safe di dalam transaksi)', async () => {
     const cid = await contributionIdOf(wordId);
     await repo.review({ contributionId: cid, decision: 'approve', reviewerId: REVIEWER, comment: null });

@@ -1260,10 +1260,12 @@ export class WordRepositoryImpl implements WordRepository {
     id: string,
     data: { isVerified: boolean; verifiedBy: string; verifiedAt: Date },
   ): Promise<boolean> {
+    // Hanya baris yang nilainya masih beda. Panggilan kedua (sudah sama)
+    // mengembalikan false supaya use case bisa 409 tanpa menimpa verified_by.
     const updated = await this.db
       .update(words)
       .set({ isVerified: data.isVerified, verifiedBy: data.verifiedBy, verifiedAt: data.verifiedAt })
-      .where(and(eq(words.id, id), isNull(words.deletedAt)))
+      .where(and(eq(words.id, id), isNull(words.deletedAt), ne(words.isVerified, data.isVerified)))
       .returning({ id: words.id });
     return updated.length > 0;
   }
@@ -1842,9 +1844,8 @@ export class WordRepositoryImpl implements WordRepository {
     return row ? toWord(row) : null;
   }
 
-  async updateWithRelations(id: string, word: WordToSave, actorId: string): Promise<Word | null> {
-    try {
-      return await this.db.transaction(async (tx) => {
+  async updateWithRelations(id: string, word: WordToSave, actorId: string, tx?: unknown): Promise<Word | null> {
+    const run = async (tx: Tx): Promise<Word | null> => {
         // Update baris words
         const now = new Date();
         const [wordRow] = await tx
@@ -1927,7 +1928,11 @@ export class WordRepositoryImpl implements WordRepository {
         });
 
         return toWord(wordRow);
-      });
+    };
+
+    try {
+      if (tx) return await run(tx as Tx);
+      return await this.db.transaction(run);
     } catch (err) {
       if (isForeignKeyViolation(err)) {
         throw new ValidationError([

@@ -3,9 +3,11 @@ import { logger } from '@/shared/logging/logger';
 import { UnauthorizedError } from '@/shared/errors/app-error';
 import type { AppVariables } from '@/shared/types';
 import type { CreateBlocklistWordUseCase } from '../../application/use-cases/create-blocklist-word.use-case';
+import type { BulkCreateBlocklistWordsUseCase } from '../../application/use-cases/bulk-create-blocklist-words.use-case';
 import type { ListBlocklistWordsUseCase } from '../../application/use-cases/list-blocklist-words.use-case';
 import type { DeleteBlocklistWordUseCase } from '../../application/use-cases/delete-blocklist-word.use-case';
 import type {
+  BulkCreateBlocklistBody,
   CreateBlocklistWordBody,
   ListBlocklistQueryBody,
 } from './validators/comment-blocklist.validator';
@@ -14,6 +16,7 @@ export class CommentBlocklistController {
   constructor(
     private readonly deps: {
       create: CreateBlocklistWordUseCase;
+      bulkCreate: BulkCreateBlocklistWordsUseCase;
       list: ListBlocklistWordsUseCase;
       delete: DeleteBlocklistWordUseCase;
     },
@@ -53,6 +56,32 @@ export class CommentBlocklistController {
       },
       201,
     );
+  }
+
+  async bulkCreate(c: Context, body: BulkCreateBlocklistBody) {
+    const actor = this.requireUser(c);
+    const result = await this.deps.bulkCreate.execute({
+      words: body.words,
+      actorId: actor.user_id,
+      requestId: this.requestId(c),
+    });
+    logger.info(
+      {
+        request_id: this.requestId(c),
+        created_count: result.createdCount,
+        skipped_count: result.skippedCount,
+        invalid_count: result.invalidCount,
+      },
+      'blocklist words bulk created',
+    );
+    return c.json({
+      success: true as const,
+      data: {
+        created_count: result.createdCount,
+        skipped_count: result.skippedCount,
+        invalid_count: result.invalidCount,
+      },
+    });
   }
 
   async delete(c: Context, id: string) {

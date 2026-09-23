@@ -48,9 +48,8 @@ export interface CorrectContributionCommand {
 //   pending_review; contributions.status TETAP 'pending' dan tidak ada
 //   keputusan review (supaya bisa di-approve/di-correct lagi).
 //
-// Catatan non-atomik (didokumentasikan di docs/api/03): koreksi entity
-// 'word' = DUA tulis - updateWithRelations dulu, baru transaksi review().
-// Window kecil; koreksi entity anak sepenuhnya atomik di review().
+// Koreksi kata: validasi dulu, lalu withPendingLock memegang klaim pending
+// selama updateWithRelations dan review() pada transaksi yang sama.
 export class CorrectContributionUseCase {
   constructor(
     private readonly contributionRepo: ContributionRepository,
@@ -85,38 +84,53 @@ export class CorrectContributionUseCase {
     // Snapshot pra-koreksi → audit old_data (WAJIB - jejak apa yang diubah)
     const oldData = await this.snapshot(contrib.entityType, contrib.entityId);
 
-    if (contrib.entityType === 'word') {
-      await this.applyWordCorrection(contrib.entityId, input.word!, cmd.actorId, publish);
-    }
+    const reviewCmd = {
+      contributionId: cmd.contributionId,
+      decision: 'correct' as const,
+      reviewerId: cmd.actorId,
+      comment: cmd.comment,
+      childPatch: {
+        pronunciation: input.pronunciation,
+        wordImage: input.wordImage,
+        wordAudio: input.wordAudio,
+        example: input.example,
+      },
+    };
 
     let outcome: ReviewOutcome;
-    if (publish) {
-      outcome = await this.contributionRepo.review({
-        contributionId: cmd.contributionId,
-        decision: 'correct',
-        reviewerId: cmd.actorId,
-        comment: cmd.comment,
-        childPatch: {
-          pronunciation: input.pronunciation,
-          wordImage: input.wordImage,
-          wordAudio: input.wordAudio,
-          example: input.example,
-        },
+    if (contrib.entityType === 'word') {
+      // Validasi dulu (tanpa kunci), lalu tulis kata + keputusan di transaksi
+      // yang sama supaya koreksi dan setujui tidak saling menimpa.
+      const wordSave = await this.prepareWordCorrection(contrib.entityId, input.word!, publish);
+      outcome = await this.contributionRepo.withPendingLock(cmd.contributionId, async (tx) => {
+        const updated = await this.wordRepo.updateWithRelations(contrib.entityId, wordSave, cmd.actorId, tx);
+        if (!updated) {
+          throw new NotFoundError('WORD_NOT_FOUND', 'Kata kontribusi tidak ditemukan');
+        }
+        if (!publish) {
+          return {
+            contributionId: cmd.contributionId,
+            entityType: contrib.entityType,
+            entityId: contrib.entityId,
+            status: 'pending' as const,
+            contributorUserId: contrib.userId,
+          };
+        }
+        return this.contributionRepo.review(reviewCmd, tx);
       });
+    } else if (publish) {
+      outcome = await this.contributionRepo.review(reviewCmd);
     } else {
       // Koreksi saja: patch anak diterapkan tanpa mengubah status kontribusi.
-      // (word sudah ditangani applyWordCorrection di atas)
-      if (contrib.entityType !== 'word') {
-        await this.contributionRepo.applyChildCorrection({
-          entityType: contrib.entityType as 'pronunciation' | 'word_image' | 'word_audio' | 'example',
-          entityId: contrib.entityId,
-          actorId: cmd.actorId,
-          pronunciation: input.pronunciation,
-          wordImage: input.wordImage,
-          wordAudio: input.wordAudio,
-          example: input.example,
-        });
-      }
+      await this.contributionRepo.applyChildCorrection({
+        entityType: contrib.entityType as 'pronunciation' | 'word_image' | 'word_audio' | 'example',
+        entityId: contrib.entityId,
+        actorId: cmd.actorId,
+        pronunciation: input.pronunciation,
+        wordImage: input.wordImage,
+        wordAudio: input.wordAudio,
+        example: input.example,
+      });
       outcome = {
         contributionId: cmd.contributionId,
         entityType: contrib.entityType,
@@ -169,8 +183,8 @@ export class CorrectContributionUseCase {
     return { word_lemma: child.wordLemma, ...child.data, status: child.status, is_verified: child.isVerified };
   }
 
-  // Validasi referensi (pola create-word) lalu replace semantics
-  private async applyWordCorrection(wordId: string, dto: CreateWordDto, actorId: string, publish: boolean): Promise<void> {
+  // Validasi referensi (pola create-word). Tulisan terjadi di withPendingLock.
+  private async prepareWordCorrection(wordId: string, dto: CreateWordDto, publish: boolean) {
     if (dto.wordType === 'word' && dto.relatedWords.some((r) => r.relationType === 'has_component')) {
       throw new ValidationError([
         { field: 'related_words', message: 'has_component hanya untuk entri idiom/peribahasa/ungkapan' },
@@ -211,15 +225,11 @@ export class CorrectContributionUseCase {
 
     const current = await this.wordRepo.findDetailById(wordId, { includeAllStatuses: true });
     const stayLive = !publish && current?.status === 'published';
-    await this.wordRepo.updateWithRelations(
-      wordId,
-      {
-        ...dto,
-        status: publish || stayLive ? 'published' : 'pending_review',
-        isVerified: publish,
-        isCorrected: true,
-      },
-      actorId,
-    );
+    return {
+      ...dto,
+      status: (publish || stayLive ? 'published' : 'pending_review') as 'published' | 'pending_review',
+      isVerified: publish,
+      isCorrected: true,
+    };
   }
 }

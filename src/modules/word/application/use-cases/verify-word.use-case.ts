@@ -21,6 +21,19 @@ export class VerifyWordUseCase {
   ) {}
 
   async execute(cmd: VerifyWordCommand): Promise<void> {
+    const existing = await this.wordRepo.findById(cmd.wordId);
+    if (!existing) {
+      throw new NotFoundError('WORD_NOT_FOUND', 'Kata dengan id tersebut tidak ditemukan');
+    }
+    if (existing.isVerified === cmd.verified) {
+      throw new ConflictError(
+        cmd.verified ? 'WORD_ALREADY_VERIFIED' : 'WORD_ALREADY_UNVERIFIED',
+        cmd.verified
+          ? 'Kata ini sudah terverifikasi'
+          : 'Kata ini belum terverifikasi',
+      );
+    }
+
     if (cmd.verified) {
       const [open] = await db
         .select({ id: wordEditSuggestions.id })
@@ -47,6 +60,15 @@ export class VerifyWordUseCase {
       verifiedAt: new Date(),
     });
     if (!ok) {
+      const again = await this.wordRepo.findById(cmd.wordId);
+      if (again && again.isVerified === cmd.verified) {
+        throw new ConflictError(
+          cmd.verified ? 'WORD_ALREADY_VERIFIED' : 'WORD_ALREADY_UNVERIFIED',
+          cmd.verified
+            ? 'Kata ini sudah terverifikasi'
+            : 'Kata ini belum terverifikasi',
+        );
+      }
       throw new NotFoundError('WORD_NOT_FOUND', 'Kata dengan id tersebut tidak ditemukan');
     }
 

@@ -45,6 +45,7 @@ function makeDeps() {
       contributorUserId: '01CONTRIBUTORULID0000000000',
     })),
     applyChildCorrection: vi.fn().mockResolvedValue(undefined),
+    withPendingLock: vi.fn(async (_id: string, work: (tx: unknown) => Promise<unknown>) => work('lock')),
   } as unknown as ContributionRepository;
   const wordRepo = {
     findDetailById: vi.fn().mockResolvedValue({ id: '01WORDULID000000000000000', lemma: 'makatn', status: 'pending_review', isVerified: false }),
@@ -183,8 +184,9 @@ describe('CorrectContributionUseCase', () => {
       '01WORDULID000000000000000',
       expect.objectContaining({ status: 'published', isVerified: true, isCorrected: true }),
       ACTOR.userId,
+      'lock',
     );
-    expect(contributionRepo.review).toHaveBeenCalledWith(expect.objectContaining({ decision: 'correct' }));
+    expect(contributionRepo.review).toHaveBeenCalledWith(expect.objectContaining({ decision: 'correct' }), 'lock');
     expect(contributionRepo.applyChildCorrection).not.toHaveBeenCalled();
     expect(auditRepo.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -211,6 +213,7 @@ describe('CorrectContributionUseCase', () => {
       '01WORDULID000000000000000',
       expect.objectContaining({ status: 'pending_review', isVerified: false, isCorrected: true }),
       ACTOR.userId,
+      'lock',
     );
     expect(contributionRepo.review).not.toHaveBeenCalled();
     expect(contributionRepo.applyChildCorrection).not.toHaveBeenCalled();
