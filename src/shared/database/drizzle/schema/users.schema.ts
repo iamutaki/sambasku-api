@@ -17,6 +17,8 @@ export const users = sqliteTable(
     // administrator | editor | reviewer | contributor
     role: text('role').notNull().default('contributor'),
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+    // false = akun boleh masuk dan membaca, tetapi tidak boleh mengirim kata/media/usul ubah.
+    canContribute: integer('can_contribute', { mode: 'boolean' }).notNull().default(true),
     emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
     // Avatar publik (GitHub sambasku-images). Null = belum set.
     avatarUrl: text('avatar_url'),

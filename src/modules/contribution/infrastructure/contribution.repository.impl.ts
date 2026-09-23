@@ -622,12 +622,43 @@ export class ContributionRepositoryImpl implements ContributionRepository {
     });
   }
 
-  // Koreksi entity anak TANPA publish (publish=false pada endpoint correct):
-  // patch diterapkan + is_corrected true, status tetap 'pending_review'
-  // (kontribusi tetap pending - belum ada keputusan review).
+  // Koreksi tanpa publish: isi berubah, is_corrected true, kontribusi tetap pending.
+  // Kata/media yang sudah tayang tetap tayang (belum diverifikasi). Yang masih
+  // pending_review (usulan tamu) tetap tersembunyi.
+  private async childStatusAfterQuietCorrection(
+    tx: Tx,
+    cmd: ApplyChildCorrectionCommand,
+  ): Promise<'published' | 'pending_review'> {
+    const id = cmd.entityId;
+    const alive = isNull(
+      cmd.entityType === 'pronunciation'
+        ? pronunciations.deletedAt
+        : cmd.entityType === 'word_image'
+          ? wordImages.deletedAt
+          : cmd.entityType === 'word_audio'
+            ? wordAudios.deletedAt
+            : examples.deletedAt,
+    );
+    const table =
+      cmd.entityType === 'pronunciation'
+        ? pronunciations
+        : cmd.entityType === 'word_image'
+          ? wordImages
+          : cmd.entityType === 'word_audio'
+            ? wordAudios
+            : examples;
+    const [row] = await tx
+      .select({ status: table.status })
+      .from(table)
+      .where(and(eq(table.id, id), alive))
+      .limit(1);
+    return row?.status === 'published' ? 'published' : 'pending_review';
+  }
+
   async applyChildCorrection(cmd: ApplyChildCorrectionCommand): Promise<void> {
     const now = new Date();
     await this.db.transaction(async (tx) => {
+      const nextStatus = await this.childStatusAfterQuietCorrection(tx, cmd);
       switch (cmd.entityType) {
         case 'pronunciation': {
           const p = cmd.pronunciation;
@@ -641,7 +672,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
               audioUrl: p.audioUrl,
               speakerName: p.speakerName,
               notes: p.notes,
-              status: 'pending_review',
+              status: nextStatus,
               isVerified: false,
               isCorrected: true,
               updatedBy: cmd.actorId,
@@ -660,7 +691,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
               providerFileId: p.providerFileId,
               altText: p.altText,
               isPrimary: p.isPrimary,
-              status: 'pending_review',
+              status: nextStatus,
               isVerified: false,
               isCorrected: true,
             })
@@ -676,7 +707,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
               speakerName: p.speakerName,
               dialectId: p.dialectId,
               isPrimary: p.isPrimary,
-              status: 'pending_review',
+              status: nextStatus,
               isVerified: false,
               isCorrected: true,
             })
@@ -693,7 +724,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
               targetSentence: p.targetSentence,
               sourceType: p.sourceType,
               notes: p.notes,
-              status: 'pending_review',
+              status: nextStatus,
               isVerified: false,
               isCorrected: true,
               updatedBy: cmd.actorId,

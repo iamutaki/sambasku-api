@@ -3,6 +3,7 @@ import type { AuditLogRepository } from '@/modules/audit/domain/repositories/aud
 import type { WordRepository } from '../../domain/repositories/word.repository';
 import type { MeaningMedia } from '../../domain/entities/meaning.entity';
 import { resolveChildPublication } from '../utils/resolve-publication';
+import { assertCanContribute } from '../utils/assert-can-contribute';
 import type { Actor } from './create-word.use-case';
 
 export interface AddMeaningDto {
@@ -13,8 +14,7 @@ export interface AddMeaningDto {
 
 // Kontribusi definisi (makna) pada kata existing (17-api-usul-definisi.md).
 // Dipakai jalur "Bantu definisi" untuk kata placeholder (is_have_definition
-// = false). Contributor → pending_review (antrean); verifikator → langsung
-// published + verified. Pola add-pronunciation.
+// = false). Login non-verifikator → published, belum dicek.
 export class AddMeaningUseCase {
   constructor(
     private readonly wordRepo: WordRepository,
@@ -22,6 +22,7 @@ export class AddMeaningUseCase {
   ) {}
 
   async execute(wordId: string, dto: AddMeaningDto, actor: Actor): Promise<MeaningMedia> {
+    await assertCanContribute(actor.userId);
     const word = await this.wordRepo.findById(wordId);
     if (!word) {
       throw new NotFoundError('WORD_NOT_FOUND', 'Kata dengan id tersebut tidak ditemukan');

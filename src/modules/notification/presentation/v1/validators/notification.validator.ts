@@ -9,6 +9,8 @@ export const inboxNotificationTypeSchema = z.enum([
   'suggestion_rejected',
   'suggestion_corrected',
   'word_taken_down',
+  'contribution_paused',
+  'contribution_resumed',
 ]);
 
 export const notificationTargetKindSchema = z.enum(['contribution', 'suggestion', 'word']);

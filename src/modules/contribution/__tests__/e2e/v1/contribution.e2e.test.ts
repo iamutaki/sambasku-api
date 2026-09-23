@@ -101,13 +101,13 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     contributorToken = await login(`kon${stamp}@test.com`);
   });
 
-  it('alur penuh: contributor submit → antrean pending → detail → approve → tayang + terverifikasi', async () => {
-    // 1. Contributor submit → pending_review, tidak tayang
+  it('alur penuh: contributor submit tayang belum dicek → antrean pending → approve menandai terverifikasi', async () => {
     const create = await post('/api/v1/admin/words', validWordBody('kalintiak'), contributorToken);
     expect(create.status).toBe(201);
     const { data: created } = await create.json();
-    expect(created.status).toBe('pending_review');
-    expect((await get(`/api/v1/words/${created.word_id}`)).status).toBe(404);
+    expect(created.status).toBe('published');
+    expect(created.is_verified).toBe(false);
+    expect((await get(`/api/v1/words/${created.word_id}`)).status).toBe(200);
 
     // 2. Muncul di antrean admin (status pending)
     const list = await get('/api/v1/admin/contributions?status=pending&entity_type=word', adminToken);
@@ -125,7 +125,7 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     const detailBody = await detail.json();
     expect(detailBody.data.contribution.id).toBe(item.id);
     expect(detailBody.data.review).toBeNull();
-    expect(detailBody.data.entity).toMatchObject({ lemma: 'kalintiak', status: 'pending_review' });
+    expect(detailBody.data.entity).toMatchObject({ lemma: 'kalintiak', status: 'published', is_verified: false });
 
     // 4. Approve → kata tayang + is_verified true
     const approve = await post(`/api/v1/admin/contributions/${item.id}/approve`, { comment: 'valid' }, adminToken);
@@ -213,7 +213,8 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     );
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.data.status).toBe('pending_review');
+    expect(body.data.status).toBe('published');
+    expect(body.data.is_verified).toBe(false);
 
     const list = await get('/api/v1/admin/contributions?status=pending&entity_type=word', adminToken);
     const item = (await list.json()).data.find(
@@ -238,7 +239,8 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     );
     expect(add.status).toBe(201);
     const added = (await add.json()).data;
-    expect(added.status).toBe('pending_review');
+    expect(added.status).toBe('published');
+    expect(added.is_verified).toBe(false);
 
     const list = await get('/api/v1/admin/contributions?status=pending&entity_type=example', adminToken);
     const item = (await list.json()).data.find((c: { entity_id: string }) => c.entity_id === added.id);

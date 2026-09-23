@@ -24,7 +24,7 @@ import type {
   SuggestionStatus,
   SuggestionReasonCode,
 } from '../domain/entities/word-suggestion.entity';
-import { NotFoundError, ForbiddenError, BadRequestError } from '@/shared/errors/app-error';
+import { NotFoundError, ForbiddenError, BadRequestError, ConflictError } from '@/shared/errors/app-error';
 import { verifyProposedChanges } from '../application/utils/verify-proposed-changes';
 import { applyChangesToWord } from '../application/utils/apply-changes-to-word';
 
@@ -46,6 +46,67 @@ async function getUsernames(ids: string[]): Promise<Record<string, string | null
   const map: Record<string, string | null> = {};
   for (const r of rows) map[r.id] = r.username;
   return map;
+}
+
+async function captureBaseline(
+  wordId: string,
+  lemma: string,
+  notes: string | null,
+  isVerified: boolean,
+) {
+  const meaningRows = await db
+    .select({ id: meanings.id, definition: meanings.definition })
+    .from(meanings)
+    .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)));
+  const meaningIds = meaningRows.map((m) => m.id);
+  const translationRows = meaningIds.length
+    ? await db
+        .select({
+          id: meaningTranslations.id,
+          meaningId: meaningTranslations.meaningId,
+          translationText: meaningTranslations.translationText,
+        })
+        .from(meaningTranslations)
+        .where(and(inArray(meaningTranslations.meaningId, meaningIds), isNull(meaningTranslations.deletedAt)))
+    : [];
+  return {
+    lemma,
+    notes,
+    isVerified,
+    meanings: meaningRows.map((m) => ({
+      id: m.id,
+      definition: m.definition,
+      translations: translationRows
+        .filter((t) => t.meaningId === m.id)
+        .map((t) => ({ id: t.id, translationText: t.translationText })),
+    })),
+  };
+}
+
+async function restoreBaseline(wordId: string, raw: unknown): Promise<void> {
+  const snap = raw as Awaited<ReturnType<typeof captureBaseline>> | null;
+  if (!snap || typeof snap !== 'object' || !snap.lemma) return;
+  await db
+    .update(words)
+    .set({
+      lemma: snap.lemma,
+      notes: snap.notes,
+      isVerified: snap.isVerified,
+      updatedAt: new Date(),
+    })
+    .where(eq(words.id, wordId));
+  for (const meaning of snap.meanings ?? []) {
+    await db
+      .update(meanings)
+      .set({ definition: meaning.definition, updatedAt: new Date() })
+      .where(eq(meanings.id, meaning.id));
+    for (const translation of meaning.translations ?? []) {
+      await db
+        .update(meaningTranslations)
+        .set({ translationText: translation.translationText, updatedAt: new Date() })
+        .where(eq(meaningTranslations.id, translation.id));
+    }
+  }
 }
 
 async function getCurrentWordSnapshot(wordId: string): Promise<CurrentWordSnapshot | null> {
@@ -259,7 +320,9 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
       .select({
         id: words.id,
         lemma: words.lemma,
+        notes: words.notes,
         status: words.status,
+        isVerified: words.isVerified,
         createdBy: words.createdBy,
       })
       .from(words)
@@ -286,6 +349,27 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
       );
     }
 
+    const [open] = await db
+      .select({ id: wordEditSuggestions.id })
+      .from(wordEditSuggestions)
+      .where(
+        and(
+          eq(wordEditSuggestions.wordId, wordId),
+          eq(wordEditSuggestions.status, 'pending'),
+          isNull(wordEditSuggestions.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (open) {
+      throw new ConflictError(
+        'SUGGESTION_ALREADY_PENDING',
+        'Kata ini sudah punya usulan yang belum selesai. Tunggu pemeriksaan tim sebelum mengirim usulan lain.',
+      );
+    }
+
+    const applyNow = !word.isVerified;
+    const baseline = applyNow ? await captureBaseline(wordId, word.lemma, word.notes, word.isVerified) : null;
+
     const [suggestion] = await db
       .insert(wordEditSuggestions)
       .values({
@@ -295,8 +379,13 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
         reason,
         reasonCode,
         status: 'pending',
+        ...(baseline ? { baselineSnapshot: baseline } : {}),
       })
       .returning();
+
+    if (applyNow) {
+      await applyChangesToWord(suggestion.id, userId, 'apply_pending');
+    }
 
     await db.insert(auditLogs).values({
       userId,
@@ -532,6 +621,51 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
     reviewerId: string,
     comment?: string,
   ): Promise<{ applied: boolean; changesApplied: number; wordLemma: string; wordId: string }> {
+    const [row] = await db
+      .select({
+        wordId: wordEditSuggestions.wordId,
+        status: wordEditSuggestions.status,
+        baselineSnapshot: wordEditSuggestions.baselineSnapshot,
+      })
+      .from(wordEditSuggestions)
+      .where(and(eq(wordEditSuggestions.id, id), isNull(wordEditSuggestions.deletedAt)))
+      .limit(1);
+    if (!row) throw new NotFoundError('SUGGESTION_NOT_FOUND', 'Usulan tidak ditemukan');
+    if (row.status !== 'pending') {
+      throw new ConflictError('SUGGESTION_ALREADY_REVIEWED', 'Usulan sudah pernah diverifikasi');
+    }
+    if (row.baselineSnapshot) {
+      const [word] = await db
+        .select({ lemma: words.lemma })
+        .from(words)
+        .where(eq(words.id, row.wordId))
+        .limit(1);
+      await db
+        .update(words)
+        .set({
+          isVerified: true,
+          verifiedBy: reviewerId,
+          verifiedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(words.id, row.wordId));
+      await db
+        .update(wordEditSuggestions)
+        .set({
+          status: 'approved',
+          reviewedBy: reviewerId,
+          reviewedAt: new Date(),
+          reviewComment: comment ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(wordEditSuggestions.id, id));
+      return {
+        applied: false,
+        changesApplied: 0,
+        wordLemma: word?.lemma ?? '',
+        wordId: row.wordId,
+      };
+    }
     return applyChangesToWord(id, reviewerId, 'approve', comment);
   }
 
@@ -540,6 +674,23 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
       throw new BadRequestError('VALIDATION_ERROR', 'Alasan penolakan wajib diisi', [
         { field: 'comment', message: 'Alasan penolakan wajib diisi' },
       ]);
+    }
+    const [current] = await db
+      .select({
+        wordId: wordEditSuggestions.wordId,
+        baselineSnapshot: wordEditSuggestions.baselineSnapshot,
+      })
+      .from(wordEditSuggestions)
+      .where(
+        and(
+          eq(wordEditSuggestions.id, id),
+          eq(wordEditSuggestions.status, 'pending'),
+          isNull(wordEditSuggestions.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (current?.baselineSnapshot) {
+      await restoreBaseline(current.wordId, current.baselineSnapshot);
     }
     const [updated] = await db
       .update(wordEditSuggestions)

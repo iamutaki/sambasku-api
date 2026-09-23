@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { ListAdminUsersUseCase } from '../../application/use-cases/list-admin-users.use-case';
 import type { UpdateUserRoleUseCase } from '../../application/use-cases/update-user-role.use-case';
+import type { SetCanContributeUseCase } from '../../application/use-cases/set-can-contribute.use-case';
 import type { UserRole } from '../../domain/entities/user.entity';
 import type { AppVariables } from '@/shared/types';
 import type { ListAdminUsersQuery, UpdateUserRoleBody } from './validators/admin-users.validator';
@@ -12,6 +13,7 @@ export class AdminUsersController {
     private readonly deps: {
       list: ListAdminUsersUseCase;
       updateRole: UpdateUserRoleUseCase;
+      setCanContribute: SetCanContributeUseCase;
     },
   ) {}
 
@@ -19,6 +21,7 @@ export class AdminUsersController {
     const { items, meta } = await this.deps.list.execute({
       q: query.q,
       role: query.role as UserRole | undefined,
+      canContribute: query.can_contribute,
       limit: query.limit,
       cursor: query.cursor,
     });
@@ -31,6 +34,7 @@ export class AdminUsersController {
         email: u.email,
         role: u.role,
         is_active: u.isActive,
+        can_contribute: u.canContribute,
         created_at: u.createdAt.toISOString(),
         updated_at: u.updatedAt ? u.updatedAt.toISOString() : null,
       })),
@@ -55,5 +59,16 @@ export class AdminUsersController {
     });
 
     return c.json({ success: true as const, data: result });
+  }
+
+  async setCanContribute(c: AdminCtx, targetId: string, canContribute: boolean) {
+    const user = c.get('user')!;
+    const result = await this.deps.setCanContribute.execute({
+      targetUserId: targetId,
+      canContribute,
+      actorId: user.user_id,
+      requestId: c.get('requestId') ?? null,
+    });
+    return c.json({ success: true as const, data: { id: result.id, can_contribute: result.canContribute } });
   }
 }

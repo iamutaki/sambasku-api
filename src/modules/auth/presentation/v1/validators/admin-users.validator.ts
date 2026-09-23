@@ -5,6 +5,10 @@ export const listAdminUsersQuerySchema = z.object({
   q: z.string().max(100).optional(),
   /** Filter exact role (exclude root dari filter UI, tapi backend allow untuk list) */
   role: z.enum(['contributor', 'editor', 'reviewer', 'admin', 'root']).optional(),
+  can_contribute: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   /** ULID cursor halaman sebelumnya (created_at,id compound) */
   cursor: z.string().length(26).optional(),
@@ -22,6 +26,7 @@ const adminUserWireSchema = z.object({
   email: z.string(),
   role: z.enum(['contributor', 'editor', 'reviewer', 'admin', 'root']),
   is_active: z.boolean(),
+  can_contribute: z.boolean(),
   created_at: z.string(),
   updated_at: z.string().nullable(),
 });

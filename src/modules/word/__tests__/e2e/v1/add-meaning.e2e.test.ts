@@ -108,7 +108,7 @@ describe.skipIf(!hasTestDb)('Add Meaning E2E v1 - kontribusi definisi (17 doc)',
     });
   });
 
-  it('kontribusi definisi (contributor) → 201 pending_review, TIDAK tampil di detail publik', async () => {
+  it('kontribusi definisi (contributor) → 201 tayang, belum terverifikasi', async () => {
     const res = await post(
       `/api/v1/words/${wordId}/meanings`,
       {
@@ -120,15 +120,13 @@ describe.skipIf(!hasTestDb)('Add Meaning E2E v1 - kontribusi definisi (17 doc)',
     );
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.data).toMatchObject({ word_id: wordId, status: 'pending_review', is_verified: false });
+    expect(body.data).toMatchObject({ word_id: wordId, status: 'published', is_verified: false });
     expect(body.data.order_index).toBeGreaterThan(1);
     pendingMeaningId = body.data.id;
 
     const detail = await get(`/api/v1/words/${wordId}`);
     const detailBody = await detail.json();
-    // pending tidak bocor; placeholder masih satu-satunya yang tayang
-    expect(detailBody.data.meanings).toHaveLength(1);
-    expect(detailBody.data.meanings[0].is_have_definition).toBe(false);
+    expect(detailBody.data.meanings.some((m: { definition: string }) => m.definition === 'kondisi tidak benar, rusak')).toBe(true);
 
     // antrean admin membawa entity_type meaning + detail payload
     const list = await get('/api/v1/admin/contributions?status=pending&entity_type=meaning', adminToken);

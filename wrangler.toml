@@ -55,7 +55,7 @@ custom_domain = true
 [env.staging.vars]
 NODE_ENV = "staging"
 APP_URL = "https://sambasku-staging.iamutaki.com"
-CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://console-sambasku-staging.iamutaki.com"
+CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://console-sambasku-staging.iamutaki.com,https://sambasku-web-staging.iamutaki.com,https://sambasku-web-staging.ibnuul.workers.dev"
 JWT_ACCESS_TOKEN_TTL = "900"
 JWT_REFRESH_TOKEN_TTL = "2592000"
 MAIL_FROM = "SambasKu <no-reply@iamutaki.com>"

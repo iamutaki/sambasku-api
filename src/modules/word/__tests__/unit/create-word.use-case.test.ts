@@ -135,13 +135,13 @@ describe('CreateWordUseCase', () => {
     );
   });
 
-  it('contributor + status published → pending_review, TIDAK tayang (Section 22 approval gate)', async () => {
+  it('contributor + status published → tayang, belum terverifikasi', async () => {
     const { useCase, wordRepo } = makeDeps();
     const result = await useCase.execute(makeDto({ status: 'published' }), CONTRIBUTOR);
-    expect(result.word.status).toBe('pending_review');
+    expect(result.word.status).toBe('published');
     expect(result.word.isVerified).toBe(false);
     expect(wordRepo.saveWithRelations).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'pending_review', isVerified: false }),
+      expect.objectContaining({ status: 'published', isVerified: false }),
       CONTRIBUTOR.userId,
     );
   });
@@ -429,7 +429,7 @@ describe('CreateWordUseCase', () => {
     );
   });
 
-  it('Role matrix (Section 22): contributor + published → induk DAN semua inline masuk antrean review', async () => {
+  it('Role matrix: contributor + published → induk dan inline tayang, belum terverifikasi', async () => {
     const { useCase, wordRepo } = makeDeps();
     await useCase.execute(
       makeDto({
@@ -443,16 +443,16 @@ describe('CreateWordUseCase', () => {
     );
 
     expect(wordRepo.saveWithInlineRelations).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'pending_review', isVerified: false }),
+      expect.objectContaining({ status: 'published', isVerified: false }),
       CONTRIBUTOR.userId,
       [
         expect.objectContaining({
           // status Form B default = status body induk, TAPI bisa di-override per Form B
           inlineWord: expect.objectContaining({ lemma: 'ngamakn', status: 'draft', isVerified: false }),
         }),
-        // default → ikut status induk yang diminta: contributor + published → pending_review
+        // default ikut induk: contributor + published → tayang, belum dicek
         expect.objectContaining({
-          inlineWord: expect.objectContaining({ lemma: 'badikn', status: 'pending_review', isVerified: false }),
+          inlineWord: expect.objectContaining({ lemma: 'badikn', status: 'published', isVerified: false }),
         }),
       ],
     );

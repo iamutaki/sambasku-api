@@ -5,6 +5,8 @@ import { cors } from 'hono/cors';
 import { env } from '@/shared/config/env';
 import { sql } from 'drizzle-orm';
 import { db } from '@/shared/database/drizzle/client';
+import { bindCanContributeLookup } from '@/modules/word/application/utils/assert-can-contribute';
+import { lookupCanContribute } from '@/modules/word/application/utils/can-contribute-lookup';
 import { errorHandler } from '@/shared/middlewares/error-handler.middleware';
 import { requestIdMiddleware } from '@/shared/middlewares/request-id.middleware';
 import { requestDb } from '@/shared/middlewares/request-db.middleware';
@@ -40,7 +42,8 @@ import { LoginWithFacebookUseCase } from '@/modules/auth/application/use-cases/l
 import { ListAdminUsersUseCase } from '@/modules/auth/application/use-cases/list-admin-users.use-case';
 import { UpdateUserRoleUseCase } from '@/modules/auth/application/use-cases/update-user-role.use-case';
 import { AdminUsersController } from '@/modules/auth/presentation/v1/admin-user.controller';
-import { createAdminUserRoutes } from '@/modules/auth/presentation/v1/admin-user.routes';
+import { SetCanContributeUseCase } from '@/modules/auth/application/use-cases/set-can-contribute.use-case';
+import { createAdminUserRoutes, createContributionAccessRoutes } from '@/modules/auth/presentation/v1/admin-user.routes';
 import { WordRepositoryImpl } from '@/modules/word/infrastructure/word.repository.impl';
 import { CreateWordUseCase } from '@/modules/word/application/use-cases/create-word.use-case';
 import { UpdateWordUseCase } from '@/modules/word/application/use-cases/update-word.use-case';
@@ -225,6 +228,7 @@ import { createVerifierApplicationRoutes } from '@/modules/verifier-application/
 import { createAdminVerifierApplicationRoutes } from '@/modules/verifier-application/presentation/v1/admin-verifier-application.routes';
 
 // ---- Composition root: rakit semua dependency (manual DI, api-base-stack.md Section 2) ----
+bindCanContributeLookup(lookupCanContribute);
 const userRepo = new UserRepositoryImpl(db);
 const refreshTokenRepo = new RefreshTokenRepositoryImpl(db);
 const otpRepo = new EmailVerificationOtpRepositoryImpl(db);
@@ -701,8 +705,13 @@ app.route('/api/v1/admin/dashboard', createDashboardRoutes({ controller: dashboa
 const adminUsersController = new AdminUsersController({
   list: new ListAdminUsersUseCase(userRepo),
   updateRole: new UpdateUserRoleUseCase(userRepo, refreshTokenRepo, auditRepo),
+  setCanContribute: new SetCanContributeUseCase(userRepo, auditRepo, recordInbox),
 });
 app.route('/api/v1/admin/users', createAdminUserRoutes({ controller: adminUsersController, authenticate }));
+app.route(
+  '/api/v1/admin/contribution-access',
+  createContributionAccessRoutes({ controller: adminUsersController, authenticate }),
+);
 
 const verifierApplicationRepo = new VerifierApplicationRepositoryImpl(db);
 const verifierApplicationController = new VerifierApplicationController({

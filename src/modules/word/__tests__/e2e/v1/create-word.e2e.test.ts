@@ -139,19 +139,18 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect(body.data.warnings).toBeUndefined(); // lemma pertama, tidak duplikat
   });
 
-  it('POST (contributor, published) → 201 pending_review - TIDAK tayang (Section 22 approval gate)', async () => {
+  it('POST (contributor, published) → 201 tayang, belum terverifikasi', async () => {
     const res = await post('/api/v1/admin/words', validBody({ lemma: 'minum' }), contributorToken);
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.data.status).toBe('pending_review');
+    expect(body.data.status).toBe('published');
     expect(body.data.is_verified).toBe(false);
 
-    // Tidak tayang: detail publik 404, tidak muncul di search
     const detail = await request(`/api/v1/words/${body.data.word_id}`);
-    expect(detail.status).toBe(404);
+    expect(detail.status).toBe(200);
     const search = await request('/api/v1/words/search?q=minum');
     const searchBody = await search.json();
-    expect(searchBody.data.some((w: { lemma: string }) => w.lemma === 'minum')).toBe(false);
+    expect(searchBody.data.some((w: { lemma: string }) => w.lemma === 'minum')).toBe(true);
   });
 
   it('POST submit kedua lemma sama → warnings duplikat', async () => {
@@ -344,10 +343,11 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect(body.details[0].field).toBe('related_words');
   });
 
-  it('VERIFY: kata pending_review bisa di-verify - tapi tayang tetap lewat antrean approve', async () => {
+  it('VERIFY: kata kontributor yang sudah tayang bisa ditandai terverifikasi', async () => {
     const create = await post('/api/v1/admin/words', validBody({ lemma: 'kata diverifikasi' }), contributorToken);
     const { data } = await create.json();
-    expect(data.status).toBe('pending_review');
+    expect(data.status).toBe('published');
+    expect(data.is_verified).toBe(false);
 
     const res = await request(`/api/v1/admin/words/${data.word_id}/verify`, {
       method: 'POST',
@@ -355,9 +355,9 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     });
     expect(res.status).toBe(200);
 
-    // Masih tidak tayang - publikasi lewat antrean review (03 doc), bukan verify
     const detail = await request(`/api/v1/words/${data.word_id}`);
-    expect(detail.status).toBe(404);
+    expect(detail.status).toBe(200);
+    expect((await detail.json()).data.is_verified).toBe(true);
   });
 
   it('VERIFY: unverify mengembalikan false', async () => {
@@ -468,7 +468,7 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect(ovBody.data.meanings[0].definition).toBe('Mengunyah makanan');
   });
 
-  it('04: contributor + published → induk DAN semua inline pending_review (Section 22 per entitas)', async () => {
+  it('04: contributor + published → induk DAN inline tayang, belum terverifikasi', async () => {
     const res = await post(
       '/api/v1/admin/words',
       validBody({
@@ -479,17 +479,16 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     );
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.data.status).toBe('pending_review');
+    expect(body.data.status).toBe('published');
     expect(body.data.is_verified).toBe(false);
     expect(body.data.inline_created_words[0]).toMatchObject({
       lemma: 'manginum',
-      status: 'pending_review',
+      status: 'published',
       is_verified: false,
     });
 
-    // kata inline pending_review → belum tayang (404 publik)
     const inlineDetail = await request(`/api/v1/words/${body.data.inline_created_words[0].word_id}`);
-    expect(inlineDetail.status).toBe(404);
+    expect(inlineDetail.status).toBe(200);
   });
 
   it('04: gagal validasi → 400 dengan field path related_words.N.word.*', async () => {

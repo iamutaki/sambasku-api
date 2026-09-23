@@ -209,9 +209,16 @@ export class CorrectContributionUseCase {
     const details = mapMissingToDetails(dto, missing);
     if (details.length > 0) throw new ValidationError(details);
 
+    const current = await this.wordRepo.findDetailById(wordId, { includeAllStatuses: true });
+    const stayLive = !publish && current?.status === 'published';
     await this.wordRepo.updateWithRelations(
       wordId,
-      { ...dto, status: publish ? 'published' : 'pending_review', isVerified: publish, isCorrected: true },
+      {
+        ...dto,
+        status: publish || stayLive ? 'published' : 'pending_review',
+        isVerified: publish,
+        isCorrected: true,
+      },
       actorId,
     );
   }

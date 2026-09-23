@@ -39,7 +39,7 @@ describe('AddMeaningUseCase', () => {
 
     expect(wordRepo.addMeaning).toHaveBeenCalledWith(
       WORD_ID,
-      expect.objectContaining({ ...DTO, status: 'pending_review', isVerified: false }),
+      expect.objectContaining({ ...DTO, status: 'published', isVerified: false }),
       ACTOR.userId,
     );
     expect(result).toBe(media);

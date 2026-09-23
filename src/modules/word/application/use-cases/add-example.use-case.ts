@@ -2,6 +2,7 @@ import { NotFoundError, ValidationError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { WordRepository, ExampleMedia } from '../../domain/repositories/word.repository';
 import { resolveChildPublication } from '../utils/resolve-publication';
+import { assertCanContribute } from '../utils/assert-can-contribute';
 import type { Actor } from './create-word.use-case';
 
 export interface AddExampleDto {
@@ -22,6 +23,7 @@ export class AddExampleUseCase {
   ) {}
 
   async execute(meaningId: string, dto: AddExampleDto, actor: Actor): Promise<ExampleMedia> {
+    await assertCanContribute(actor.userId);
     const meaning = await this.wordRepo.findMeaningById(meaningId);
     if (!meaning) {
       throw new NotFoundError('MEANING_NOT_FOUND', 'Makna dengan id tersebut tidak ditemukan');

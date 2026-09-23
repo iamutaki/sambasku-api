@@ -1,23 +1,41 @@
 import type { ChildStatus } from '../../domain/entities/word.entity';
 
-// Section 22 (approval gate): SATU helper untuk semua endpoint submit -
-// create-word + kontribusi media (03-api-kontribusi-verifikasi.md).
-// Role verifikator (admin/editor/root/reviewer) self-verified langsung
-// tayang; contributor masuk antrean pending_review (tidak tayang).
+// Tayang (`status`) dan dipercaya (`isVerified`) terpisah.
+// Verifikator: published + terverifikasi, tidak masuk antrean.
+// Kontributor login: published + belum diverifikasi, antrean tetap pending.
+// Tamu (anonymous): pending_review, tidak tayang, antrean pending.
+// Draft: tidak tayang, tidak masuk antrean.
 export function isVerifierRole(role: string): boolean {
   return ['admin', 'editor', 'root', 'reviewer'].includes(role);
 }
 
-export function resolvePublication(requested: 'draft' | 'published', role: string) {
-  if (requested === 'draft') return { status: 'draft' as const, isVerified: false };
-  const isVerifier = isVerifierRole(role);
-  return isVerifier
-    ? { status: 'published' as const, isVerified: true }
-    : { status: 'pending_review' as const, isVerified: false };
+export interface PublicationDecision {
+  status: 'draft' | 'pending_review' | 'published';
+  isVerified: boolean;
+  needsReview: boolean;
 }
 
-// Konten anak tidak punya 'draft' - langsung gerbang published/pending
-export function resolveChildPublication(role: string): { status: ChildStatus; isVerified: boolean } {
-  const p = resolvePublication('published', role);
-  return { status: p.status as ChildStatus, isVerified: p.isVerified };
+export function resolvePublication(
+  requested: 'draft' | 'published',
+  role: string,
+  options?: { anonymous?: boolean },
+): PublicationDecision {
+  if (requested === 'draft') {
+    return { status: 'draft', isVerified: false, needsReview: false };
+  }
+  if (options?.anonymous) {
+    return { status: 'pending_review', isVerified: false, needsReview: true };
+  }
+  if (isVerifierRole(role)) {
+    return { status: 'published', isVerified: true, needsReview: false };
+  }
+  return { status: 'published', isVerified: false, needsReview: true };
+}
+
+export function resolveChildPublication(
+  role: string,
+  options?: { anonymous?: boolean },
+): { status: ChildStatus; isVerified: boolean; needsReview: boolean } {
+  const p = resolvePublication('published', role, options);
+  return { status: p.status as ChildStatus, isVerified: p.isVerified, needsReview: p.needsReview };
 }

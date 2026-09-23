@@ -8,6 +8,7 @@ import {
   validateAudioFile,
 } from '../utils/validate-audio-file';
 import { resolveChildPublication } from '../utils/resolve-publication';
+import { assertCanContribute } from '../utils/assert-can-contribute';
 import type { Actor } from './create-word.use-case';
 
 export interface UploadPronunciationAudioDto {
@@ -36,6 +37,7 @@ export class UploadPronunciationAudioUseCase {
     dto: UploadPronunciationAudioDto,
     actor: Actor,
   ): Promise<WordAudioMedia> {
+    await assertCanContribute(actor.userId);
     const word = await this.wordRepo.findById(wordId);
     if (!word) {
       throw new NotFoundError('WORD_NOT_FOUND', 'Kata dengan id tersebut tidak ditemukan');

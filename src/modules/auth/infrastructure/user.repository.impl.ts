@@ -2,6 +2,7 @@ import { and, desc, eq, isNull, like, or, lt, sql } from 'drizzle-orm';
 import { users } from '@/shared/database/drizzle/schema';
 import type { AppDatabase } from '@/shared/database/drizzle/client';
 import { NotFoundError } from '@/shared/errors/app-error';
+import { ANONIM_USER_ID } from '@/shared/constants/anonim';
 import type { UserRepository } from '../domain/repositories/user.repository';
 import type { NewUser, User, UserListFilter, UserRole } from '../domain/entities/user.entity';
 
@@ -16,6 +17,7 @@ function toEntity(row: UserRow): User {
     passwordHash: row.passwordHash,
     role: row.role as User['role'],
     isActive: row.isActive,
+    canContribute: row.canContribute,
     emailVerified: row.emailVerified,
     avatarUrl: row.avatarUrl ?? null,
     avatarProvider: row.avatarProvider ?? null,
@@ -80,6 +82,7 @@ export class UserRepositoryImpl implements UserRepository {
         phone: users.phone,
         role: users.role,
         isActive: users.isActive,
+        canContribute: users.canContribute,
         emailVerified: users.emailVerified,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
@@ -92,6 +95,9 @@ export class UserRepositoryImpl implements UserRepository {
         and(
           isNull(users.deletedAt),
           filter.role ? eq(users.role, filter.role) : undefined,
+          filter.canContribute === undefined ? undefined : eq(users.canContribute, filter.canContribute),
+          // User sistem anonim tidak masuk daftar akun yang dihentikan.
+          filter.canContribute === false ? sql`${users.id} != ${ANONIM_USER_ID}` : undefined,
           q
             ? or(
                 like(sql`lower(${users.username})`, `%${q.toLowerCase()}%`),
@@ -112,6 +118,16 @@ export class UserRepositoryImpl implements UserRepository {
       nextCursor: hasMore && page.length > 0 ? page[page.length - 1].id : null,
       hasMore,
     };
+  }
+
+  async setCanContribute(id: string, canContribute: boolean): Promise<boolean> {
+    if (id === ANONIM_USER_ID) return false;
+    const [updated] = await this.db
+      .update(users)
+      .set({ canContribute, updatedAt: new Date() })
+      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .returning({ id: users.id });
+    return !!updated;
   }
 
   async updateRole(id: string, role: UserRole): Promise<void> {

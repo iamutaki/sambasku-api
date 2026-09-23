@@ -28,7 +28,7 @@ export interface ApplyResult {
 export async function applyChangesToWord(
   suggestionId: string,
   reviewerId: string,
-  action: 'approve' | 'correct_and_publish',
+  action: 'approve' | 'correct_and_publish' | 'apply_pending',
   comment?: string,
   customChanges?: ProposedChanges,
 ): Promise<ApplyResult> {
@@ -359,17 +359,19 @@ export async function applyChangesToWord(
     newAudit.images = imageAudit;
   }
 
-  const newStatus = action === 'approve' ? 'approved' : 'corrected';
-  await db
-    .update(wordEditSuggestions)
-    .set({
-      status: newStatus,
-      reviewedBy: reviewerId,
-      reviewedAt: new Date(),
-      reviewComment: comment ?? null,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(wordEditSuggestions.id, suggestionId), isNull(wordEditSuggestions.deletedAt)));
+  if (action !== 'apply_pending') {
+    const newStatus = action === 'approve' ? 'approved' : 'corrected';
+    await db
+      .update(wordEditSuggestions)
+      .set({
+        status: newStatus,
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+        reviewComment: comment ?? null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(wordEditSuggestions.id, suggestionId), isNull(wordEditSuggestions.deletedAt)));
+  }
 
   await db
     .insert(auditLogs)

@@ -96,7 +96,7 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 - kontribusi pronounce/gambar/con
     meaningId = (await detail.json()).data.meanings[0].id;
   });
 
-  it('pronounce (contributor) → 201 pending_review, TIDAK tampil di detail publik', async () => {
+  it('pronounce (contributor) → 201 tayang, belum terverifikasi', async () => {
     const res = await post(
       `/api/v1/words/${wordId}/pronunciations`,
       { notation: 'ipa', value: '/makatn/', speaker_name: 'Pak Daud' },
@@ -104,12 +104,12 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 - kontribusi pronounce/gambar/con
     );
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.data).toMatchObject({ status: 'pending_review', is_verified: false, is_corrected: false });
+    expect(body.data).toMatchObject({ status: 'published', is_verified: false, is_corrected: false });
     expect(body.data.id).toHaveLength(26);
 
     const detail = await get(`/api/v1/words/${wordId}`);
     const detailBody = await detail.json();
-    expect(detailBody.data.pronunciations).toHaveLength(0);
+    expect(detailBody.data.pronunciations.some((p: { value: string }) => p.value === '/makatn/')).toBe(true);
   });
 
   it('gambar (admin) → 201 published + tampil di detail publik', async () => {
@@ -132,14 +132,14 @@ describe.skipIf(!hasTestDb)('Word Media E2E v1 - kontribusi pronounce/gambar/con
     expect(detailBody.data.images.some((i: { alt_text: string }) => i.alt_text === 'Orang makan')).toBe(true);
   });
 
-  it('contoh kalimat (contributor) → pending; bahasa salah → 400', async () => {
+  it('contoh kalimat (contributor) → tayang belum dicek; bahasa salah → 400', async () => {
     const ok = await post(
       `/api/v1/meanings/${meaningId}/examples`,
       { source_language_id: SMB, source_sentence: 'Kami udah makatn.' },
       contributorToken,
     );
     expect(ok.status).toBe(201);
-    expect((await ok.json()).data.status).toBe('pending_review');
+    expect((await ok.json()).data.status).toBe('published');
 
     const bad = await post(
       `/api/v1/meanings/${meaningId}/examples`,

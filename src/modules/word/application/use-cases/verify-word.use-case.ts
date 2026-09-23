@@ -1,4 +1,7 @@
-import { NotFoundError } from '@/shared/errors/app-error';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import { db } from '@/shared/database/drizzle/client';
+import { wordEditSuggestions } from '@/shared/database/drizzle/schema';
+import { ConflictError, NotFoundError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { WordRepository } from '../../domain/repositories/word.repository';
 
@@ -18,6 +21,26 @@ export class VerifyWordUseCase {
   ) {}
 
   async execute(cmd: VerifyWordCommand): Promise<void> {
+    if (cmd.verified) {
+      const [open] = await db
+        .select({ id: wordEditSuggestions.id })
+        .from(wordEditSuggestions)
+        .where(
+          and(
+            eq(wordEditSuggestions.wordId, cmd.wordId),
+            eq(wordEditSuggestions.status, 'pending'),
+            isNotNull(wordEditSuggestions.baselineSnapshot),
+            isNull(wordEditSuggestions.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (open) {
+        throw new ConflictError(
+          'SUGGESTION_ALREADY_PENDING',
+          'Selesaikan usulan yang sudah menimpa kata ini sebelum menandai terverifikasi.',
+        );
+      }
+    }
     const ok = await this.wordRepo.setVerified(cmd.wordId, {
       isVerified: cmd.verified,
       verifiedBy: cmd.actorId,

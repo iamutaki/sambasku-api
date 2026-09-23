@@ -159,9 +159,13 @@ function childStatusOf(wordStatus: WordStatus): ChildStatus {
   return wordStatus === 'published' ? 'published' : 'pending_review';
 }
 
-// Status baris contributions - turunan dari status entity
-function contributionStatusOf(entityStatus: string): 'pending' | 'approved' {
-  return entityStatus === 'pending_review' ? 'pending' : 'approved';
+// Antrean mengikuti "perlu dicek", bukan "belum tayang".
+// pending_review (tamu) dan published yang belum diverifikasi masuk pending.
+// Draft dan publikasi verifikator (published + verified) tidak mengantre.
+function contributionStatusOf(status: string, isVerified: boolean): 'pending' | 'approved' {
+  if (status === 'pending_review') return 'pending';
+  if (status === 'published' && !isVerified) return 'pending';
+  return 'approved';
 }
 
 // Mapping error PostgreSQL untuk insert kontribusi media - jangan bocor 500
@@ -208,7 +212,7 @@ export class WordRepositoryImpl implements WordRepository {
           entityType: 'word',
           entityId: wordId,
           action: 'create',
-          status: contributionStatusOf(word.status),
+          status: contributionStatusOf(word.status, word.isVerified),
           ...(word.searchMissId ? { searchMissId: word.searchMissId } : {}),
         });
 
@@ -270,7 +274,7 @@ export class WordRepositoryImpl implements WordRepository {
           entityType: 'word',
           entityId: wordId,
           action: 'create',
-          status: contributionStatusOf(word.status),
+          status: contributionStatusOf(word.status, word.isVerified),
           ...(word.searchMissId ? { searchMissId: word.searchMissId } : {}),
         });
 
@@ -318,7 +322,7 @@ export class WordRepositoryImpl implements WordRepository {
             entityType: 'word',
             entityId: inlineId,
             action: 'create',
-            status: contributionStatusOf(rel.inlineWord.status),
+            status: contributionStatusOf(rel.inlineWord.status, rel.inlineWord.isVerified),
           });
 
           inlineCreatedWords.push({
@@ -703,7 +707,7 @@ export class WordRepositoryImpl implements WordRepository {
     const rows = await this.db
       .select({ id: words.id })
       .from(words)
-      .where(and(eq(words.status, 'published'), isNull(words.deletedAt)));
+      .where(and(eq(words.status, 'published'), eq(words.isVerified, true), isNull(words.deletedAt)));
     if (rows.length === 0) return null;
 
     const encoder = new TextEncoder();
@@ -1347,7 +1351,7 @@ export class WordRepositoryImpl implements WordRepository {
           entityType: 'pronunciation',
           entityId: row.id,
           action: 'create',
-          status: contributionStatusOf(data.status),
+          status: contributionStatusOf(data.status, data.isVerified),
         });
         return toPronunciation(row);
       });
@@ -1393,7 +1397,7 @@ export class WordRepositoryImpl implements WordRepository {
           entityType: 'word_image',
           entityId: row.id,
           action: 'create',
-          status: contributionStatusOf(data.status),
+          status: contributionStatusOf(data.status, data.isVerified),
         });
         return toWordImage(row);
       });
@@ -1449,7 +1453,7 @@ export class WordRepositoryImpl implements WordRepository {
           entityType: 'word_audio',
           entityId: row.id,
           action: 'create',
-          status: contributionStatusOf(data.status),
+          status: contributionStatusOf(data.status, data.isVerified),
         });
         return toWordAudio(row);
       });
@@ -1554,7 +1558,7 @@ export class WordRepositoryImpl implements WordRepository {
           entityType: 'example',
           entityId: row.id,
           action: 'create',
-          status: contributionStatusOf(data.status),
+          status: contributionStatusOf(data.status, data.isVerified),
         });
         return toExample(row);
       });
@@ -1616,7 +1620,7 @@ export class WordRepositoryImpl implements WordRepository {
           entityType: 'meaning',
           entityId: row.id,
           action: 'create',
-          status: contributionStatusOf(data.status),
+          status: contributionStatusOf(data.status, data.isVerified),
         });
 
         return {
@@ -1919,7 +1923,7 @@ export class WordRepositoryImpl implements WordRepository {
           entityType: 'word',
           entityId: id,
           action: 'update',
-          status: contributionStatusOf(word.status),
+          status: contributionStatusOf(word.status, word.isVerified),
         });
 
         return toWord(wordRow);

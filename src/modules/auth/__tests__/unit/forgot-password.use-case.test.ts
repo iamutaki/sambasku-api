@@ -23,6 +23,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     updatedAt: null,
     deletedAt: null,
     ...overrides,
+    canContribute: overrides.canContribute ?? true,
   };
 }
 

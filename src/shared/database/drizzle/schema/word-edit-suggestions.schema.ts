@@ -30,6 +30,9 @@ export const wordEditSuggestions = sqliteTable(
     reviewedBy: text('reviewed_by').references(() => users.id),
     reviewedAt: integer('reviewed_at', { mode: 'timestamp' }),
     reviewComment: text('review_comment'),
+    // Terisi hanya jika usulan langsung menimpa kata yang belum terverifikasi.
+    // Approve kemudian hanya menandai terverifikasi. Reject mengembalikan snapshot ini.
+    baselineSnapshot: text('baseline_snapshot', { mode: 'json' }),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
     updatedAt: integer('updated_at', { mode: 'timestamp' }),
     deletedAt: integer('deleted_at', { mode: 'timestamp' }),

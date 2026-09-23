@@ -4,6 +4,7 @@ import type { UserRepository } from '../../domain/repositories/user.repository';
 export interface ListAdminUsersCommand {
   q?: string;
   role?: User['role'];
+  canContribute?: boolean;
   limit?: number;
   cursor?: string;
 }
@@ -23,6 +24,7 @@ export class ListAdminUsersUseCase {
     const { items, nextCursor, hasMore } = await this.userRepo.list({
       q: cmd.q,
       role: cmd.role,
+      canContribute: cmd.canContribute,
       limit,
       cursor: cmd.cursor,
     });

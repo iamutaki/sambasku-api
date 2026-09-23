@@ -11,6 +11,7 @@ export interface User {
   passwordHash: string | null;
   role: UserRole;
   isActive: boolean;
+  canContribute: boolean;
   emailVerified: boolean;
   avatarUrl: string | null;
   avatarProvider: string | null;
@@ -28,6 +29,7 @@ export type NewUser = Pick<User, 'username' | 'email' | 'passwordHash' | 'phone'
 export interface UserListFilter {
   q?: string;
   role?: UserRole;
+  canContribute?: boolean;
   limit: number;
   cursor?: string;
 }

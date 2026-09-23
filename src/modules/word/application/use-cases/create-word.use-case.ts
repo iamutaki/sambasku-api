@@ -1,4 +1,5 @@
 import { BadRequestError, NotFoundError, ValidationError } from '@/shared/errors/app-error';
+import { ANONIM_USER_ID } from '@/shared/constants/anonim';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { SearchMissRepository } from '@/modules/search-miss/domain/repositories/search-miss.repository';
 import { normalizeSearchMissTerm } from '@/modules/search-miss/domain/normalize-term';
@@ -16,6 +17,7 @@ import type {
   MeaningOverrideDto,
 } from '../dto/create-word.dto';
 import { resolvePublication } from '../utils/resolve-publication';
+import { assertCanContribute } from '../utils/assert-can-contribute';
 
 export interface InlineCreatedResult {
   /** skema, urut sesuai request - diteruskan ke respons (04) */
@@ -46,6 +48,7 @@ export class CreateWordUseCase {
   ) {}
 
   async execute(dto: CreateWordDto, actor: Actor): Promise<CreateWordResult> {
+    await assertCanContribute(actor.userId);
     // 0a. Provenance search-miss (12-api) - sebelum insert
     await this.assertSearchMissProvenance(dto);
 
@@ -109,7 +112,9 @@ export class CreateWordUseCase {
     }
 
     // 3. Model publikasi (Section 22) PER ENTITAS - induk & tiap kata inline
-    const parentPublication = resolvePublication(dto.status, actor.role);
+    const parentPublication = resolvePublication(dto.status, actor.role, {
+      anonymous: actor.userId === ANONIM_USER_ID,
+    });
     const resolvedRelations = resolveInlineRelations(dto, inlineRelations, actor);
 
     // 4. Simpan atomik - induk + kata inline dlm SATU transaksi (bila ada)
@@ -211,7 +216,9 @@ function resolveInlineRelations(
   return inlineRelations.map((rel) => {
     // status Form B default = status yang dikirim di body induk (bisa di-override)
     const requested = rel.word.status ?? dto.status;
-    const publication = resolvePublication(requested, actor.role);
+    const publication = resolvePublication(requested, actor.role, {
+      anonymous: actor.userId === ANONIM_USER_ID,
+    });
 
     const { meanings, inheritedFrom, inheritedMeaningsCount, overriddenMeaningsCount } =
       resolveMeanings(dto.meanings, rel.word);

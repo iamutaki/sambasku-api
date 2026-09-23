@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import type { WordSuggestionRepositoryImpl } from '../../infrastructure/word-suggestion.repository.impl';
 import type { RecordInboxNotificationUseCase } from '@/modules/notification/application/use-cases/record-inbox-notification.use-case';
 import type { CreateSuggestionRequest } from './validators/suggestion.validator';
+import { assertCanContribute } from '@/modules/word/application/utils/assert-can-contribute';
 import {
   mapProposedChanges,
   resolveReasonFields,
@@ -22,6 +23,7 @@ export class WordSuggestionController {
   constructor(private deps: WordSuggestionControllerDeps) {}
 
   async createSuggestion(c: Context, body: CreateSuggestionRequest, userId: string, wordId: string) {
+    await assertCanContribute(userId);
     const proposed = mapProposedChanges(body.proposed_changes);
     const { reasonCode, reasonDisplay } = resolveReasonFields(body);
     const suggestion = await this.deps.repository.createSuggestion(

@@ -28,6 +28,7 @@ function toUserEntity(row: UserRow): User {
     passwordHash: row.passwordHash,
     role: row.role as User['role'],
     isActive: row.isActive,
+    canContribute: row.canContribute,
     emailVerified: row.emailVerified,
     avatarUrl: row.avatarUrl ?? null,
     avatarProvider: row.avatarProvider ?? null,

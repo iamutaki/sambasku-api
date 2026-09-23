@@ -68,7 +68,31 @@ export function createAdminUserRoutes(deps: AdminUserRoutesDeps) {
     },
   });
 
+  const setContributeRoute = createRoute({
+    method: 'patch',
+    path: '/:id/contribution',
+    tags: ['Admin Users'],
+    summary: 'Izinkan atau hentikan kontribusi akun (admin & root)',
+    request: {
+      params: z.object({ id: z.string().length(26) }),
+      body: { content: json(z.object({ can_contribute: z.boolean() })) },
+    },
+    responses: {
+      200: {
+        description: 'Hak kontribusi diperbarui',
+        content: json(z.object({
+          success: z.literal(true),
+          data: z.object({ id: z.string(), can_contribute: z.boolean() }),
+        })),
+      },
+      400: { description: 'User tidak ditemukan atau user sistem anonim', content: json(errorResponseSchema) },
+    },
+  });
+
   routes.openapi(listRoute, (c) => deps.controller.list(c, c.req.valid('query')) as never);
+  routes.openapi(setContributeRoute, (c) =>
+    deps.controller.setCanContribute(c, c.req.valid('param').id, c.req.valid('json').can_contribute) as never,
+  );
   routes.openapi(updateRoleRoute, (c) =>
     deps.controller.updateRole(
       c,
@@ -77,5 +101,40 @@ export function createAdminUserRoutes(deps: AdminUserRoutesDeps) {
     ) as never,
   );
 
+  return routes;
+}
+
+// Reviewer boleh menghentikan kontribusi dari antrean, tanpa akses ubah peran.
+export function createContributionAccessRoutes(deps: AdminUserRoutesDeps) {
+  const routes = createOpenApiApp();
+  routes.use(
+    '*',
+    deps.authenticate,
+    authorizeRole('admin', 'root', 'reviewer'),
+    rateLimit({ points: 120, duration: 60 }),
+  );
+  const route = createRoute({
+    method: 'patch',
+    path: '/:id',
+    tags: ['Admin Users'],
+    summary: 'Izinkan atau hentikan kontribusi (admin, root, reviewer)',
+    request: {
+      params: z.object({ id: z.string().length(26) }),
+      body: { content: json(z.object({ can_contribute: z.boolean() })) },
+    },
+    responses: {
+      200: {
+        description: 'Hak kontribusi diperbarui',
+        content: json(z.object({
+          success: z.literal(true),
+          data: z.object({ id: z.string(), can_contribute: z.boolean() }),
+        })),
+      },
+      400: { description: 'User tidak ditemukan atau user sistem anonim', content: json(errorResponseSchema) },
+    },
+  });
+  routes.openapi(route, (c) =>
+    deps.controller.setCanContribute(c, c.req.valid('param').id, c.req.valid('json').can_contribute) as never,
+  );
   return routes;
 }
