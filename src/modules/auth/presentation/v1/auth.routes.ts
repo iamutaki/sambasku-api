@@ -1,9 +1,10 @@
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import type { z } from 'zod';
 import { createRoute } from '@hono/zod-openapi';
 import { rateLimit } from '@/shared/middlewares/rate-limit.middleware';
 import { createOpenApiApp } from '@/shared/openapi/openapi-app';
 import { errorResponseSchema, okNullResponseSchema } from '@/shared/openapi/error-response.schema';
+import { UnauthorizedError } from '@/shared/errors/app-error';
 import type { AppVariables } from '@/shared/types';
 import type { AuthController } from './auth.controller';
 import {
@@ -24,10 +25,18 @@ import { resetPasswordSchema, resetPasswordResponseSchema } from './validators/r
 import { changePasswordSchema, changePasswordResponseSchema } from './validators/change-password.validator';
 import { googleLoginSchema, googleLoginResponseSchema } from './validators/google-login.validator';
 import { facebookLoginSchema, facebookLoginResponseSchema } from './validators/facebook-login.validator';
+import {
+  accountDeletionMessageSchema,
+  confirmAccountDeletionSchema,
+  deleteOwnAccountSchema,
+  requestAccountDeletionSchema,
+} from './validators/account-deletion.validator';
+import type { AccountDeletionUseCase } from '../../application/use-cases/account-deletion.use-case';
 
 export interface AuthRoutesDeps {
   controller: AuthController;
   authenticate: MiddlewareHandler<{ Variables: AppVariables }>;
+  accountDeletion: AccountDeletionUseCase;
 }
 
 export function createAuthRoutes(deps: AuthRoutesDeps) {
@@ -42,6 +51,13 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   authRoutes.use('/resend-otp', rateLimit({ points: 1, duration: 120 })); // 1/2 menit per IP
   authRoutes.use('/forgot-password', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
   authRoutes.use('/reset-password', rateLimit({ points: 5, duration: 900 })); // 5/15 menit
+  authRoutes.use('/delete-account/request', rateLimit({ points: 5, duration: 900 }));
+  authRoutes.use('/delete-account/confirm', rateLimit({ points: 5, duration: 900 }));
+  authRoutes.use(
+    '/account',
+    deps.authenticate,
+    rateLimit({ points: 5, duration: 900, keyFn: (c) => `delete-account:${c.get('user')?.user_id}` }),
+  );
   authRoutes.use('/logout-all-devices', deps.authenticate);
   // authenticate HARUS duluan supaya c.get('user') terisi untuk keyFn
   // rate limit (10-api-ubah-password.md): 5/15 menit per user_id
@@ -201,6 +217,44 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     },
   });
 
+  const deleteOwnAccountRoute = createRoute({
+    method: 'delete',
+    path: '/account',
+    tags: ['Auth'],
+    summary: 'Hapus akun sendiri (soft delete + bersihkan data pribadi)',
+    request: { body: { content: json(deleteOwnAccountSchema) } },
+    responses: {
+      200: { description: 'Akun dihapus', content: json(accountDeletionMessageSchema) },
+      400: { description: 'Konfirmasi atau kata sandi tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Sesi tidak valid atau kata sandi salah', content: json(errorResponseSchema) },
+    },
+  });
+
+  const requestAccountDeletionRoute = createRoute({
+    method: 'post',
+    path: '/delete-account/request',
+    tags: ['Auth'],
+    summary: 'Minta kode hapus akun lewat email (response selalu sama)',
+    request: { body: { content: json(requestAccountDeletionSchema) } },
+    responses: {
+      200: { description: 'Kode dikirim jika email terdaftar', content: json(accountDeletionMessageSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+    },
+  });
+
+  const confirmAccountDeletionRoute = createRoute({
+    method: 'post',
+    path: '/delete-account/confirm',
+    tags: ['Auth'],
+    summary: 'Hapus akun dengan kode email',
+    request: { body: { content: json(confirmAccountDeletionSchema) } },
+    responses: {
+      200: { description: 'Akun dihapus', content: json(accountDeletionMessageSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Kode tidak valid atau kedaluwarsa', content: json(errorResponseSchema) },
+    },
+  });
+
   const changePasswordRoute = createRoute({
     method: 'post',
     path: '/change-password',
@@ -232,6 +286,39 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   authRoutes.openapi(forgotPasswordRoute, (c) => deps.controller.forgot(c, c.req.valid('json')) as never);
   authRoutes.openapi(resetPasswordRoute, (c) => deps.controller.reset(c, c.req.valid('json')) as never);
   authRoutes.openapi(changePasswordRoute, (c) => deps.controller.changePassword(c, c.req.valid('json')) as never);
+  authRoutes.openapi(deleteOwnAccountRoute, async (c) => {
+    const typed = c as unknown as Context<{ Variables: AppVariables }>;
+    const user = typed.get('user');
+    if (!user) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const body = c.req.valid('json');
+    await deps.accountDeletion.deleteOwn(
+      { userId: user.user_id, password: body.password, confirmation: body.confirmation },
+      typed.get('requestId'),
+    );
+    return c.json({
+      success: true as const,
+      data: { message: 'Akun dan data pribadi berhasil dihapus.' },
+    }) as never;
+  });
+  authRoutes.openapi(requestAccountDeletionRoute, async (c) => {
+    await deps.accountDeletion.requestByEmail(c.req.valid('json').email);
+    return c.json({
+      success: true as const,
+      data: { message: 'Jika email terdaftar, kode penghapusan telah dikirim' },
+    }) as never;
+  });
+  authRoutes.openapi(confirmAccountDeletionRoute, async (c) => {
+    const body = c.req.valid('json');
+    const typed = c as unknown as Context<{ Variables: AppVariables }>;
+    await deps.accountDeletion.confirmByEmail(
+      { email: body.email, code: body.code, confirmation: body.confirmation },
+      typed.get('requestId'),
+    );
+    return c.json({
+      success: true as const,
+      data: { message: 'Akun dan data pribadi berhasil dihapus.' },
+    }) as never;
+  });
 
   return authRoutes;
 }

@@ -5,6 +5,7 @@ export * from './email-verification-otps.schema';
 export * from './auth-identities.schema';
 export * from './refresh-tokens.schema';
 export * from './password-reset-tokens.schema';
+export * from './account-deletion-tokens.schema';
 export * from './languages.schema';
 export * from './dialects.schema';
 export * from './word-classes.schema';

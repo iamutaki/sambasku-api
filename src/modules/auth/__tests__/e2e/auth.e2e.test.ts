@@ -581,4 +581,73 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     const body = await jsonBody(res);
     expect(body.error_code).toBe('VALIDATION_ERROR');
   });
+
+  const postAccount = (path: string, body: unknown, token?: string) =>
+    app.request(`/api/v1/auth${path}`, {
+      method: path === '/account' ? 'DELETE' : 'POST',
+      body: JSON.stringify(body),
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...xff(),
+      },
+    });
+
+  it('DELETE /account: kata sandi benar menghapus, login lama ditolak', async () => {
+    const email = unique();
+    await registerAndVerify(email);
+    const login = await loginMobile(email, 'Password123');
+    expect(login.status).toBe(200);
+
+    const res = await postAccount(
+      '/account',
+      { password: 'Password123', confirmation: 'HAPUS' },
+      login.body.data.access_token,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      success: true,
+      data: { message: 'Akun dan data pribadi berhasil dihapus.' },
+    });
+    expect((await loginMobile(email, 'Password123')).status).toBe(401);
+  });
+
+  it('DELETE /account: kata sandi salah → 401, akun tetap bisa masuk', async () => {
+    const email = unique();
+    await registerAndVerify(email);
+    const login = await loginMobile(email, 'Password123');
+
+    const res = await postAccount(
+      '/account',
+      { password: 'PasswordSalah1', confirmation: 'HAPUS' },
+      login.body.data.access_token,
+    );
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error_code: 'INVALID_CREDENTIALS' });
+    expect((await loginMobile(email, 'Password123')).status).toBe(200);
+  });
+
+  it('kode email menghapus akun, kode yang sama tidak bisa dipakai dua kali', async () => {
+    const email = unique();
+    await registerAndVerify(email);
+
+    const requestRes = await postAccount('/delete-account/request', { email });
+    expect(requestRes.status).toBe(200);
+
+    const code = capturedOtpDisplayCode();
+    const confirmRes = await postAccount('/delete-account/confirm', {
+      email,
+      code,
+      confirmation: 'HAPUS',
+    });
+    expect(confirmRes.status).toBe(200);
+
+    const again = await postAccount('/delete-account/confirm', {
+      email,
+      code,
+      confirmation: 'HAPUS',
+    });
+    expect(again.status).toBe(401);
+    expect((await loginMobile(email, 'Password123')).status).toBe(401);
+  });
 });

@@ -2,6 +2,7 @@ import { env } from '@/shared/config/env';
 import { logger } from '@/shared/logging/logger';
 import type { MailerPort } from '../application/ports/mailer.port';
 import { rememberOtp } from './otp-capture';
+import { accountDeletionEmailHtml, accountDeletionEmailText } from './account-deletion-email';
 import { DEFAULT_MAIL_FROM, otpEmailHtml, otpEmailText } from './otp-email';
 import { resetPasswordEmailHtml, resetPasswordEmailText } from './reset-password-email';
 import {
@@ -23,6 +24,16 @@ export class ResendMailerService implements MailerPort {
       text: resetPasswordEmailText(displayCode),
       html: resetPasswordEmailHtml(displayCode),
       inlineLogo: true,
+    });
+  }
+
+  async sendAccountDeletionEmail(to: string, displayCode: string, pageUrl: string): Promise<void> {
+    rememberOtp(to, displayCode);
+    await this.send({
+      to,
+      subject: 'Kode hapus akun - SambasKu',
+      text: accountDeletionEmailText(displayCode, pageUrl),
+      html: accountDeletionEmailHtml(displayCode),
     });
   }
 

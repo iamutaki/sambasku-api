@@ -21,6 +21,7 @@ import {
   words,
 } from '@/shared/database/drizzle/schema';
 import type { AppDatabase, AppTransaction } from '@/shared/database/drizzle/client';
+import { publicAccountName } from '@/shared/constants/deleted-account';
 import { ConflictError, ValidationError } from '@/shared/errors/app-error';
 import { publishOrMergeMeaningsInTx } from './publish-or-merge-meanings';
 import type { ChildStatus, LatestWordSummary, Word, WordDetail, WordStatus, WordSummary } from '../domain/entities/word.entity';
@@ -406,8 +407,10 @@ export class WordRepositoryImpl implements WordRepository {
         word: words,
         verifierUsername: verifierUsers.username,
         verifierRole: verifierUsers.role,
+        verifierDeletedAt: verifierUsers.deletedAt,
         creatorUsername: creatorUsers.username,
         creatorRole: creatorUsers.role,
+        creatorDeletedAt: creatorUsers.deletedAt,
       })
       .from(words)
       .leftJoin(verifierUsers, eq(words.verifiedBy, verifierUsers.id))
@@ -559,11 +562,17 @@ export class WordRepositoryImpl implements WordRepository {
       ...toWord(wordRow),
       verifier:
         joined.verifierUsername != null && joined.verifierRole != null
-          ? { username: joined.verifierUsername, role: joined.verifierRole }
+          ? {
+              username: publicAccountName(joined.verifierUsername, joined.verifierDeletedAt)!,
+              role: joined.verifierRole,
+            }
           : null,
       creator:
         joined.creatorUsername != null && joined.creatorRole != null
-          ? { username: joined.creatorUsername, role: joined.creatorRole }
+          ? {
+              username: publicAccountName(joined.creatorUsername, joined.creatorDeletedAt)!,
+              role: joined.creatorRole,
+            }
           : null,
       meanings: meaningRows.map((m) => ({
         id: m.id,
