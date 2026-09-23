@@ -42,9 +42,9 @@ FIREBASE_PROJECT_ID = "sambasku-production"
 FIREBASE_CLIENT_EMAIL = "firebase-adminsdk-fbsvc@sambasku-production.iam.gserviceaccount.com"
 # Gambar publik (kata/avatar) + audio — TOKEN via wrangler secret.
 PUBLIC_IMAGE_PROVIDER = "github"
-PUBLIC_IMAGE_GITHUB_URL = "https://github.com/iamutaki/sambasku-images"
+PUBLIC_IMAGE_GITHUB_URL = "https://github.com/sambasku/images"
 PRONUNCIACION_PROVIDER = "github"
-PRONUNCIACION_GITHUB_URL = "https://github.com/iamutaki/sambasku-pronunciation"
+PRONUNCIACION_GITHUB_URL = "https://github.com/sambasku/audios"
 
 [observability]
 enabled = true
@@ -80,9 +80,9 @@ FIREBASE_PROJECT_ID = "sambasku-staging"
 FIREBASE_CLIENT_EMAIL = "firebase-adminsdk-fbsvc@sambasku-staging.iam.gserviceaccount.com"
 # Gambar publik + audio (GitHub Contents API) — TOKEN via wrangler secret.
 PUBLIC_IMAGE_PROVIDER = "github"
-PUBLIC_IMAGE_GITHUB_URL = "https://github.com/iamutaki/sambasku-images"
+PUBLIC_IMAGE_GITHUB_URL = "https://github.com/sambasku/images"
 PRONUNCIACION_PROVIDER = "github"
-PRONUNCIACION_GITHUB_URL = "https://github.com/iamutaki/sambasku-pronunciation"
+PRONUNCIACION_GITHUB_URL = "https://github.com/sambasku/audios"
 
 [env.staging.observability]
 enabled = true

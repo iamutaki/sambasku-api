@@ -9,6 +9,10 @@ export type PublishOrMergeResult = {
 /**
  * Tayangkan kata, atau merge meanings ke published twin (lemma+bahasa sama)
  * lalu soft-delete sumber (12-api §8). Dipakai WordRepository + review approve.
+ *
+ * @param opts.skipPublishIfNoTwin - true kalau kata sudah published+verified
+ *   (mis. correct publish lewat updateWithRelations). Tanpa twin: return cepat
+ *   tanpa UPDATE words / publishWordChildren. Dengan twin: tetap merge.
  */
 export async function publishOrMergeMeaningsInTx(
   // ponytail: Drizzle tx/db share query builder; avoid NodePg generic coupling
@@ -16,6 +20,7 @@ export async function publishOrMergeMeaningsInTx(
   tx: any,
   wordId: string,
   actorId: string,
+  opts?: { skipPublishIfNoTwin?: boolean },
 ): Promise<PublishOrMergeResult | null> {
   const now = new Date();
   const [word] = await tx
@@ -41,6 +46,9 @@ export async function publishOrMergeMeaningsInTx(
     .limit(1);
 
   if (!twin) {
+    if (opts?.skipPublishIfNoTwin) {
+      return { wordId, mergedIntoWordId: null };
+    }
     // Sudah terverifikasi: tutup antrean tanpa menimpa siapa yang menandai.
     const preserve = word.isVerified === true && word.verifiedBy != null;
     await tx
@@ -129,16 +137,19 @@ async function publishWordChildren(tx: any, wordId: string, actorId: string, now
     .update(meanings)
     .set({ status: 'published', isVerified: true, updatedBy: actorId, updatedAt: now })
     .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)));
-  const meaningRows: { id: string }[] = await tx
-    .select({ id: meanings.id })
-    .from(meanings)
-    .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)));
-  if (meaningRows.length > 0) {
-    await tx
-      .update(examples)
-      .set({ status: 'published', isVerified: true, updatedBy: actorId, updatedAt: now })
-      .where(inArray(examples.meaningId, meaningRows.map((m) => m.id)));
-  }
+  // Set-based: subquery meaning ids - hemat 1 SELECT round-trip vs select lalu inArray.
+  await tx
+    .update(examples)
+    .set({ status: 'published', isVerified: true, updatedBy: actorId, updatedAt: now })
+    .where(
+      and(
+        isNull(examples.deletedAt),
+        inArray(
+          examples.meaningId,
+          tx.select({ id: meanings.id }).from(meanings).where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt))),
+        ),
+      ),
+    );
   await tx
     .update(pronunciations)
     .set({ status: 'published', isVerified: true, updatedBy: actorId, updatedAt: now })

@@ -49,6 +49,7 @@ function makeDeps() {
   } as unknown as ContributionRepository;
   const wordRepo = {
     findDetailById: vi.fn().mockResolvedValue({ id: '01WORDULID000000000000000', lemma: 'makatn', status: 'pending_review', isVerified: false }),
+    findAuditSnapshotById: vi.fn().mockResolvedValue({ lemma: 'makatn', status: 'pending_review', isVerified: false }),
     updateWithRelations: vi.fn().mockResolvedValue({ id: '01WORDULID000000000000000' }),
     findMissingReferences: vi.fn().mockResolvedValue({
       languageId: false, dialectId: false, languages: [], wordClasses: [], categories: [], words: [], dialects: [],
@@ -186,7 +187,14 @@ describe('CorrectContributionUseCase', () => {
       ACTOR.userId,
       'lock',
     );
-    expect(contributionRepo.review).toHaveBeenCalledWith(expect.objectContaining({ decision: 'correct' }), 'lock');
+    expect(contributionRepo.review).toHaveBeenCalledWith(
+      expect.objectContaining({
+        decision: 'correct',
+        alreadyClaimed: true,
+        wordAlreadyLive: true,
+      }),
+      'lock',
+    );
     expect(contributionRepo.applyChildCorrection).not.toHaveBeenCalled();
     expect(auditRepo.record).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -39,12 +39,14 @@ import type {
   SaveWithInlineResult,
   SearchParams,
   WordAudioMedia,
+  WordAuditSnapshot,
   WordImageMedia,
   WordRepository,
   WordToSave,
 } from '../domain/repositories/word.repository';
 import { encodeLatestCursor, encodeListCursor } from '../domain/repositories/word.repository';
 import type { CreateWordRelatedDto } from '../application/dto/create-word.dto';
+import { generateId } from '@/shared/utils/ulid';
 
 function verificationCols(isVerified: boolean, actorId: string, at = new Date()) {
   return isVerified
@@ -438,125 +440,168 @@ export class WordRepositoryImpl implements WordRepository {
       )
       .orderBy(meanings.orderIndex);
 
-    // Kelas kata tersemat per makna (Nomina/Verba/…) - satu query, map by id
     const wordClassIds = [...new Set(meaningRows.map((m) => m.wordClassId).filter((x): x is string => !!x))];
-    const wcRows =
-      wordClassIds.length > 0
-        ? await this.db.select().from(wordClasses).where(inArray(wordClasses.id, wordClassIds))
-        : [];
-    const wcById = new Map(wcRows.map((wc) => [wc.id, wc]));
-
     const meaningIds = meaningRows.map((m) => m.id);
 
-    const translationRows =
-      meaningIds.length > 0
-        ? await this.db
-            .select()
-            .from(meaningTranslations)
-            .where(
-              and(inArray(meaningTranslations.meaningId, meaningIds), isNull(meaningTranslations.deletedAt)),
-            )
-        : [];
+    // Child SELECTs independen setelah meanings → 1 batch (hemat subrequest Workers).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const batchQueries: any[] = [];
+    const batchKeys: string[] = [];
 
-    const exampleRows =
-      meaningIds.length > 0
-        ? await this.db
-            .select()
-            .from(examples)
-            .where(
-              and(
-                inArray(examples.meaningId, meaningIds),
-                isNull(examples.deletedAt),
-                // Approval gate: anak pending/rejected tidak tayang di publik
-                includeAll ? undefined : eq(examples.status, 'published'),
-              ),
-            )
-        : [];
-
-    const categoryRows = await this.db
-      .select({ id: categories.id, name: categories.name })
-      .from(wordCategories)
-      .innerJoin(categories, eq(wordCategories.categoryId, categories.id))
-      .where(eq(wordCategories.wordId, id));
-
-    const pronRows = await this.db
-      .select()
-      .from(pronunciations)
-      .where(
-        and(
-          eq(pronunciations.wordId, id),
-          isNull(pronunciations.deletedAt),
-          includeAll ? undefined : eq(pronunciations.status, 'published'),
-        ),
+    if (wordClassIds.length > 0) {
+      batchKeys.push('wc');
+      batchQueries.push(this.db.select().from(wordClasses).where(inArray(wordClasses.id, wordClassIds)));
+    }
+    if (meaningIds.length > 0) {
+      batchKeys.push('translations');
+      batchQueries.push(
+        this.db
+          .select()
+          .from(meaningTranslations)
+          .where(
+            and(inArray(meaningTranslations.meaningId, meaningIds), isNull(meaningTranslations.deletedAt)),
+          ),
       );
-
-    const imageRows = await this.db
-      .select()
-      .from(wordImages)
-      .where(
-        and(
-          eq(wordImages.wordId, id),
-          isNull(wordImages.deletedAt),
-          includeAll ? undefined : eq(wordImages.status, 'published'),
-        ),
+      batchKeys.push('examples');
+      batchQueries.push(
+        this.db
+          .select()
+          .from(examples)
+          .where(
+            and(
+              inArray(examples.meaningId, meaningIds),
+              isNull(examples.deletedAt),
+              includeAll ? undefined : eq(examples.status, 'published'),
+            ),
+          ),
       );
+    }
 
-    const audioRows = await this.db
-      .select()
-      .from(wordAudios)
-      .where(
-        and(
-          eq(wordAudios.wordId, id),
-          isNull(wordAudios.deletedAt),
-          includeAll ? undefined : eq(wordAudios.status, 'published'),
+    batchKeys.push('categories');
+    batchQueries.push(
+      this.db
+        .select({ id: categories.id, name: categories.name })
+        .from(wordCategories)
+        .innerJoin(categories, eq(wordCategories.categoryId, categories.id))
+        .where(eq(wordCategories.wordId, id)),
+    );
+
+    batchKeys.push('pronunciations');
+    batchQueries.push(
+      this.db
+        .select()
+        .from(pronunciations)
+        .where(
+          and(
+            eq(pronunciations.wordId, id),
+            isNull(pronunciations.deletedAt),
+            includeAll ? undefined : eq(pronunciations.status, 'published'),
+          ),
         ),
-      );
+    );
 
-    // Relasi maju (entri ini → entri lain) + lemma target. Hanya tampil saat
-    // TARGET juga published (Section 7.7: sinonim pending_review belum muncul).
-    const relatedRows = await this.db
-      .select({
-        wordId: lexicalRelations.targetWordId,
-        relationType: lexicalRelations.relationType,
-        lemma: words.lemma,
-      })
-      .from(lexicalRelations)
-      .innerJoin(words, eq(words.id, lexicalRelations.targetWordId))
-      .where(
-        and(
-          eq(lexicalRelations.sourceWordId, id),
-          isNull(lexicalRelations.deletedAt),
-          includeAll ? undefined : and(eq(words.status, 'published'), isNull(words.deletedAt)),
+    batchKeys.push('images');
+    batchQueries.push(
+      this.db
+        .select()
+        .from(wordImages)
+        .where(
+          and(
+            eq(wordImages.wordId, id),
+            isNull(wordImages.deletedAt),
+            includeAll ? undefined : eq(wordImages.status, 'published'),
+          ),
         ),
-      )
-      // Alfabetis lemma, BUKAN id relasi: ULID se-milidetik berurutan acak
-      // (komponen randomness) - order by id bikin urutan flip-flop antar run
-      .orderBy(asc(words.lemma));
+    );
 
-    // Relasi invers (entri lain → entri ini): "muncul dalam" - derived, tak disimpan.
-    // Hanya tampil saat SUMBER relasi published.
-    const appearsRows = await this.db
-      .select({
-        wordId: lexicalRelations.sourceWordId,
-        relationType: lexicalRelations.relationType,
-        lemma: words.lemma,
-      })
-      .from(lexicalRelations)
-      .innerJoin(words, eq(words.id, lexicalRelations.sourceWordId))
-      .where(
-        and(
-          eq(lexicalRelations.targetWordId, id),
-          isNull(lexicalRelations.deletedAt),
-          includeAll ? undefined : and(eq(words.status, 'published'), isNull(words.deletedAt)),
+    batchKeys.push('audios');
+    batchQueries.push(
+      this.db
+        .select()
+        .from(wordAudios)
+        .where(
+          and(
+            eq(wordAudios.wordId, id),
+            isNull(wordAudios.deletedAt),
+            includeAll ? undefined : eq(wordAudios.status, 'published'),
+          ),
         ),
-      )
-      // Alfabetis lemma (konsisten dengan relatedWords di atas)
-      .orderBy(asc(words.lemma));
+    );
 
-    const variantRows = await this.db
-      .select()
-      .from(wordVariants)
-      .where(and(eq(wordVariants.wordId, id), isNull(wordVariants.deletedAt)));
+    batchKeys.push('related');
+    batchQueries.push(
+      this.db
+        .select({
+          wordId: lexicalRelations.targetWordId,
+          relationType: lexicalRelations.relationType,
+          lemma: words.lemma,
+        })
+        .from(lexicalRelations)
+        .innerJoin(words, eq(words.id, lexicalRelations.targetWordId))
+        .where(
+          and(
+            eq(lexicalRelations.sourceWordId, id),
+            isNull(lexicalRelations.deletedAt),
+            includeAll ? undefined : and(eq(words.status, 'published'), isNull(words.deletedAt)),
+          ),
+        )
+        .orderBy(asc(words.lemma)),
+    );
+
+    batchKeys.push('appears');
+    batchQueries.push(
+      this.db
+        .select({
+          wordId: lexicalRelations.sourceWordId,
+          relationType: lexicalRelations.relationType,
+          lemma: words.lemma,
+        })
+        .from(lexicalRelations)
+        .innerJoin(words, eq(words.id, lexicalRelations.sourceWordId))
+        .where(
+          and(
+            eq(lexicalRelations.targetWordId, id),
+            isNull(lexicalRelations.deletedAt),
+            includeAll ? undefined : and(eq(words.status, 'published'), isNull(words.deletedAt)),
+          ),
+        )
+        .orderBy(asc(words.lemma)),
+    );
+
+    batchKeys.push('variants');
+    batchQueries.push(
+      this.db
+        .select()
+        .from(wordVariants)
+        .where(and(eq(wordVariants.wordId, id), isNull(wordVariants.deletedAt))),
+    );
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const batchResults = (await this.db.batch(batchQueries as any)) as any[];
+    const pick = <T>(key: string): T[] => {
+      const i = batchKeys.indexOf(key);
+      return i >= 0 ? ((batchResults[i] ?? []) as T[]) : [];
+    };
+
+    const wcRows = pick<{
+      id: string;
+      code: string;
+      name: string;
+      alias: string | null;
+      description: string | null;
+      parentId: string | null;
+    }>('wc');
+    const wcById = new Map(wcRows.map((wc) => [wc.id, wc]));
+
+    const translationRows = pick<(typeof meaningTranslations.$inferSelect)>('translations');
+    const exampleRows = pick<(typeof examples.$inferSelect)>('examples');
+    const categoryRows = pick<{ id: string; name: string }>('categories');
+    const pronRows = pick<(typeof pronunciations.$inferSelect)>('pronunciations');
+    const imageRows = pick<(typeof wordImages.$inferSelect)>('images');
+    const audioRows = pick<(typeof wordAudios.$inferSelect)>('audios');
+    const relatedRows = pick<{ wordId: string; relationType: string; lemma: string }>('related');
+    const appearsRows = pick<{ wordId: string; relationType: string; lemma: string }>('appears');
+    const variantRows = pick<(typeof wordVariants.$inferSelect)>('variants');
 
     return {
       ...toWord(wordRow),
@@ -1195,60 +1240,113 @@ export class WordRepositoryImpl implements WordRepository {
   }
 
   async findMissingReferences(refs: ReferenceCheck): Promise<MissingReferences> {
-    const languageExists = await this.exists(languages, refs.languageId);
-    const dialectExists = refs.dialectId ? await this.exists(dialects, refs.dialectId) : true;
-
     const uniqueIds = (ids: string[]) => [...new Set(ids)];
     const inline = refs.inline;
 
-    // Gabungan id induk + kata inline - SATU query per tabel (04: validasi
+    // Gabungan id induk + kata inline - SATU batch (04: validasi
     // referensi bersama lalu error dipetakan ke field path yang benar)
     const allWordClassIds = uniqueIds([...refs.wordClassIds, ...inline.wordClassIds]);
     const allLanguageIds = uniqueIds([...refs.languageIds, ...inline.languageIds]);
     const allCategoryIds = uniqueIds([...refs.categoryIds, ...inline.categoryIds]);
     const allVariantDialectIds = uniqueIds([...refs.variantDialectIds, ...inline.variantDialectIds]);
-
-    // Entri terkait (Form A) harus ada DAN belum soft-deleted
     const relatedIds = uniqueIds(refs.relatedWordIds);
-    let missingRelated: string[] = [];
+
+    // Semua SELECT independen → 1 subrequest Turso lewat db.batch (di luar tx).
+    type BatchSlot =
+      | 'language'
+      | 'dialect'
+      | 'related'
+      | 'variantDialects'
+      | 'wordClasses'
+      | 'categories'
+      | 'languages';
+    const slots: BatchSlot[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const queries: any[] = [];
+
+    slots.push('language');
+    queries.push(
+      this.db.select({ id: languages.id }).from(languages).where(eq(languages.id, refs.languageId)).limit(1),
+    );
+
+    if (refs.dialectId) {
+      slots.push('dialect');
+      queries.push(
+        this.db.select({ id: dialects.id }).from(dialects).where(eq(dialects.id, refs.dialectId)).limit(1),
+      );
+    }
+
     if (relatedIds.length > 0) {
-      const rows = await this.db
-        .select({ id: words.id })
-        .from(words)
-        .where(and(inArray(words.id, relatedIds), isNull(words.deletedAt)));
-      const found = new Set(rows.map((r) => r.id));
-      missingRelated = relatedIds.filter((id) => !found.has(id));
+      slots.push('related');
+      queries.push(
+        this.db
+          .select({ id: words.id })
+          .from(words)
+          .where(and(inArray(words.id, relatedIds), isNull(words.deletedAt))),
+      );
     }
 
-    // Dialek yang dipakai variants (kata induk; dialect utama dicek di atas)
-    let missingDialects: string[] = [];
-    let missingInlineDialects: string[] = [];
     if (allVariantDialectIds.length > 0) {
-      const rows = await this.db
-        .select({ id: dialects.id })
-        .from(dialects)
-        .where(inArray(dialects.id, allVariantDialectIds));
-      const found = new Set(rows.map((r) => r.id));
-      missingDialects = uniqueIds(refs.variantDialectIds).filter((id) => !found.has(id));
-      missingInlineDialects = uniqueIds(inline.variantDialectIds).filter((id) => !found.has(id));
+      slots.push('variantDialects');
+      queries.push(
+        this.db.select({ id: dialects.id }).from(dialects).where(inArray(dialects.id, allVariantDialectIds)),
+      );
     }
 
-    // Filter soft-deleted (Section 7: semua tabel wajib soft delete)
-    const wcRows = await this.db
-      .select({ id: wordClasses.id })
-      .from(wordClasses)
-      .where(and(inArray(wordClasses.id, allWordClassIds), isNull(wordClasses.deletedAt)));
-    const catRows = await this.db
-      .select({ id: categories.id })
-      .from(categories)
-      .where(and(inArray(categories.id, allCategoryIds), isNull(categories.deletedAt)));
-    const langRows = await this.db
-      .select({ id: languages.id })
-      .from(languages)
-      .where(inArray(languages.id, allLanguageIds));
-    const wcFound = new Set(wcRows.map((r) => r.id));
-    const catFound = new Set(catRows.map((r) => r.id));
-    const langFound = new Set(langRows.map((r) => r.id));
+    if (allWordClassIds.length > 0) {
+      slots.push('wordClasses');
+      queries.push(
+        this.db
+          .select({ id: wordClasses.id })
+          .from(wordClasses)
+          .where(and(inArray(wordClasses.id, allWordClassIds), isNull(wordClasses.deletedAt))),
+      );
+    }
+
+    if (allCategoryIds.length > 0) {
+      slots.push('categories');
+      queries.push(
+        this.db
+          .select({ id: categories.id })
+          .from(categories)
+          .where(and(inArray(categories.id, allCategoryIds), isNull(categories.deletedAt))),
+      );
+    }
+
+    if (allLanguageIds.length > 0) {
+      slots.push('languages');
+      queries.push(
+        this.db.select({ id: languages.id }).from(languages).where(inArray(languages.id, allLanguageIds)),
+      );
+    }
+
+    const results =
+      queries.length > 0
+        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ((await this.db.batch(queries as any)) as { id: string }[][])
+        : [];
+
+    const bySlot = <T>(slot: BatchSlot): T[] => {
+      const i = slots.indexOf(slot);
+      if (i < 0) return [];
+      return (results[i] ?? []) as T[];
+    };
+
+    const languageExists = bySlot<{ id: string }>('language').length > 0;
+    const dialectExists = refs.dialectId ? bySlot<{ id: string }>('dialect').length > 0 : true;
+
+    const relatedFound = new Set(bySlot<{ id: string }>('related').map((r) => r.id));
+    const missingRelated = relatedIds.filter((id) => !relatedFound.has(id));
+
+    const variantDialectFound = new Set(bySlot<{ id: string }>('variantDialects').map((r) => r.id));
+    const missingDialects = uniqueIds(refs.variantDialectIds).filter((id) => !variantDialectFound.has(id));
+    const missingInlineDialects = uniqueIds(inline.variantDialectIds).filter(
+      (id) => !variantDialectFound.has(id),
+    );
+
+    const wcFound = new Set(bySlot<{ id: string }>('wordClasses').map((r) => r.id));
+    const catFound = new Set(bySlot<{ id: string }>('categories').map((r) => r.id));
+    const langFound = new Set(bySlot<{ id: string }>('languages').map((r) => r.id));
 
     return {
       languageId: !languageExists,
@@ -1853,6 +1951,24 @@ export class WordRepositoryImpl implements WordRepository {
     return row ? toWord(row) : null;
   }
 
+  async findAuditSnapshotById(id: string): Promise<WordAuditSnapshot | null> {
+    const [row] = await this.db
+      .select({
+        lemma: words.lemma,
+        status: words.status,
+        isVerified: words.isVerified,
+      })
+      .from(words)
+      .where(and(eq(words.id, id), isNull(words.deletedAt)))
+      .limit(1);
+    if (!row) return null;
+    return {
+      lemma: row.lemma,
+      status: row.status as WordStatus,
+      isVerified: row.isVerified,
+    };
+  }
+
   async updateWithRelations(id: string, word: WordToSave, actorId: string, tx?: unknown): Promise<Word | null> {
     const run = async (tx: Tx): Promise<Word | null> => {
         // Update baris words
@@ -2093,52 +2209,56 @@ export class WordRepositoryImpl implements WordRepository {
     actorId: string,
     opts?: { inheritedFrom?: Record<number, string>; meaningIdsOut?: string[] },
   ): Promise<void> {
-    for (const [index, meaning] of word.meanings.entries()) {
-      const [meaningRow] = await tx
-        .insert(meanings)
-        .values({
+    // Pre-generate ULID makna di Node → satu INSERT multi-row + translations/
+    // examples tanpa loop RETURNING (hemat N round-trip di dalam tx Workers).
+    const meaningIdByIndex = word.meanings.map(() => generateId());
+    opts?.meaningIdsOut?.push(...meaningIdByIndex);
+
+    if (word.meanings.length > 0) {
+      await tx.insert(meanings).values(
+        word.meanings.map((meaning, index) => ({
+          id: meaningIdByIndex[index],
           wordId,
           wordClassId: meaning.wordClassId,
           inheritedFromMeaningId: opts?.inheritedFrom?.[index] ?? null,
           definition: meaning.definition,
           isHaveDefinition: meaning.isHaveDefinition ?? true,
-          isHaveTranslation: meaning.isHaveTranslation ?? (meaning.translations.length > 0),
+          isHaveTranslation: meaning.isHaveTranslation ?? meaning.translations.length > 0,
           orderIndex: meaning.orderIndex,
-          // Gerbang anak (17): makna ikut status kata - contoh kalimat di
-          // bawah memakai pola yang sama (childStatusOf + isVerified kata)
           status: childStatusOf(word.status),
           isVerified: word.isVerified,
           createdBy: actorId,
-        })
-        .returning();
-      const meaningId = meaningRow.id;
-      opts?.meaningIdsOut?.push(meaningId);
+        })),
+      );
 
-      if (meaning.translations.length > 0) {
-        await tx.insert(meaningTranslations).values(
-          meaning.translations.map((t) => ({
-            meaningId,
-            languageId: t.languageId,
-            translationText: t.translationText,
-            translationType: t.translationType,
-            createdBy: actorId,
-          })),
-        );
+      const translationValues = word.meanings.flatMap((meaning, index) =>
+        meaning.translations.map((t) => ({
+          meaningId: meaningIdByIndex[index],
+          languageId: t.languageId,
+          translationText: t.translationText,
+          translationType: t.translationType,
+          createdBy: actorId,
+        })),
+      );
+      if (translationValues.length > 0) {
+        await tx.insert(meaningTranslations).values(translationValues);
       }
-      if (meaning.examples && meaning.examples.length > 0) {
-        await tx.insert(examples).values(
-          meaning.examples.map((e) => ({
-            meaningId,
-            sourceLanguageId: e.sourceLanguageId,
-            sourceSentence: e.sourceSentence,
-            targetLanguageId: e.targetLanguageId ?? null,
-            targetSentence: e.targetSentence ?? null,
-            sourceType: e.sourceType ?? null,
-            status: childStatusOf(word.status),
-            isVerified: word.isVerified,
-            createdBy: actorId,
-          })),
-        );
+
+      const exampleValues = word.meanings.flatMap((meaning, index) =>
+        (meaning.examples ?? []).map((e) => ({
+          meaningId: meaningIdByIndex[index],
+          sourceLanguageId: e.sourceLanguageId,
+          sourceSentence: e.sourceSentence,
+          targetLanguageId: e.targetLanguageId ?? null,
+          targetSentence: e.targetSentence ?? null,
+          sourceType: e.sourceType ?? null,
+          status: childStatusOf(word.status),
+          isVerified: word.isVerified,
+          createdBy: actorId,
+        })),
+      );
+      if (exampleValues.length > 0) {
+        await tx.insert(examples).values(exampleValues);
       }
     }
 
@@ -2217,10 +2337,5 @@ export class WordRepositoryImpl implements WordRepository {
       description: r.description,
       parentId: r.parentId,
     }));
-  }
-
-  private async exists(table: typeof languages | typeof dialects, id: string): Promise<boolean> {
-    const [row] = await this.db.select({ id: table.id }).from(table).where(eq(table.id, id)).limit(1);
-    return !!row;
   }
 }
