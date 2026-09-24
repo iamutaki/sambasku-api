@@ -12,6 +12,7 @@ import {
   meaningTranslations,
   wordAudios,
   wordCategories,
+  wordImages,
   users,
   wordClasses,
   words,
@@ -59,6 +60,7 @@ function baseWord(overrides: Partial<WordToSave> = {}): WordToSave {
       },
     ],
     wordType: 'word',
+    usageLabels: [],
     categoryIds: [MAKANAN],
     relatedWords: [],
     status: 'published',
@@ -80,6 +82,7 @@ function inlineSynonym(
       languageId: SMB,
       lemma,
       wordType: 'word',
+      usageLabels: [],
       meanings: baseWord().meanings,
       categoryIds: [],
       relatedWords: [],
@@ -407,21 +410,36 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     ]);
   });
 
-  it('EDGE CASE 23505: file gambar dipakai dua kata → ValidationError (bukan 500) + rollback', async () => {
+  it('saveWithRelations: foto stock yang sama boleh dipakai di dua kata', async () => {
+    const gambar = {
+      url: 'https://images.pexels.com/photos/123/example.jpg',
+      provider: 'pexels',
+      providerFileId: 'pexels-photo-123',
+      isPrimary: true,
+    };
+    await repo.saveWithRelations(baseWord({ lemma: 'pertama', images: [gambar] }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'kedua', images: [gambar] }), ACTOR);
+
+    expect(await db.select().from(words)).toHaveLength(2);
+    expect(await db.select().from(wordImages)).toHaveLength(2);
+  });
+
+  it('EDGE CASE: provider_file_id duplikat pada kata yang sama → ValidationError', async () => {
     const gambar = {
       url: 'https://ik.imagekit.io/dev/words/sama.jpg',
       provider: 'imagekit',
       providerFileId: 'file_dipakai_dua',
       isPrimary: true,
     };
-    await repo.saveWithRelations(baseWord({ lemma: 'pertama', images: [gambar] }), ACTOR);
-
     await expect(
-      repo.saveWithRelations(baseWord({ lemma: 'kedua', images: [gambar] }), ACTOR),
+      repo.saveWithRelations(
+        baseWord({
+          lemma: 'ganda',
+          images: [gambar, { ...gambar, isPrimary: false, altText: 'kedua' }],
+        }),
+        ACTOR,
+      ),
     ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR', statusCode: 400 });
-
-    // kata kedua ter-rollback - hanya kata pertama yang ada
-    expect(await db.select().from(words)).toHaveLength(1);
   });
 
   it('PERIBAHASA + has_component: detail frasa menampilkan komponen, detail komponen menampilkan appears_in', async () => {
@@ -653,6 +671,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
             languageId: SMB,
             lemma: 'ngamakn',
             wordType: 'word',
+            usageLabels: [],
             meanings: duaMakna,
             categoryIds: [],
             relatedWords: [],

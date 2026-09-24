@@ -1,5 +1,6 @@
 import type { ProposedChanges } from '../../domain/entities/word-suggestion.entity';
 import { NotFoundError, ConflictError } from '@/shared/errors/app-error';
+import { resolveWordImageProvider } from '@/modules/word/domain/word-image-provider';
 import { db } from '@/shared/database/drizzle/client';
 import {
   wordEditSuggestions,
@@ -315,6 +316,7 @@ export async function applyChangesToWord(
           .values({
             wordId: word.id,
             url: img.url,
+            provider: resolveWordImageProvider(img.provider, 'github'),
             providerFileId: img.providerFileId,
             altText: img.altText ?? null,
             isPrimary: img.isPrimary ?? false,

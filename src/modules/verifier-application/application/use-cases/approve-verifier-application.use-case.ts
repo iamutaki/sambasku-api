@@ -43,7 +43,12 @@ export class ApproveVerifierApplicationUseCase {
       userId: updated.userId,
       title: 'Pengajuan verifikator disetujui',
       body: 'Pengajuan Anda disetujui. Masuk ulang agar peran baru aktif.',
-      data: { type: 'verifier_application_approved', application_id: updated.id },
+      data: {
+        type: 'verifier_application_approved',
+        target_kind: 'verifier_application',
+        target_id: updated.id,
+        application_id: updated.id,
+      },
     });
 
     return { id: updated.id, status: 'approved', role: 'reviewer' };

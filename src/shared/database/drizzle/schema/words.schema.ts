@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { generateId } from '@/shared/utils/ulid';
+import type { UsageLabel } from '@/shared/constants/usage-labels';
 import { languages } from './languages.schema';
 import { users } from './users.schema';
 
@@ -18,6 +19,12 @@ export const words = sqliteTable(
     // word | idiom | peribahasa | ungkapan - jenis entri, bukan topik
     // (topik = categories). Mengaktifkan relasi has_component & filter search.
     wordType: text('word_type').notNull().default('word'),
+    // Register + peringatan konten (closed enum JSON array). Bukan kategori
+    // topik — lihat shared/constants/usage-labels.ts.
+    usageLabels: text('usage_labels', { mode: 'json' })
+      .$type<UsageLabel[]>()
+      .notNull()
+      .default([]),
     // Model publikasi (base-stack.md Section 22 - approval gate):
     // kontribusi contributor masuk antrean review (pending_review, tidak
     // tayang); pending_review/rejected hanya di-set sistem.

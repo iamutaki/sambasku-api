@@ -123,6 +123,43 @@ async function pushOne(
   return false;
 }
 
+async function pushTopic(
+  accessToken: string,
+  projectId: string,
+  topic: string,
+  message: PushMessage,
+): Promise<boolean> {
+  const payload = {
+    message: {
+      topic,
+      notification: { title: message.title, body: message.body },
+      ...(message.data && Object.keys(message.data).length > 0
+        ? { data: message.data }
+        : {}),
+    },
+  };
+
+  const res = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (res.ok) {
+    logger.info({ topic }, 'fcm topic push ok');
+    return true;
+  }
+  const errBody = await res.text();
+  logger.warn({ status: res.status, body: errBody, topic }, 'fcm topic push failed');
+  return false;
+}
+
 export class FcmPushSender implements PushSenderPort {
   readonly isConfigured = true;
 
@@ -146,6 +183,11 @@ export class FcmPushSender implements PushSenderPort {
     const failed = fcmTokens.filter((t) => !success.includes(t));
     return { success, failed };
   }
+
+  async sendToTopic(topic: string, message: PushMessage): Promise<boolean> {
+    const accessToken = await getFcmAccessToken(this.clientEmail, this.privateKey);
+    return pushTopic(accessToken, this.projectId, topic, message);
+  }
 }
 
 /** No-op bila FIREBASE_* belum di-set — boot tetap aman. */
@@ -154,5 +196,9 @@ export class NoopPushSender implements PushSenderPort {
 
   async send(fcmTokens: string[], _message: PushMessage): Promise<PushSendResult> {
     return { success: [], failed: [...fcmTokens] };
+  }
+
+  async sendToTopic(_topic: string, _message: PushMessage): Promise<boolean> {
+    return false;
   }
 }

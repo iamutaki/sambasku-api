@@ -46,6 +46,27 @@ export class NotificationRepositoryImpl implements NotificationRepository {
       });
   }
 
+  async createMany(inputs: CreateInboxNotificationInput[]): Promise<number> {
+    if (inputs.length === 0) return 0;
+    const inserted = await this.db
+      .insert(notifications)
+      .values(
+        inputs.map((input) => ({
+          userId: input.userId,
+          type: input.type,
+          title: input.title,
+          body: input.body,
+          targetKind: input.targetKind,
+          targetId: input.targetId,
+        })),
+      )
+      .onConflictDoNothing({
+        target: [notifications.userId, notifications.targetKind, notifications.targetId],
+      })
+      .returning({ id: notifications.id });
+    return inserted.length;
+  }
+
   async upsertUnread(input: CreateInboxNotificationInput): Promise<void> {
     await this.db
       .insert(notifications)

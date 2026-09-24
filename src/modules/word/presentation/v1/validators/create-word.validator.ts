@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { choiceId, opaqueId } from '@/shared/validation/id';
 import { queryBooleanSchema } from '@/shared/validation/query-boolean';
+import {
+  USAGE_LABELS,
+  hasConflictingUsageLabels,
+} from '@/shared/constants/usage-labels';
+import { wordImageInputSchema } from './word-image-input';
 
 export const ulid = opaqueId;
 const wordClassId = choiceId('Kelas kata');
@@ -16,6 +21,26 @@ export const wordStatusSchema = z.enum([
 
 export const relationTypeSchema = z.enum(['synonym', 'antonym', 'has_component', 'derived_from']);
 export const wordTypeSchema = z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']);
+export const usageLabelSchema = z.enum(USAGE_LABELS);
+
+/** Multi-label tertutup; tolak duplikat dan kombinasi halus+kasar. */
+export const usageLabelsField = z
+  .array(usageLabelSchema)
+  .default([])
+  .superRefine((labels, ctx) => {
+    if (new Set(labels).size !== labels.length) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'usage_labels tidak boleh ada duplikat',
+      });
+    }
+    if (hasConflictingUsageLabels(labels)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Label Halus dan Kasar tidak bisa dipilih bersamaan',
+      });
+    }
+  });
 
 // 11-api-variasi-penulisan.md - item variasi dipakai createWordBodySchema
 // DAN inlineWordSchema (Form B sinonim). Aturan item + dedup antar-item
@@ -178,6 +203,7 @@ const inlineWordSchema = z
     lemma: z.string().trim().min(1, 'Kata tidak boleh kosong').max(255),
     notes: z.string().optional(),
     word_type: wordTypeSchema.default('word'),
+    usage_labels: usageLabelsField,
     category_ids: z
       .array(ulid)
       .default([])
@@ -196,18 +222,7 @@ const inlineWordSchema = z
         value: z.string().trim().min(1, 'Pengucapan tidak boleh kosong'),
       })
       .optional(),
-    images: z
-      .array(
-        z.object({
-          url: z.url('URL gambar tidak valid'),
-          provider_file_id: z.string().trim().min(1, 'provider_file_id wajib diisi'),
-          sha: z.string().trim().min(1).max(128).optional(),
-          alt_text: z.string().trim().max(500).optional(),
-          is_primary: z.boolean().default(false),
-        }),
-      )
-      .max(10, 'Maksimal 10 gambar per kata')
-      .optional(),
+    images: z.array(wordImageInputSchema).max(10, 'Maksimal 10 gambar per kata').optional(),
     // default: ikut status yang dikirim di body induk
     status: z.enum(['draft', 'published']).optional(),
   })
@@ -252,6 +267,7 @@ export const createWordBodySchema = z.object({
   notes: z.string().optional(),
   meanings: z.array(meaningInputObjectSchema).min(1, 'Minimal harus ada 1 makna'),
   word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']).default('word'),
+  usage_labels: usageLabelsField,
   category_ids: z
     .array(ulid)
     .default([])
@@ -328,18 +344,7 @@ export const createWordBodySchema = z.object({
       value: z.string().trim().min(1, 'Pengucapan tidak boleh kosong'),
     })
     .optional(),
-  images: z
-    .array(
-      z.object({
-        url: z.url('URL gambar tidak valid'),
-        provider_file_id: z.string().trim().min(1, 'provider_file_id wajib diisi'),
-        sha: z.string().trim().min(1).max(128).optional(),
-        alt_text: z.string().trim().max(500).optional(),
-        is_primary: z.boolean().default(false),
-      }),
-    )
-    .max(10, 'Maksimal 10 gambar per kata')
-    .optional(),
+  images: z.array(wordImageInputSchema).max(10, 'Maksimal 10 gambar per kata').optional(),
   // Provenance jalur search-miss (12-api) - opsional
   search_miss_id: ulid.optional(),
   status: z.enum(['draft', 'published']).default('draft'),
@@ -686,3 +691,47 @@ export const latestWordsResponseSchema = z.object({
 });
 
 export type ListLatestWordsQueryBody = z.infer<typeof listLatestWordsQuerySchema>;
+
+const duplicateWordItemSchema = z.object({
+  id: z.string(),
+  lemma: z.string(),
+  language_id: z.string(),
+  language_code: z.string(),
+  word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']),
+  status: wordStatusSchema,
+  is_verified: z.boolean(),
+  meanings_count: z.number().int(),
+  created_at: z.string(),
+  suggested_keep: z.boolean(),
+});
+
+export const duplicateWordGroupsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    total_groups: z.number().int(),
+    groups: z.array(
+      z.object({
+        lemma: z.string(),
+        language_id: z.string(),
+        language_code: z.string(),
+        default_keep_word_id: z.string(),
+        items: z.array(duplicateWordItemSchema),
+      }),
+    ),
+  }),
+});
+
+export const mergeDuplicateWordsBodySchema = z.object({
+  keep_word_id: opaqueId,
+  merge_word_ids: z.array(opaqueId).min(1, 'Pilih minimal satu entri untuk digabung'),
+});
+
+export const mergeDuplicateWordsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    keep_word_id: z.string(),
+    merged_word_ids: z.array(z.string()),
+  }),
+});
+
+export type MergeDuplicateWordsBody = z.infer<typeof mergeDuplicateWordsBodySchema>;

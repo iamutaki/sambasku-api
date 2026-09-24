@@ -64,6 +64,8 @@ export class ReviewContributionUseCase {
         body: 'Usulan Anda telah disetujui dan dipublikasikan.',
         data: {
           type: 'contribution_approved',
+          target_kind: 'contribution',
+          target_id: outcome.contributionId,
           contribution_id: outcome.contributionId,
           entity_type: outcome.entityType,
           entity_id: outcome.entityId,

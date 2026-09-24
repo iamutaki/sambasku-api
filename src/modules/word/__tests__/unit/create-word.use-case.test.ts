@@ -36,6 +36,7 @@ function makeDto(overrides: Partial<CreateWordDto> = {}): CreateWordDto {
       },
     ],
     wordType: 'word',
+    usageLabels: [],
     categoryIds: [],
     relatedWords: [],
     status: 'draft',
@@ -50,6 +51,7 @@ function makeWord(overrides: Partial<Word> = {}): Word {
     lemma: 'makatn',
     notes: null,
     wordType: 'word',
+    usageLabels: [],
     status: 'draft',
     isVerified: false,
     verifiedBy: null,
@@ -97,6 +99,10 @@ function makeDeps(missing: Partial<MissingReferences> = {}, duplicate = false, i
     findDuplicate: vi.fn().mockImplementation((_lang: string, lemma: string) =>
       Promise.resolve(inlineDuplicate ? lemma === 'ngamakn' : duplicate),
     ),
+    findById: vi.fn().mockImplementation((id: string) =>
+      Promise.resolve(makeWord({ id, status: 'published', isVerified: true })),
+    ),
+    publishOrMergeMeanings: vi.fn().mockResolvedValue(null),
     findDetailById: vi.fn(),
     search: vi.fn(),
     findMissingReferences: vi.fn().mockResolvedValue({ ...NO_MISSING, ...missing }),
@@ -182,13 +188,58 @@ describe('CreateWordUseCase', () => {
     });
   });
 
-  it('duplikat lemma → warning, TETAP tersimpan', async () => {
+  it('duplikat lemma (draft) → warning gabung saat tayang, TETAP tersimpan', async () => {
     const { useCase } = makeDeps({}, /* duplicate */ true);
     const result = await useCase.execute(makeDto(), ADMIN);
 
     expect(result.word.lemma).toBe('makatn');
     expect(result.warnings).toEqual([
-      { field: 'lemma', message: 'Lemma serupa sudah ada di bahasa ini' },
+      {
+        field: 'lemma',
+        message:
+          'Lemma ini sudah ada. Saat ditayangkan, makna digabung otomatis ke entri yang sudah tayang.',
+      },
+    ]);
+  });
+
+  it('duplikat lemma + published → auto-merge ke kembaran tayang', async () => {
+    const { useCase, wordRepo } = makeDeps({}, true);
+    const keptId = '01WORDULIDKEPT00000000000';
+    (wordRepo.publishOrMergeMeanings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      wordId: keptId,
+      mergedIntoWordId: keptId,
+    });
+    (wordRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeWord({ id: keptId, status: 'published', isVerified: true }),
+    );
+
+    const result = await useCase.execute(makeDto({ status: 'published' }), ADMIN);
+
+    expect(wordRepo.publishOrMergeMeanings).toHaveBeenCalled();
+    expect(result.word.id).toBe(keptId);
+    expect(result.warnings).toEqual([
+      {
+        field: 'lemma',
+        message:
+          'Lemma ini sudah ada. Makna baru digabung otomatis ke entri yang sudah tayang.',
+      },
+    ]);
+  });
+
+  it('duplikat lemma + published tanpa kembaran tayang → arahkan tab Duplikasi', async () => {
+    const { useCase, wordRepo } = makeDeps({}, true);
+    (wordRepo.publishOrMergeMeanings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      wordId: '01WORDULID000000000000000',
+      mergedIntoWordId: null,
+    });
+    const result = await useCase.execute(makeDto({ status: 'published' }), ADMIN);
+
+    expect(result.warnings).toEqual([
+      {
+        field: 'lemma',
+        message:
+          'Lemma ini sudah ada dan entri ini sudah tayang. Selesaikan di tab Duplikasi.',
+      },
     ]);
   });
 
@@ -396,7 +447,11 @@ describe('CreateWordUseCase', () => {
       ADMIN,
     );
     expect(result.inlineWarnings[0]).toEqual([
-      { field: 'related_words.0.word.lemma', message: 'Lemma serupa sudah ada di bahasa ini' },
+      {
+        field: 'related_words.0.word.lemma',
+        message:
+          'Lemma ini sudah ada. Saat ditayangkan, makna digabung otomatis ke entri yang sudah tayang.',
+      },
     ]);
   });
 

@@ -7,9 +7,18 @@ export type InboxNotificationType =
   | 'suggestion_corrected'
   | 'word_taken_down'
   | 'contribution_paused'
-  | 'contribution_resumed';
+  | 'contribution_resumed'
+  | 'translation_help_approved'
+  | 'translation_help_rejected'
+  | 'translation_help_taken_down'
+  | 'campaign';
 
-export type NotificationTargetKind = 'contribution' | 'suggestion' | 'word';
+export type NotificationTargetKind =
+  | 'contribution'
+  | 'suggestion'
+  | 'word'
+  | 'translation_help'
+  | 'campaign';
 
 export interface InboxNotification {
   id: string;
@@ -70,5 +79,23 @@ export function inboxCopyFor(type: InboxNotificationType): { title: string; body
         title: 'Kontribusi dibuka lagi',
         body: 'Kamu bisa mengirim usulan lagi.',
       };
+    case 'translation_help_approved':
+      return {
+        title: 'Bantuan terjemahan tayang',
+        body: 'Permintaan bantuanmu sudah diperiksa dan tayang di feed.',
+      };
+    case 'translation_help_rejected':
+      return {
+        title: 'Bantuan terjemahan ditolak',
+        body: 'Permintaan bantuanmu ditolak. Buka riwayat untuk melihat alasan.',
+      };
+    case 'translation_help_taken_down':
+      return {
+        title: 'Bantuan terjemahan ditarik',
+        body: 'Permintaan bantuanmu ditarik dari feed.',
+      };
+    case 'campaign':
+      // Title/body campaign selalu dari snapshot admin (bukan copy bawaan).
+      return { title: 'Pengumuman', body: '' };
   }
 }

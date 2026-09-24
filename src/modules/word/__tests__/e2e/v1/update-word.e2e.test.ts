@@ -240,8 +240,13 @@ describe.skipIf(!hasTestDb)('Word E2E v1 - Edit Kata (05 doc)', () => {
     );
     expect(res.status).toBe(200);
     const body = await res.json();
+    // Admin + published: auto-merge ke kembaran tayang
     expect(body.data.warnings).toEqual([
-      { field: 'lemma', message: 'Lemma serupa sudah ada di bahasa ini' },
+      {
+        field: 'lemma',
+        message:
+          'Lemma ini sudah ada. Makna baru digabung otomatis ke entri yang sudah tayang.',
+      },
     ]);
   });
 

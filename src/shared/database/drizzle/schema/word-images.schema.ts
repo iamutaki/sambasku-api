@@ -30,7 +30,8 @@ export const wordImages = sqliteTable(
     deletedAt: integer('deleted_at', { mode: 'timestamp' }),
   },
   (t) => [
-    unique('word_images_file_unique').on(t.provider, t.providerFileId),
+    // Per kata: foto stock yang sama boleh dipakai di banyak kata.
+    unique('word_images_word_file_unique').on(t.wordId, t.provider, t.providerFileId),
     index('word_images_word_idx').on(t.wordId),
   ],
 );

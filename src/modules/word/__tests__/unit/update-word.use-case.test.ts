@@ -36,6 +36,7 @@ function makeDto(overrides: Partial<UpdateWordDto> = {}): UpdateWordDto {
       },
     ],
     wordType: 'word',
+    usageLabels: [],
     categoryIds: [],
     relatedWords: [],
     status: 'published',
@@ -50,6 +51,7 @@ function makeDetail(overrides: Partial<WordDetail> = {}): WordDetail {
     lemma: 'makatn lama',
     notes: null,
     wordType: 'word',
+    usageLabels: [],
     status: 'draft',
     isVerified: false,
     verifiedBy: null,
@@ -100,6 +102,7 @@ function makeWord(overrides: Partial<Word> = {}): Word {
     lemma: 'makatn',
     notes: null,
     wordType: 'word',
+    usageLabels: [],
     status: 'published',
     isVerified: true,
     verifiedBy: null,
@@ -126,6 +129,10 @@ function makeDeps(
     findDetailById: vi.fn().mockResolvedValue(opts.existing === undefined ? makeDetail() : opts.existing),
     findMissingReferences: vi.fn().mockResolvedValue(NO_MISSING),
     findDuplicate: vi.fn().mockResolvedValue(opts.duplicate ?? false),
+    findById: vi.fn().mockImplementation((id: string) =>
+      Promise.resolve(makeWord({ id, status: 'published', isVerified: true })),
+    ),
+    publishOrMergeMeanings: vi.fn().mockResolvedValue(null),
     updateWithRelations: vi
       .fn()
       .mockImplementation((_id: string, w: { status: string; isVerified: boolean; isCorrected?: boolean }) =>
@@ -194,11 +201,27 @@ describe('UpdateWordUseCase', () => {
     expect(wordRepo.findDuplicate).toHaveBeenCalledWith('01LANGLANGUAGESMB0000000', 'makatn', WORD_ID);
   });
 
-  it('duplikat lemma lain → warnings (bukan error) - perilaku sama dengan create', async () => {
+  it('duplikat lemma lain + published tanpa kembaran → arahkan tab Duplikasi', async () => {
     const { useCase } = makeDeps({ duplicate: true });
     const result = await useCase.execute(WORD_ID, makeDto(), ADMIN);
     expect(result.warnings).toEqual([
-      { field: 'lemma', message: 'Lemma serupa sudah ada di bahasa ini' },
+      {
+        field: 'lemma',
+        message:
+          'Lemma ini sudah ada dan entri ini sudah tayang. Selesaikan di tab Duplikasi.',
+      },
+    ]);
+  });
+
+  it('duplikat lemma lain + draft → warning gabung saat tayang', async () => {
+    const { useCase } = makeDeps({ duplicate: true });
+    const result = await useCase.execute(WORD_ID, makeDto({ status: 'draft' }), ADMIN);
+    expect(result.warnings).toEqual([
+      {
+        field: 'lemma',
+        message:
+          'Lemma ini sudah ada. Saat ditayangkan, makna digabung otomatis ke entri yang sudah tayang.',
+      },
     ]);
   });
 

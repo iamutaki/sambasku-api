@@ -50,6 +50,9 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan nama (username) yang sudah dipakai |
 | `PHONE_ALREADY_EXISTS` | 409 | Registrasi / pengajuan verifikator dengan nomor HP yang sudah dipakai user lain |
 | `BUG_REPORT_NOT_FOUND` | 404 | Laporan masalah tidak ditemukan / sudah selesai (resolve admin) |
+| `TRANSLATION_HELP_NOT_FOUND` | 404 | Bantuan terjemahan tidak ditemukan / tidak boleh diakses |
+| `TRANSLATION_HELP_REPLY_NOT_FOUND` | 404 | Balasan bantuan terjemahan tidak ditemukan |
+| `TRANSLATION_HELP_NOT_PUBLISHED` | 409 | Balasan hanya untuk bantuan yang sudah tayang |
 | `VERIFIER_APPLICATION_NOT_FOUND` | 404 | Pengajuan verifikator tidak ada (GET me belum apply; detail admin id tidak dikenal) |
 | `VERIFIER_APPLICATION_NOT_REJECTED` | 409 | PATCH me hanya boleh jika status rejected |
 | `ALREADY_VERIFIER` | 403 | POST/PATCH pengajuan oleh user yang role-nya bukan contributor; juga approve jika pemohon sudah bukan contributor |
@@ -86,3 +89,10 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `LEMMA_DEFINITION_PROVIDER_UNAVAILABLE` | 503 | Provider KBBI dinonaktifkan (`KBBI_PROVIDER=none` / `RAF555_BASE_URL=""`) |
 | `SHARE_BACKGROUND_PROVIDER_ERROR` | 502 | Unsplash gagal (timeout / non-OK / payload); endpoint share biasanya swallow → items [] |
 | `SHARE_BACKGROUND_PROVIDER_UNAVAILABLE` | 503 | `UNSPLASH_ACCESS_KEY` kosong (provider internal); endpoint publik tetap 200 + items [] |
+| `TEMPLATE_NOT_FOUND` | 404 | Template notifikasi campaign tidak ditemukan / sudah dihapus |
+| `CAMPAIGN_NOT_FOUND` | 404 | Campaign notifikasi tidak ditemukan |
+| `CAMPAIGN_NOT_CANCELLABLE` | 400 | Cancel hanya untuk status draft/scheduled |
+| `CAMPAIGN_NOT_SENDABLE` | 400 | Send hanya dari draft/scheduled |
+| `CAMPAIGN_NOT_RETRYABLE` | 400 | Retry hanya setelah completed/failed |
+| `RETRY_NOT_SUPPORTED` | 400 | Retry hanya untuk audience selected |
+| `NO_FAILED_RECIPIENTS` | 400 | Tidak ada penerima gagal untuk di-retry |

@@ -1,3 +1,5 @@
+import type { UsageLabel } from '@/shared/constants/usage-labels';
+
 export interface CreateWordTranslationDto {
   languageId: string;
   translationText: string;
@@ -26,10 +28,10 @@ export interface CreateWordMeaningDto {
 
 export interface CreateWordImageDto {
   url: string;
-  /** diisi presentation layer dari provider AKTIF (bukan dari client) */
+  /** Stock Media Explorer ATAU nama storage aktif (dari presentation layer) */
   provider: string;
   providerFileId: string;
-  /** Blob sha GitHub — opsional; ImageKit lama null */
+  /** Blob sha GitHub — opsional; stock / ImageKit lama null */
   sha?: string | null;
   altText?: string;
   isPrimary?: boolean;
@@ -57,6 +59,7 @@ export interface InlineWordDto {
   lemma: string;
   notes?: string;
   wordType?: WordType;
+  usageLabels?: UsageLabel[];
   categoryIds?: string[];
   /**
    * DEFAULT true - ikut definisi/makna induk (disalin materialized).
@@ -95,6 +98,7 @@ export interface CreateWordDto {
   lemma: string;
   notes?: string;
   wordType: WordType;
+  usageLabels: UsageLabel[];
   meanings: CreateWordMeaningDto[];
   categoryIds: string[];
   relatedWords: CreateWordRelatedDto[];

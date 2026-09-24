@@ -52,6 +52,7 @@ describe('NotifyUserUseCase', () => {
     const push: PushSenderPort = {
       isConfigured: false,
       send: vi.fn(),
+      sendToTopic: vi.fn(),
     };
     const useCase = new NotifyUserUseCase(repo, push);
     await useCase.execute({
@@ -68,6 +69,7 @@ describe('NotifyUserUseCase', () => {
     const push: PushSenderPort = {
       isConfigured: true,
       send: vi.fn().mockResolvedValue({ success: ['fcm-a', 'fcm-b'], failed: [] }),
+      sendToTopic: vi.fn(),
     };
     const useCase = new NotifyUserUseCase(repo, push);
     await useCase.execute({

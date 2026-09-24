@@ -13,4 +13,6 @@ export interface PushSendResult {
 export interface PushSenderPort {
   readonly isConfigured: boolean;
   send(fcmTokens: string[], message: PushMessage): Promise<PushSendResult>;
+  /** Kirim ke FCM topic (1 request). Return false jika gagal / no-op. */
+  sendToTopic(topic: string, message: PushMessage): Promise<boolean>;
 }

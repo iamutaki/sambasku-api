@@ -4,12 +4,13 @@ import type {
   MeaningOverrideDto,
 } from '../../application/dto/create-word.dto';
 import type { UpdateWordDto } from '../../application/dto/update-word.dto';
+import { resolveWordImageProvider } from '../../domain/word-image-provider';
 import type { CreateWordBody } from './validators/create-word.validator';
 import type { UpdateWordBody } from './validators/update-word.validator';
 
 // Mapping snake_case (API) → camelCase (DTO) - dipakai create-word dan
 // correct-contribution (modul contribution) supaya mapping tidak dobel.
-// provider gambar selalu dari provider AKTIF (composition root), bukan client.
+// Provider stock (Media Explorer) dari client; absen/github → storage aktif.
 export function toCreateWordDto(body: CreateWordBody, imageProviderName: string): CreateWordDto {
   return {
     languageId: body.language_id,
@@ -17,6 +18,7 @@ export function toCreateWordDto(body: CreateWordBody, imageProviderName: string)
     lemma: body.lemma,
     notes: body.notes,
     wordType: body.word_type,
+    usageLabels: body.usage_labels,
     meanings: body.meanings.map((m, i) => ({
       wordClassId: m.word_class_id,
       definition: m.definition,
@@ -54,7 +56,7 @@ export function toCreateWordDto(body: CreateWordBody, imageProviderName: string)
     pronunciation: body.pronunciation,
     images: body.images?.map((img) => ({
       url: img.url,
-      provider: imageProviderName,
+      provider: resolveWordImageProvider(img.provider, imageProviderName),
       providerFileId: img.provider_file_id,
       sha: img.sha ?? null,
       altText: img.alt_text,
@@ -103,6 +105,7 @@ function toInlineWordDto(w: InlineWordBody, imageProviderName: string): InlineWo
     lemma: w.lemma,
     notes: w.notes,
     wordType: w.word_type as InlineWordDto['wordType'],
+    usageLabels: w.usage_labels,
     categoryIds: w.category_ids,
     inheritMeanings: w.inherit_meanings ?? true,
     meaningOverrides: overrides?.length ? overrides : undefined,
@@ -136,7 +139,7 @@ function toInlineWordDto(w: InlineWordBody, imageProviderName: string): InlineWo
     pronunciation: w.pronunciation,
     images: w.images?.map((img) => ({
       url: img.url,
-      provider: imageProviderName,
+      provider: resolveWordImageProvider(img.provider, imageProviderName),
       providerFileId: img.provider_file_id,
       sha: img.sha ?? null,
       altText: img.alt_text,

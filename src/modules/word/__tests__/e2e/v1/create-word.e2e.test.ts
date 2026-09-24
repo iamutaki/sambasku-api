@@ -158,7 +158,11 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.data.warnings).toEqual([
-      { field: 'lemma', message: 'Lemma serupa sudah ada di bahasa ini' },
+      {
+        field: 'lemma',
+        message:
+          'Lemma ini sudah ada. Saat ditayangkan, makna digabung otomatis ke entri yang sudah tayang.',
+      },
     ]);
   });
 

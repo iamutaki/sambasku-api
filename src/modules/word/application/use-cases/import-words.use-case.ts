@@ -147,6 +147,7 @@ export class ImportWordsUseCase {
           })),
           categoryIds: [],
           relatedWords: [],
+          usageLabels: [],
           status: publication.status,
           isVerified: publication.isVerified,
         },

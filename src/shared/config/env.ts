@@ -92,7 +92,11 @@ const envSchema = z.object({
   FIREBASE_CLIENT_EMAIL: z.string().optional(),
   FIREBASE_PRIVATE_KEY: z.string().optional(),
 
-  APP_URL: z.url().default('http://localhost:5173'), // basis link reset password
+  APP_URL: z.url().default('http://localhost:5173'), // legacy; prefer WEB_APP_URL
+  // Basis link user-facing (email reset / hapus akun / deep link HTTPS).
+  // Harus domain web publik (sambasku.com), BUKAN host API, supaya
+  // Universal Links / App Links membuka app. Kosong = fallback APP_URL.
+  WEB_APP_URL: z.url().optional(),
 
   // Domain cookie refresh_token. Kosong (dev/test) = host-only seperti semula.
   // Di production diisi `.sambasku.com` supaya browser mengirim cookie ke SEMUA
@@ -122,6 +126,8 @@ const parsed = envSchema.parse(process.env);
 export const env = {
   ...parsed,
   CORS_ALLOWED_ORIGINS: parsed.CORS_ALLOWED_ORIGINS.split(',').map((o) => o.trim()),
+  /** Domain web publik untuk email + deep link. Fallback APP_URL. */
+  webAppUrl: parsed.WEB_APP_URL ?? parsed.APP_URL,
 };
 
 // Aplikasi CRASH saat start kalau ada env wajib yang hilang/salah format
