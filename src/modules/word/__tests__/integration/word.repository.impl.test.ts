@@ -407,6 +407,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
         sha: null,
         altText: 'Orang sedang makan',
         isPrimary: true,
+        contentWarnings: [],
         // ImageKit staging tidak auto-verified; kata induk juga belum verified
         isVerified: false,
       },
