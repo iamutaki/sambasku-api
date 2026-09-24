@@ -157,11 +157,12 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
     const res = await post('/api/v1/admin/words', validBody(), adminToken);
     expect(res.status).toBe(201);
     const body = await res.json();
+    // Admin + published: auto-merge ke kembaran tayang
     expect(body.data.warnings).toEqual([
       {
         field: 'lemma',
         message:
-          'Lemma ini sudah ada. Saat ditayangkan, makna digabung otomatis ke entri yang sudah tayang.',
+          'Lemma ini sudah ada. Makna baru digabung otomatis ke entri yang sudah tayang.',
       },
     ]);
   });
