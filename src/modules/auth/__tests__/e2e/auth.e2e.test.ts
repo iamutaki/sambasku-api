@@ -466,6 +466,114 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(body.error_code).toBe('VALIDATION_ERROR');
   });
 
+  it('POST /google/link lalu login Google dual-method; DELETE unlink', async () => {
+    const email = unique();
+    await register(email);
+    const verifyRes = await client.api.v1.auth['verify-email'].$post(
+      { json: { email, code: capturedOtpDisplayCode(), client_type: 'mobile' } },
+      { headers: xff() },
+    );
+    expect(verifyRes.status).toBe(200);
+    const accessToken = (await verifyRes.json()).data.access_token as string;
+    const sub = `sub-link-${email}`;
+
+    const linkRes = await withGoogleVerifier(
+      {
+        verify: async () => ({
+          sub,
+          email: `g-${email}`,
+          emailVerified: true,
+          name: 'Linked',
+        }),
+      },
+      () =>
+        app.request('/api/v1/auth/google/link', {
+          method: 'POST',
+          body: JSON.stringify({ id_token: 'link-token' }),
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${accessToken}`,
+            ...xff(),
+          },
+        }) as Promise<Response>,
+    );
+    expect(linkRes.status).toBe(200);
+    expect(await jsonBody(linkRes)).toMatchObject({
+      success: true,
+      data: { provider: 'google' },
+    });
+
+    const providersRes = await app.request('/api/v1/auth/providers', {
+      headers: { authorization: `Bearer ${accessToken}`, ...xff() },
+    });
+    expect(providersRes.status).toBe(200);
+    const providersBody = await jsonBody(providersRes);
+    expect(providersBody.data.providers.some((p: { provider: string }) => p.provider === 'google')).toBe(
+      true,
+    );
+
+    const loginRes = await withGoogleVerifier(
+      {
+        verify: async () => ({
+          sub,
+          email: `g-${email}`,
+          emailVerified: true,
+          name: 'Linked',
+        }),
+      },
+      () => postGoogle({ id_token: 'login-after-link', client_type: 'mobile' }),
+    );
+    expect(loginRes.status).toBe(200);
+
+    const unlinkRes = await app.request('/api/v1/auth/google/link', {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${accessToken}`, ...xff() },
+    });
+    expect(unlinkRes.status).toBe(200);
+  });
+
+  it('PATCH /users/me updates display_name + bio; GET public reflects', async () => {
+    const email = unique();
+    const name = `user${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const regRes = await client.api.v1.auth.register.$post(
+      {
+        json: {
+          name,
+          email,
+          password: 'Password123',
+          confirm_password: 'Password123',
+        },
+      },
+      { headers: xff() },
+    );
+    expect(regRes.status).toBe(201);
+    const verifyRes = await client.api.v1.auth['verify-email'].$post(
+      { json: { email, code: capturedOtpDisplayCode(), client_type: 'mobile' } },
+      { headers: xff() },
+    );
+    expect(verifyRes.status).toBe(200);
+    const accessToken = (await verifyRes.json()).data.access_token as string;
+
+    const patchRes = await app.request('/api/v1/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify({ display_name: 'Nama Baru', bio: 'Bio singkat' }),
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+    });
+    expect(patchRes.status).toBe(200);
+    expect(await jsonBody(patchRes)).toMatchObject({
+      data: { username: name, display_name: 'Nama Baru', bio: 'Bio singkat' },
+    });
+
+    const publicRes = await app.request(`/api/v1/users/${encodeURIComponent(name)}`);
+    expect(publicRes.status).toBe(200);
+    expect(await jsonBody(publicRes)).toMatchObject({
+      data: { username: name, display_name: 'Nama Baru', bio: 'Bio singkat' },
+    });
+  });
+
   // ---- POST /api/v1/auth/facebook (AUTH_FACEBOOK.md) — mock verifier, jangan hit Graph ----
   const postFacebook = (body: unknown, headers: Record<string, string> = {}) =>
     app.request('/api/v1/auth/facebook', {

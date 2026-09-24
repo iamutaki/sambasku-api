@@ -26,6 +26,7 @@ import {
   updateWordSchema,
 } from './validators/update-word.validator';
 import { takedownWordBodySchema } from '@/modules/word-report/presentation/v1/validators/word-report.validator';
+import { importWordsBodySchema, importWordsResponseSchema } from './validators/import-words.validator';
 
 const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
@@ -85,6 +86,35 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
 
   routes.openapi(listAdminWordsRoute, (c) => deps.controller.listAdmin(c, c.req.valid('query')) as never);
   routes.openapi(createWordRoute, (c) => deps.controller.create(c, c.req.valid('json')) as never);
+
+  routes.use(
+    '/import',
+    deps.authenticate,
+    authorizeRole('admin', 'editor', 'root', 'reviewer'),
+    rateLimit({
+      points: 30,
+      duration: 60,
+      keyFn: (c) => {
+        const user = (c.get('user') as AuthUser | undefined) ?? null;
+        return `word-import:${user?.user_id ?? 'unknown'}`;
+      },
+    }),
+  );
+  const importWordsRoute = createRoute({
+    method: 'post',
+    path: '/import',
+    tags: ['Words', 'Admin'],
+    summary: 'Impor kata dari CSV yang sudah dipratinjau (maksimal 25 kata)',
+    request: { body: { content: json(importWordsBodySchema) } },
+    responses: {
+      200: { description: 'Hasil cek tanpa menulis', content: json(importWordsResponseSchema) },
+      201: { description: 'Kata atau makna tersimpan', content: json(importWordsResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+    },
+  });
+  routes.openapi(importWordsRoute, (c) => deps.controller.importWords(c, c.req.valid('json')) as never);
 
   // Edit kata (05-api-edit-kata.md) - verifier team saja: perubahan
   // contributor atas entri existing adalah kontribusi → jalur antrean

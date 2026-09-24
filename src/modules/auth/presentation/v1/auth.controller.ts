@@ -15,9 +15,15 @@ import type { VerifyEmailUseCase } from '../../application/use-cases/verify-emai
 import type { ResendOtpUseCase } from '../../application/use-cases/resend-otp.use-case';
 import type { LoginWithGoogleUseCase } from '../../application/use-cases/login-with-google.use-case';
 import type { LoginWithFacebookUseCase } from '../../application/use-cases/login-with-facebook.use-case';
+import type {
+  LinkGoogleAccountUseCase,
+  ListAuthProvidersUseCase,
+  UnlinkGoogleAccountUseCase,
+} from '../../application/use-cases/link-google-account.use-case';
 import type { RegisterBody } from './validators/register.validator';
 import type { LoginBody } from './validators/login.validator';
 import type { GoogleLoginBody } from './validators/google-login.validator';
+import type { GoogleLinkBody } from './validators/google-link.validator';
 import type { FacebookLoginBody } from './validators/facebook-login.validator';
 import type { ForgotPasswordBody } from './validators/forgot-password.validator';
 import type { ResetPasswordBody } from './validators/reset-password.validator';
@@ -51,6 +57,9 @@ export class AuthController {
       resendOtp: ResendOtpUseCase;
       google: LoginWithGoogleUseCase;
       facebook: LoginWithFacebookUseCase;
+      listProviders: ListAuthProvidersUseCase;
+      linkGoogle: LinkGoogleAccountUseCase;
+      unlinkGoogle: UnlinkGoogleAccountUseCase;
     },
   ) {}
 
@@ -202,6 +211,44 @@ export class AuthController {
     return c.json({
       success: true as const,
       data: { message: 'Password berhasil diubah. Silakan login kembali.' },
+    });
+  }
+
+  async listProviders(c: Context) {
+    const user = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!user) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const providers = await this.deps.listProviders.execute(user.user_id);
+    return c.json({
+      success: true as const,
+      data: {
+        providers: providers.map((p) => ({
+          provider: p.provider,
+          linked_at: p.linkedAt.toISOString(),
+        })),
+      },
+    });
+  }
+
+  async linkGoogle(c: Context, body: GoogleLinkBody) {
+    const user = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!user) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const identity = await this.deps.linkGoogle.execute(user.user_id, body.id_token);
+    return c.json({
+      success: true as const,
+      data: {
+        provider: 'google' as const,
+        linked_at: identity.createdAt.toISOString(),
+      },
+    });
+  }
+
+  async unlinkGoogle(c: Context) {
+    const user = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!user) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    await this.deps.unlinkGoogle.execute(user.user_id);
+    return c.json({
+      success: true as const,
+      data: { message: 'Akun Google berhasil dilepas.' },
     });
   }
 

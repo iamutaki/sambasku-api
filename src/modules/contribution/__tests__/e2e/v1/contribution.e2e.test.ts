@@ -91,6 +91,7 @@ describe.skipIf(!hasTestDb)('Contribution E2E v1 - antrean review (Section 22 ap
     await db.insert(users).values({
       id: ANONIM_USER_ID,
       username: ANONIM_USERNAME,
+      displayName: ANONIM_USERNAME,
       email: ANONIM_EMAIL,
       passwordHash: 'bukan-hash-login',
       role: 'contributor',

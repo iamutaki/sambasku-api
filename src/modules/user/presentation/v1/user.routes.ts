@@ -13,6 +13,10 @@ import {
   publicProfileParamsSchema,
   publicProfileResponseSchema,
 } from './validators/public-profile.validator';
+import {
+  myProfileResponseSchema,
+  updateMyProfileSchema,
+} from './validators/update-my-profile.validator';
 
 const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
@@ -53,6 +57,51 @@ export function createPublicUserRoutes(deps: { controller: UserController }) {
   );
   routes.openapi(profileRoute, (c) =>
     deps.controller.publicProfile(c, c.req.valid('param').username) as never,
+  );
+
+  return routes;
+}
+
+/** GET/PATCH /api/v1/users/me — edit display_name + bio. Mount sebelum /:username. */
+export function createMeProfileRoutes(deps: {
+  controller: UserController;
+  authenticate: MiddlewareHandler<{ Variables: AppVariables }>;
+}) {
+  const routes = createOpenApiApp();
+
+  routes.use(
+    '/',
+    deps.authenticate,
+    rateLimit({ points: 20, duration: 60, keyFn: (c) => `me-profile:${c.get('user')?.user_id}` }),
+  );
+
+  const getRoute = createRoute({
+    method: 'get',
+    path: '/',
+    tags: ['Users'],
+    summary: 'Profil sendiri (prefill editor)',
+    responses: {
+      200: { description: 'Profil sendiri', content: json(myProfileResponseSchema) },
+      401: { description: 'Token tidak ada', content: json(errorResponseSchema) },
+    },
+  });
+
+  const patchRoute = createRoute({
+    method: 'patch',
+    path: '/',
+    tags: ['Users'],
+    summary: 'Edit display_name dan/atau bio',
+    request: { body: { content: json(updateMyProfileSchema) } },
+    responses: {
+      200: { description: 'Profil diperbarui', content: json(myProfileResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada', content: json(errorResponseSchema) },
+    },
+  });
+
+  routes.openapi(getRoute, (c) => deps.controller.getMyProfile(c) as never);
+  routes.openapi(patchRoute, (c) =>
+    deps.controller.updateMyProfile(c, c.req.valid('json')) as never,
   );
 
   return routes;

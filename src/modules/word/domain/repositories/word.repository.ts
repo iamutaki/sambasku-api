@@ -193,6 +193,15 @@ export interface WordRepository {
    *  excludeWordId (05-api-edit-kata.md): cek duplikat EDIT harus mengabaikan
    *  kata itu sendiri - tanpa ini setiap edit selalu "duplikat" dirinya. */
   findDuplicate(languageId: string, lemma: string, excludeWordId?: string): Promise<boolean>;
+  /** Lemma aktif (belum dihapus), apa pun status tayangnya. Null = boleh dibuat baru. */
+  findActiveByLemma(
+    languageId: string,
+    lemma: string,
+  ): Promise<{ id: string; status: WordStatus } | null>;
+  /** Sidik makna yang sudah ada, untuk menolak impor ulang yang sama. */
+  listMeaningKeys(wordId: string): Promise<
+    { definition: string; translation: string; isHaveDefinition: boolean; isHaveTranslation: boolean }[]
+  >;
   /** hanya published + belum soft-deleted; includeAllStatuses = layar review */
   findDetailById(id: string, opts?: { includeAllStatuses?: boolean }): Promise<WordDetail | null>;
   /**
@@ -401,8 +410,10 @@ export interface WordRepository {
     data: {
       wordClassId?: string | null;
       definition: string;
+      isHaveDefinition?: boolean;
+      isHaveTranslation?: boolean;
       translations: { languageId: string; translationText: string; translationType: string }[];
-      status: ChildStatus;
+      status: ChildStatus | 'draft';
       isVerified: boolean;
     },
     actorId: string,

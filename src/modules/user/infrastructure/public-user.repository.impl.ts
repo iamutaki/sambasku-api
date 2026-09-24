@@ -36,6 +36,8 @@ export class PublicUserRepositoryImpl implements PublicUserRepository {
       .select({
         id: users.id,
         username: users.username,
+        displayName: users.displayName,
+        bio: users.bio,
         role: users.role,
         joinedAt: users.createdAt,
         avatarUrl: users.avatarUrl,
@@ -48,6 +50,8 @@ export class PublicUserRepositoryImpl implements PublicUserRepository {
       ? {
           id: row.id,
           username: row.username,
+          displayName: row.displayName || row.username,
+          bio: row.bio ?? null,
           role: row.role,
           joinedAt: row.joinedAt,
           avatarUrl: row.avatarUrl ?? null,

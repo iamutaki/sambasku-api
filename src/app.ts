@@ -42,6 +42,11 @@ import { googleTokenVerifier } from '@/modules/auth/infrastructure/google-token-
 import { facebookTokenVerifier } from '@/modules/auth/infrastructure/facebook-token-verifier.holder';
 import { LoginWithGoogleUseCase } from '@/modules/auth/application/use-cases/login-with-google.use-case';
 import { LoginWithFacebookUseCase } from '@/modules/auth/application/use-cases/login-with-facebook.use-case';
+import {
+  LinkGoogleAccountUseCase,
+  ListAuthProvidersUseCase,
+  UnlinkGoogleAccountUseCase,
+} from '@/modules/auth/application/use-cases/link-google-account.use-case';
 import { ListAdminUsersUseCase } from '@/modules/auth/application/use-cases/list-admin-users.use-case';
 import { UpdateUserRoleUseCase } from '@/modules/auth/application/use-cases/update-user-role.use-case';
 import { AdminUsersController } from '@/modules/auth/presentation/v1/admin-user.controller';
@@ -64,6 +69,7 @@ import { TakedownWordUseCase } from '@/modules/word/application/use-cases/takedo
 import { RestoreWordUseCase } from '@/modules/word/application/use-cases/restore-word.use-case';
 import { AddPronunciationUseCase } from '@/modules/word/application/use-cases/add-pronunciation.use-case';
 import { AddMeaningUseCase } from '@/modules/word/application/use-cases/add-meaning.use-case';
+import { ImportWordsUseCase } from '@/modules/word/application/use-cases/import-words.use-case';
 import { AddWordImageUseCase } from '@/modules/word/application/use-cases/add-word-image.use-case';
 import { AddExampleUseCase } from '@/modules/word/application/use-cases/add-example.use-case';
 import { UploadPronunciationAudioUseCase } from '@/modules/word/application/use-cases/upload-pronunciation-audio.use-case';
@@ -191,7 +197,15 @@ import { GetPublicActivityUseCase } from '@/modules/user/application/use-cases/g
 import { UploadAvatarUseCase } from '@/modules/user/application/use-cases/upload-avatar.use-case';
 import { DeleteAvatarUseCase } from '@/modules/user/application/use-cases/delete-avatar.use-case';
 import { UserController } from '@/modules/user/presentation/v1/user.controller';
-import { createMeAvatarRoutes, createPublicUserRoutes } from '@/modules/user/presentation/v1/user.routes';
+import {
+  createMeAvatarRoutes,
+  createMeProfileRoutes,
+  createPublicUserRoutes,
+} from '@/modules/user/presentation/v1/user.routes';
+import {
+  GetMyProfileUseCase,
+  UpdateMyProfileUseCase,
+} from '@/modules/user/application/use-cases/update-my-profile.use-case';
 import { createPublicImageStorage } from '@/modules/public-image/infrastructure/public-image-storage.factory';
 import { UploadPublicImageUseCase } from '@/modules/public-image/application/use-cases/upload-public-image.use-case';
 import { PublicImageController } from '@/modules/public-image/presentation/v1/public-image.controller';
@@ -307,6 +321,9 @@ const controller = new AuthController({
     env.JWT_ACCESS_TOKEN_TTL,
     env.JWT_REFRESH_TOKEN_TTL,
   ),
+  listProviders: new ListAuthProvidersUseCase(identityRepo),
+  linkGoogle: new LinkGoogleAccountUseCase(userRepo, identityRepo, googleTokenVerifier),
+  unlinkGoogle: new UnlinkGoogleAccountUseCase(userRepo, identityRepo),
 });
 
 const authenticate = createAuthenticateMiddleware((token) => tokenService.verifyAccessToken(token));
@@ -327,6 +344,7 @@ const publicImageStorage = createPublicImageStorage();
 // Search miss: pencarian kosong → peluang kontribusi (03 doc) - direcord
 // dari SearchWordsUseCase lewat interface modul search-miss (Section 4)
 const searchMissRepo = new SearchMissRepositoryImpl(db);
+const languageRepo = new LanguageRepositoryImpl(db);
 const wordController = new WordController({
   create: new CreateWordUseCase(wordRepo, auditRepo, searchMissRepo),
   update: new UpdateWordUseCase(wordRepo, auditRepo),
@@ -346,6 +364,7 @@ const wordController = new WordController({
   addWordImage: new AddWordImageUseCase(wordRepo, auditRepo, publicImageStorage.providerName),
   addExample: new AddExampleUseCase(wordRepo, auditRepo),
   addMeaning: new AddMeaningUseCase(wordRepo, auditRepo),
+  importWords: new ImportWordsUseCase(wordRepo, languageRepo, auditRepo),
   uploadPronunciationAudio: new UploadPronunciationAudioUseCase(
     wordRepo,
     pronunciationStorage,
@@ -372,8 +391,6 @@ const contributionController = new ContributionController({
   correct: new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo, recordInbox),
   imageProviderName: publicImageStorage.providerName,
 });
-
-const languageRepo = new LanguageRepositoryImpl(db);
 
 const searchMissController = new SearchMissController({
   list: new ListSearchMissesUseCase(searchMissRepo),
@@ -456,6 +473,8 @@ const userController = new UserController({
   getPublicActivity: new GetPublicActivityUseCase(publicUserRepo),
   uploadAvatar: new UploadAvatarUseCase(userRepo, publicImageStorage),
   deleteAvatar: new DeleteAvatarUseCase(userRepo, publicImageStorage),
+  getMyProfile: new GetMyProfileUseCase(userRepo),
+  updateMyProfile: new UpdateMyProfileUseCase(userRepo),
 });
 
 // ---- Modul device (FCM token register/revoke, multi-device) ----
@@ -626,11 +645,16 @@ app.route('/api/v1/bookmarks', createBookmarkRoutes({ controller: bookmarkContro
 
 // Profil publik by username (19-api-profil-publik.md) - tanpa auth, rate
 // limit 100/menit/IP di routes factory. Tidak bentrok /admin/users.
-app.route('/api/v1/users', createPublicUserRoutes({ controller: userController }));
+// Mount /me dulu supaya tidak tertangkap oleh /:username.
+app.route(
+  '/api/v1/users/me',
+  createMeProfileRoutes({ controller: userController, authenticate }),
+);
 app.route(
   '/api/v1/users/me/avatar',
   createMeAvatarRoutes({ controller: userController, authenticate }),
 );
+app.route('/api/v1/users', createPublicUserRoutes({ controller: userController }));
 
 const publicImageController = new PublicImageController({
   uploadPublicImage: new UploadPublicImageUseCase(publicImageStorage),

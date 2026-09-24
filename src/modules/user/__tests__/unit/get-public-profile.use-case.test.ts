@@ -26,6 +26,8 @@ describe('GetPublicProfileUseCase', () => {
     const repo = makeRepo({
       id: '01JDUSERREVIEW000000000000',
       username: 'budi',
+      displayName: 'budi',
+      bio: null,
       role: 'reviewer',
       joinedAt: JOINED,
       avatarUrl: null,
@@ -35,6 +37,8 @@ describe('GetPublicProfileUseCase', () => {
     expect(repo.findPublicByUsername).toHaveBeenCalledWith('budi');
     expect(profile).toMatchObject({
       username: 'budi',
+      displayName: 'budi',
+      bio: null,
       role: 'reviewer',
       isVerifier: true,
       joinedAt: JOINED,
@@ -47,6 +51,8 @@ describe('GetPublicProfileUseCase', () => {
     const repo = makeRepo({
       id: '01JDUSERKONTRIB00000000000',
       username: 'siti',
+      displayName: 'siti',
+      bio: null,
       role: 'contributor',
       joinedAt: JOINED,
       avatarUrl: 'https://cdn.jsdelivr.net/gh/x/y@main/a.jpg',

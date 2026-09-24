@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { authIdentities, users } from '@/shared/database/drizzle/schema';
 import type { AppDatabase } from '@/shared/database/drizzle/client';
 import { isUniqueViolation } from '@/shared/database/drizzle/sqlite-errors';
@@ -23,6 +23,8 @@ function toUserEntity(row: UserRow): User {
   return {
     id: row.id,
     username: row.username,
+    displayName: row.displayName || row.username,
+    bio: row.bio ?? null,
     email: row.email,
     phone: row.phone,
     passwordHash: row.passwordHash,
@@ -67,9 +69,96 @@ export class AuthIdentityRepositoryImpl implements AuthIdentityRepository {
     return row ? toIdentityEntity(row) : null;
   }
 
+  async findActiveByUserAndProvider(userId: string, provider: string): Promise<AuthIdentity | null> {
+    const [row] = await this.db
+      .select()
+      .from(authIdentities)
+      .where(
+        and(
+          eq(authIdentities.userId, userId),
+          eq(authIdentities.provider, provider),
+          isNull(authIdentities.deletedAt),
+        ),
+      )
+      .limit(1);
+    return row ? toIdentityEntity(row) : null;
+  }
+
+  async listActiveByUserId(userId: string): Promise<AuthIdentity[]> {
+    const rows = await this.db
+      .select()
+      .from(authIdentities)
+      .where(and(eq(authIdentities.userId, userId), isNull(authIdentities.deletedAt)));
+    return rows.map(toIdentityEntity);
+  }
+
   async create(input: NewAuthIdentity): Promise<AuthIdentity> {
     const [row] = await this.db.insert(authIdentities).values(input).returning();
     return toIdentityEntity(row);
+  }
+
+  async link(userId: string, identity: NewGoogleIdentity): Promise<AuthIdentity> {
+    const existing = await this.findByProvider(identity.provider, identity.providerUserId);
+
+    if (existing) {
+      if (!existing.deletedAt) {
+        if (existing.userId === userId) return existing;
+        throw new ConflictError(
+          'GOOGLE_ALREADY_LINKED',
+          'Akun Google ini sudah terhubung ke pengguna lain.',
+        );
+      }
+      // Soft-deleted: restore hanya jika milik user yang sama
+      if (existing.userId !== userId) {
+        throw new ConflictError(
+          'GOOGLE_ALREADY_LINKED',
+          'Akun Google ini sudah terhubung ke pengguna lain.',
+        );
+      }
+      const [restored] = await this.db
+        .update(authIdentities)
+        .set({
+          deletedAt: null,
+          deletedBy: null,
+          emailAtProvider: identity.emailAtProvider,
+        })
+        .where(eq(authIdentities.id, existing.id))
+        .returning();
+      return toIdentityEntity(restored);
+    }
+
+    try {
+      const [row] = await this.db
+        .insert(authIdentities)
+        .values({
+          userId,
+          provider: identity.provider,
+          providerUserId: identity.providerUserId,
+          emailAtProvider: identity.emailAtProvider,
+        })
+        .returning();
+      return toIdentityEntity(row);
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      const raced = await this.findByProvider(identity.provider, identity.providerUserId);
+      if (raced && !raced.deletedAt && raced.userId === userId) return raced;
+      throw new ConflictError(
+        'GOOGLE_ALREADY_LINKED',
+        'Akun Google ini sudah terhubung ke pengguna lain.',
+      );
+    }
+  }
+
+  async unlink(userId: string, provider: string, deletedBy: string): Promise<AuthIdentity | null> {
+    const active = await this.findActiveByUserAndProvider(userId, provider);
+    if (!active) return null;
+
+    const [row] = await this.db
+      .update(authIdentities)
+      .set({ deletedAt: new Date(), deletedBy })
+      .where(eq(authIdentities.id, active.id))
+      .returning();
+    return row ? toIdentityEntity(row) : null;
   }
 
   async createUserWithGoogleIdentity(
@@ -78,7 +167,14 @@ export class AuthIdentityRepositoryImpl implements AuthIdentityRepository {
   ): Promise<CreateUserWithGoogleIdentityResult> {
     try {
       return await this.db.transaction(async (tx) => {
-        const [userRow] = await tx.insert(users).values(newUser).returning();
+        const [userRow] = await tx
+          .insert(users)
+          .values({
+            ...newUser,
+            displayName: newUser.displayName ?? newUser.username,
+            bio: newUser.bio ?? null,
+          })
+          .returning();
         const [idRow] = await tx
           .insert(authIdentities)
           .values({

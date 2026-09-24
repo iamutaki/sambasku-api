@@ -380,6 +380,63 @@ export class WordRepositoryImpl implements WordRepository {
     return !!row;
   }
 
+  async findActiveByLemma(
+    languageId: string,
+    lemma: string,
+  ): Promise<{ id: string; status: WordStatus } | null> {
+    const [row] = await this.db
+      .select({ id: words.id, status: words.status })
+      .from(words)
+      .where(
+        and(
+          eq(words.languageId, languageId),
+          sql`lower(${words.lemma}) = lower(${lemma.trim()})`,
+          isNull(words.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!row) return null;
+    return { id: row.id, status: row.status as WordStatus };
+  }
+
+  async listMeaningKeys(wordId: string): Promise<
+    { definition: string; translation: string; isHaveDefinition: boolean; isHaveTranslation: boolean }[]
+  > {
+    const rows = await this.db
+      .select({
+        meaningId: meanings.id,
+        definition: meanings.definition,
+        isHaveDefinition: meanings.isHaveDefinition,
+        isHaveTranslation: meanings.isHaveTranslation,
+        translation: meaningTranslations.translationText,
+      })
+      .from(meanings)
+      .leftJoin(
+        meaningTranslations,
+        and(eq(meaningTranslations.meaningId, meanings.id), isNull(meaningTranslations.deletedAt)),
+      )
+      .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)));
+    const byMeaning = new Map<
+      string,
+      { definition: string; translation: string; isHaveDefinition: boolean; isHaveTranslation: boolean }
+    >();
+    for (const row of rows) {
+      const prev = byMeaning.get(row.meaningId);
+      const translation = row.isHaveTranslation ? (row.translation ?? '').trim() : '';
+      if (!prev) {
+        byMeaning.set(row.meaningId, {
+          definition: row.definition,
+          translation,
+          isHaveDefinition: row.isHaveDefinition,
+          isHaveTranslation: row.isHaveTranslation,
+        });
+      } else if (translation && !prev.translation) {
+        prev.translation = translation;
+      }
+    }
+    return [...byMeaning.values()];
+  }
+
   async findPublishedIdByLemma(lemma: string): Promise<string | null> {
     const [row] = await this.db
       .select({ id: words.id })
@@ -1682,8 +1739,10 @@ export class WordRepositoryImpl implements WordRepository {
     data: {
       wordClassId?: string | null;
       definition: string;
+      isHaveDefinition?: boolean;
+      isHaveTranslation?: boolean;
       translations: { languageId: string; translationText: string; translationType: string }[];
-      status: ChildStatus;
+      status: ChildStatus | 'draft';
       isVerified: boolean;
     },
     actorId: string,
@@ -1703,8 +1762,8 @@ export class WordRepositoryImpl implements WordRepository {
             wordId,
             wordClassId: data.wordClassId ?? null,
             definition: data.definition,
-            isHaveDefinition: true,
-            isHaveTranslation: data.translations.length > 0,
+            isHaveDefinition: data.isHaveDefinition ?? true,
+            isHaveTranslation: data.isHaveTranslation ?? data.translations.length > 0,
             orderIndex: (last?.maxOrder ?? 0) + 1,
             status: data.status,
             isVerified: data.isVerified,

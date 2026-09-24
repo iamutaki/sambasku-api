@@ -24,6 +24,12 @@ import { forgotPasswordSchema, forgotPasswordResponseSchema } from './validators
 import { resetPasswordSchema, resetPasswordResponseSchema } from './validators/reset-password.validator';
 import { changePasswordSchema, changePasswordResponseSchema } from './validators/change-password.validator';
 import { googleLoginSchema, googleLoginResponseSchema } from './validators/google-login.validator';
+import {
+  authProvidersResponseSchema,
+  googleLinkResponseSchema,
+  googleLinkSchema,
+  unlinkGoogleResponseSchema,
+} from './validators/google-link.validator';
 import { facebookLoginSchema, facebookLoginResponseSchema } from './validators/facebook-login.validator';
 import {
   accountDeletionMessageSchema,
@@ -65,6 +71,16 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     '/change-password',
     deps.authenticate,
     rateLimit({ points: 5, duration: 900, keyFn: (c) => `change-password:${c.get('user')?.user_id}` }),
+  );
+  authRoutes.use(
+    '/providers',
+    deps.authenticate,
+    rateLimit({ points: 30, duration: 60, keyFn: (c) => `auth-providers:${c.get('user')?.user_id}` }),
+  );
+  authRoutes.use(
+    '/google/link',
+    deps.authenticate,
+    rateLimit({ points: 5, duration: 900, keyFn: (c) => `google-link:${c.get('user')?.user_id}` }),
   );
 
   // Generic supaya tipe schema tetap ter-infer oleh createRoute (c.req.valid tetap typed)
@@ -272,6 +288,45 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
     },
   });
 
+  const listProvidersRoute = createRoute({
+    method: 'get',
+    path: '/providers',
+    tags: ['Auth'],
+    summary: 'Daftar provider OAuth yang terhubung ke akun',
+    responses: {
+      200: { description: 'Daftar provider', content: json(authProvidersResponseSchema) },
+      401: { description: 'Token tidak ada', content: json(errorResponseSchema) },
+    },
+  });
+
+  const linkGoogleRoute = createRoute({
+    method: 'post',
+    path: '/google/link',
+    tags: ['Auth'],
+    summary: 'Hubungkan akun Google ke user yang sedang login',
+    request: { body: { content: json(googleLinkSchema) } },
+    responses: {
+      200: { description: 'Google terhubung', content: json(googleLinkResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token sesi / ID token Google tidak valid', content: json(errorResponseSchema) },
+      409: { description: 'Google sudah terhubung ke akun lain', content: json(errorResponseSchema) },
+      503: { description: 'GOOGLE_CLIENT_ID belum di-set', content: json(errorResponseSchema) },
+    },
+  });
+
+  const unlinkGoogleRoute = createRoute({
+    method: 'delete',
+    path: '/google/link',
+    tags: ['Auth'],
+    summary: 'Lepas tautan akun Google',
+    responses: {
+      200: { description: 'Google dilepas', content: json(unlinkGoogleResponseSchema) },
+      401: { description: 'Token tidak ada', content: json(errorResponseSchema) },
+      404: { description: 'Google belum terhubung', content: json(errorResponseSchema) },
+      409: { description: 'Metode login terakhir — setel password dulu', content: json(errorResponseSchema) },
+    },
+  });
+
   // ponytail: cast `as never` - controller memakai Context generik (untuk cookie),
   // jadi status literal tidak ter-infer; bentuk response dicek e2e test + schema validator
   authRoutes.openapi(registerRoute, (c) => deps.controller.register(c, c.req.valid('json')) as never);
@@ -286,6 +341,9 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
   authRoutes.openapi(forgotPasswordRoute, (c) => deps.controller.forgot(c, c.req.valid('json')) as never);
   authRoutes.openapi(resetPasswordRoute, (c) => deps.controller.reset(c, c.req.valid('json')) as never);
   authRoutes.openapi(changePasswordRoute, (c) => deps.controller.changePassword(c, c.req.valid('json')) as never);
+  authRoutes.openapi(listProvidersRoute, (c) => deps.controller.listProviders(c) as never);
+  authRoutes.openapi(linkGoogleRoute, (c) => deps.controller.linkGoogle(c, c.req.valid('json')) as never);
+  authRoutes.openapi(unlinkGoogleRoute, (c) => deps.controller.unlinkGoogle(c) as never);
   authRoutes.openapi(deleteOwnAccountRoute, async (c) => {
     const typed = c as unknown as Context<{ Variables: AppVariables }>;
     const user = typed.get('user');

@@ -22,4 +22,8 @@ export interface UserRepository {
     },
   ): Promise<void>;
   clearAvatar(id: string): Promise<void>;
+  updateProfile(
+    id: string,
+    data: { displayName?: string; bio?: string | null },
+  ): Promise<User>;
 }

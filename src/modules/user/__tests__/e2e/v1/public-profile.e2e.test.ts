@@ -38,6 +38,7 @@ describe.skipIf(!hasTestDb)('Public profile E2E v1 - GET /users/:username (19 do
     await db.insert(users).values({
       id: ANONIM_USER_ID,
       username: ANONIM_USERNAME,
+      displayName: ANONIM_USERNAME,
       email: ANONIM_EMAIL,
       passwordHash: 'bukan-hash-login',
       role: 'contributor',
@@ -91,6 +92,8 @@ describe.skipIf(!hasTestDb)('Public profile E2E v1 - GET /users/:username (19 do
     const body = await res.json();
     expect(body.data).toMatchObject({
       username: 'anonim',
+      display_name: 'anonim',
+      bio: null,
       role: 'contributor',
       is_verifier: false,
       stats: { contributions_approved: 0, verifications_done: 0, comments_published: 0 },

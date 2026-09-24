@@ -14,6 +14,8 @@ function makeUser(overrides: Partial<User> = {}): User {
   return {
     id: '01TESTFACEBOOKUSER0000001',
     username: 'budi',
+    displayName: 'budi',
+    bio: null,
     email: 'budi@example.com',
     phone: null,
     passwordHash: null,

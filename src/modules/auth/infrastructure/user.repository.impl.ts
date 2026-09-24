@@ -12,6 +12,8 @@ function toEntity(row: UserRow): User {
   return {
     id: row.id,
     username: row.username,
+    displayName: row.displayName || row.username,
+    bio: row.bio ?? null,
     email: row.email,
     phone: row.phone,
     passwordHash: row.passwordHash,
@@ -54,7 +56,14 @@ export class UserRepositoryImpl implements UserRepository {
   }
 
   async save(user: NewUser): Promise<User> {
-    const [row] = await this.db.insert(users).values(user).returning();
+    const [row] = await this.db
+      .insert(users)
+      .values({
+        ...user,
+        displayName: user.displayName ?? user.username,
+        bio: user.bio ?? null,
+      })
+      .returning();
     return toEntity(row);
   }
 
@@ -78,6 +87,8 @@ export class UserRepositoryImpl implements UserRepository {
       .select({
         id: users.id,
         username: users.username,
+        displayName: users.displayName,
+        bio: users.bio,
         email: users.email,
         phone: users.phone,
         role: users.role,
@@ -196,5 +207,25 @@ export class UserRepositoryImpl implements UserRepository {
     if (!updated) {
       throw new NotFoundError('USER_NOT_FOUND', `User ${id} tidak ditemukan`);
     }
+  }
+
+  async updateProfile(
+    id: string,
+    data: { displayName?: string; bio?: string | null },
+  ): Promise<User> {
+    const [updated] = await this.db
+      .update(users)
+      .set({
+        ...(data.displayName !== undefined ? { displayName: data.displayName } : {}),
+        ...(data.bio !== undefined ? { bio: data.bio } : {}),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundError('USER_NOT_FOUND', `User ${id} tidak ditemukan`);
+    }
+    return toEntity(updated);
   }
 }

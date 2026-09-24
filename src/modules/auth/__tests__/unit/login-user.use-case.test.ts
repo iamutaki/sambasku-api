@@ -10,6 +10,8 @@ function makeUser(overrides: Partial<User> = {}): User {
   return {
     id: '01TESTULIDUSERID00000000',
     username: 'budi',
+    displayName: 'tester',
+    bio: null,
     email: 'budi@test.com',
     phone: null,
     passwordHash: 'argon2id$hash',

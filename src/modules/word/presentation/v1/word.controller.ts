@@ -17,6 +17,7 @@ import type { AddPronunciationUseCase } from '../../application/use-cases/add-pr
 import type { AddWordImageUseCase } from '../../application/use-cases/add-word-image.use-case';
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
 import type { AddMeaningUseCase } from '../../application/use-cases/add-meaning.use-case';
+import type { ImportWordsUseCase } from '../../application/use-cases/import-words.use-case';
 import type { UploadPronunciationAudioUseCase } from '../../application/use-cases/upload-pronunciation-audio.use-case';
 import type { DeletePronunciationAudioUseCase } from '../../application/use-cases/delete-pronunciation-audio.use-case';
 import type {
@@ -26,6 +27,7 @@ import type {
   ListWordsQueryBody,
   ListLatestWordsQueryBody,
 } from './validators/create-word.validator';
+import type { ImportWordsBody } from './validators/import-words.validator';
 import type { UpdateWordBody } from './validators/update-word.validator';
 import type { TakedownWordBody } from '@/modules/word-report/presentation/v1/validators/word-report.validator';
 import type {
@@ -63,6 +65,7 @@ export class WordController {
       addWordImage: AddWordImageUseCase;
       addExample: AddExampleUseCase;
       addMeaning: AddMeaningUseCase;
+      importWords: ImportWordsUseCase;
       uploadPronunciationAudio: UploadPronunciationAudioUseCase;
       deletePronunciationAudio: DeletePronunciationAudioUseCase;
       listWordClasses: () => Promise<WordClassSummary[]>;
@@ -125,6 +128,18 @@ export class WordController {
       },
       201,
     );
+  }
+
+  async importWords(c: Context, body: ImportWordsBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    const result = await this.deps.importWords.execute(body, {
+      userId: actor.user_id,
+      role: actor.role,
+      requestId,
+    });
+    return c.json({ success: true as const, data: result }, body.mode === 'commit' ? 201 : 200);
   }
 
   async detail(c: Context, id: string) {
