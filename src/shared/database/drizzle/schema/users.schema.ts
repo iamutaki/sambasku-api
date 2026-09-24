@@ -9,6 +9,11 @@ export const users = sqliteTable(
     id: text('id').primaryKey().$defaultFn(() => generateId()),
     // Wire register pakai field `name` - disimpan di username (login by email)
     username: text('username').notNull().unique(),
+    // Nama tampilan publik (boleh diedit). Nilai awal = username (backfill + save).
+    // default '' hanya untuk insert test lama; toEntity fallback ke username.
+    displayName: text('display_name').notNull().default(''),
+    // Bio publik opsional (edit profil).
+    bio: text('bio'),
     email: text('email').notNull().unique(),
     // Digit internasional tanpa '+', mis. 62899…; NULL kalau user skip.
     phone: text('phone'),

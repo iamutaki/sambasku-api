@@ -7,6 +7,7 @@ import {
   RateLimitedError,
   ValidationError,
 } from '@/shared/errors/app-error';
+import { isCapacityFailure } from '@/shared/errors/infra-failure';
 import { logger } from '@/shared/logging/logger';
 
 // Dipasang sekali di main.ts via app.onError(errorHandler) -
@@ -60,6 +61,23 @@ export const errorHandler: ErrorHandler = (err, c) => {
         details,
       },
       400,
+    );
+  }
+
+  // Kapasitas runtime habis (mis. batas subrequest Workers) - BUKAN bug
+  // aplikasi. Dibedakan dari 500 supaya circuit breaker klien boleh pindah
+  // tier; lihat shared/errors/infra-failure.ts.
+  if (isCapacityFailure(err)) {
+    logger.error({ err, request_id: c.get('requestId' as never) }, 'Upstream capacity failure');
+    c.header('Retry-After', '5');
+    return c.json(
+      {
+        success: false as const,
+        error_code: 'UPSTREAM_CAPACITY',
+        message: 'Layanan sedang penuh, silakan coba lagi',
+        details: null,
+      },
+      503,
     );
   }
 

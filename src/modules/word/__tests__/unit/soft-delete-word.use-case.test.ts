@@ -11,6 +11,7 @@ function makeWord(overrides: Partial<Word> = {}): Word {
     lemma: 'makatn',
     notes: null,
     wordType: 'word',
+    usageLabels: [],
     status: 'published',
     isVerified: true,
     verifiedBy: '01JDUSERADMIN00000000000000A',

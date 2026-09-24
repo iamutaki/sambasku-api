@@ -42,6 +42,11 @@ import { googleTokenVerifier } from '@/modules/auth/infrastructure/google-token-
 import { facebookTokenVerifier } from '@/modules/auth/infrastructure/facebook-token-verifier.holder';
 import { LoginWithGoogleUseCase } from '@/modules/auth/application/use-cases/login-with-google.use-case';
 import { LoginWithFacebookUseCase } from '@/modules/auth/application/use-cases/login-with-facebook.use-case';
+import {
+  LinkGoogleAccountUseCase,
+  ListAuthProvidersUseCase,
+  UnlinkGoogleAccountUseCase,
+} from '@/modules/auth/application/use-cases/link-google-account.use-case';
 import { ListAdminUsersUseCase } from '@/modules/auth/application/use-cases/list-admin-users.use-case';
 import { UpdateUserRoleUseCase } from '@/modules/auth/application/use-cases/update-user-role.use-case';
 import { AdminUsersController } from '@/modules/auth/presentation/v1/admin-user.controller';
@@ -57,6 +62,8 @@ import { SearchWordsUseCase } from '@/modules/word/application/use-cases/search-
 import { ListAdminWordsUseCase } from '@/modules/word/application/use-cases/list-admin-words.use-case';
 import { ListWordsUseCase } from '@/modules/word/application/use-cases/list-words.use-case';
 import { ListLatestWordsUseCase } from '@/modules/word/application/use-cases/list-latest-words.use-case';
+import { ListDuplicateWordsUseCase } from '@/modules/word/application/use-cases/list-duplicate-words.use-case';
+import { MergeDuplicateWordsUseCase } from '@/modules/word/application/use-cases/merge-duplicate-words.use-case';
 import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-word.use-case';
 import { PublishWordUseCase } from '@/modules/word/application/use-cases/publish-word.use-case';
 import { SoftDeleteWordUseCase } from '@/modules/word/application/use-cases/soft-delete-word.use-case';
@@ -64,6 +71,7 @@ import { TakedownWordUseCase } from '@/modules/word/application/use-cases/takedo
 import { RestoreWordUseCase } from '@/modules/word/application/use-cases/restore-word.use-case';
 import { AddPronunciationUseCase } from '@/modules/word/application/use-cases/add-pronunciation.use-case';
 import { AddMeaningUseCase } from '@/modules/word/application/use-cases/add-meaning.use-case';
+import { ImportWordsUseCase } from '@/modules/word/application/use-cases/import-words.use-case';
 import { AddWordImageUseCase } from '@/modules/word/application/use-cases/add-word-image.use-case';
 import { AddExampleUseCase } from '@/modules/word/application/use-cases/add-example.use-case';
 import { UploadPronunciationAudioUseCase } from '@/modules/word/application/use-cases/upload-pronunciation-audio.use-case';
@@ -145,6 +153,22 @@ import { ResolveBugReportUseCase } from '@/modules/bug-report/application/use-ca
 import { BugReportController } from '@/modules/bug-report/presentation/v1/bug-report.controller';
 import { createBugReportRoutes } from '@/modules/bug-report/presentation/v1/bug-report.routes';
 import { createAdminBugReportRoutes } from '@/modules/bug-report/presentation/v1/admin-bug-report.routes';
+import { TranslationHelpRepositoryImpl } from '@/modules/translation-help/infrastructure/translation-help.repository.impl';
+import { CreateTranslationHelpUseCase } from '@/modules/translation-help/application/use-cases/create-translation-help.use-case';
+import { ListPublishedTranslationHelpsUseCase } from '@/modules/translation-help/application/use-cases/list-published-translation-helps.use-case';
+import { ListMyTranslationHelpsUseCase } from '@/modules/translation-help/application/use-cases/list-my-translation-helps.use-case';
+import { GetTranslationHelpDetailUseCase } from '@/modules/translation-help/application/use-cases/get-translation-help-detail.use-case';
+import { ListAdminTranslationHelpsUseCase } from '@/modules/translation-help/application/use-cases/list-admin-translation-helps.use-case';
+import { ApproveTranslationHelpUseCase } from '@/modules/translation-help/application/use-cases/approve-translation-help.use-case';
+import { RejectTranslationHelpUseCase } from '@/modules/translation-help/application/use-cases/reject-translation-help.use-case';
+import { TakedownTranslationHelpUseCase } from '@/modules/translation-help/application/use-cases/takedown-translation-help.use-case';
+import { CreateTranslationHelpReplyUseCase } from '@/modules/translation-help/application/use-cases/create-translation-help-reply.use-case';
+import { DeleteTranslationHelpReplyUseCase } from '@/modules/translation-help/application/use-cases/delete-translation-help-reply.use-case';
+import { PinTranslationHelpReplyUseCase } from '@/modules/translation-help/application/use-cases/pin-translation-help-reply.use-case';
+import { TakedownTranslationHelpReplyUseCase } from '@/modules/translation-help/application/use-cases/takedown-translation-help-reply.use-case';
+import { TranslationHelpController } from '@/modules/translation-help/presentation/v1/translation-help.controller';
+import { createTranslationHelpRoutes } from '@/modules/translation-help/presentation/v1/translation-help.routes';
+import { createAdminTranslationHelpRoutes } from '@/modules/translation-help/presentation/v1/admin-translation-help.routes';
 import { DashboardController } from '@/modules/dashboard/presentation/v1/dashboard.controller';
 import { createDashboardRoutes } from '@/modules/dashboard/presentation/v1/dashboard.routes';
 import { GetDashboardStatsUseCase } from '@/modules/dashboard/application/use-cases/get-dashboard-stats.use-case';
@@ -191,7 +215,15 @@ import { GetPublicActivityUseCase } from '@/modules/user/application/use-cases/g
 import { UploadAvatarUseCase } from '@/modules/user/application/use-cases/upload-avatar.use-case';
 import { DeleteAvatarUseCase } from '@/modules/user/application/use-cases/delete-avatar.use-case';
 import { UserController } from '@/modules/user/presentation/v1/user.controller';
-import { createMeAvatarRoutes, createPublicUserRoutes } from '@/modules/user/presentation/v1/user.routes';
+import {
+  createMeAvatarRoutes,
+  createMeProfileRoutes,
+  createPublicUserRoutes,
+} from '@/modules/user/presentation/v1/user.routes';
+import {
+  GetMyProfileUseCase,
+  UpdateMyProfileUseCase,
+} from '@/modules/user/application/use-cases/update-my-profile.use-case';
 import { createPublicImageStorage } from '@/modules/public-image/infrastructure/public-image-storage.factory';
 import { UploadPublicImageUseCase } from '@/modules/public-image/application/use-cases/upload-public-image.use-case';
 import { PublicImageController } from '@/modules/public-image/presentation/v1/public-image.controller';
@@ -230,6 +262,30 @@ import { RejectVerifierApplicationUseCase } from '@/modules/verifier-application
 import { VerifierApplicationController } from '@/modules/verifier-application/presentation/v1/verifier-application.controller';
 import { createVerifierApplicationRoutes } from '@/modules/verifier-application/presentation/v1/verifier-application.routes';
 import { createAdminVerifierApplicationRoutes } from '@/modules/verifier-application/presentation/v1/admin-verifier-application.routes';
+import { NotificationCampaignRepositoryImpl } from '@/modules/notification-campaign/infrastructure/notification-campaign.repository.impl';
+import {
+  CreateNotificationTemplateUseCase,
+  UpdateNotificationTemplateUseCase,
+  DeleteNotificationTemplateUseCase,
+  ListNotificationTemplatesUseCase,
+  GetNotificationTemplateUseCase,
+} from '@/modules/notification-campaign/application/use-cases/template.use-cases';
+import {
+  CreateCampaignDraftUseCase,
+  ListCampaignsUseCase,
+  GetCampaignDetailUseCase,
+  CancelCampaignUseCase,
+  SendCampaignUseCase,
+  RetryFailedCampaignRecipientsUseCase,
+  ProcessCampaignDeliveryUseCase,
+  ProcessDueCampaignsUseCase,
+  EstimateCampaignAudienceUseCase,
+} from '@/modules/notification-campaign/application/use-cases/campaign.use-cases';
+import { NotificationCampaignController } from '@/modules/notification-campaign/presentation/v1/notification-campaign.controller';
+import {
+  createAdminNotificationCampaignRoutes,
+  createAdminNotificationTemplateRoutes,
+} from '@/modules/notification-campaign/presentation/v1/notification-campaign.routes';
 
 // ---- Composition root: rakit semua dependency (manual DI, api-base-stack.md Section 2) ----
 bindCanContributeLookup(lookupCanContribute);
@@ -284,7 +340,7 @@ const controller = new AuthController({
   ),
   logout: new LogoutUserUseCase(refreshTokenRepo),
   logoutAll: new LogoutAllDevicesUseCase(refreshTokenRepo, deviceTokenRepo),
-  forgot: new ForgotPasswordUseCase(userRepo, resetTokenRepo, mailer, `${env.APP_URL}/reset-password`),
+  forgot: new ForgotPasswordUseCase(userRepo, resetTokenRepo, mailer, `${env.webAppUrl}/reset-password`),
   reset: new ResetPasswordUseCase(resetTokenRepo, userRepo, hasher, auditRepo, refreshTokenRepo),
   changePassword: new ChangePasswordUseCase(userRepo, hasher, auditRepo, refreshTokenRepo),
   google: new LoginWithGoogleUseCase(
@@ -307,6 +363,9 @@ const controller = new AuthController({
     env.JWT_ACCESS_TOKEN_TTL,
     env.JWT_REFRESH_TOKEN_TTL,
   ),
+  listProviders: new ListAuthProvidersUseCase(identityRepo),
+  linkGoogle: new LinkGoogleAccountUseCase(userRepo, identityRepo, googleTokenVerifier),
+  unlinkGoogle: new UnlinkGoogleAccountUseCase(userRepo, identityRepo),
 });
 
 const authenticate = createAuthenticateMiddleware((token) => tokenService.verifyAccessToken(token));
@@ -327,6 +386,7 @@ const publicImageStorage = createPublicImageStorage();
 // Search miss: pencarian kosong → peluang kontribusi (03 doc) - direcord
 // dari SearchWordsUseCase lewat interface modul search-miss (Section 4)
 const searchMissRepo = new SearchMissRepositoryImpl(db);
+const languageRepo = new LanguageRepositoryImpl(db);
 const wordController = new WordController({
   create: new CreateWordUseCase(wordRepo, auditRepo, searchMissRepo),
   update: new UpdateWordUseCase(wordRepo, auditRepo),
@@ -337,6 +397,8 @@ const wordController = new WordController({
   listAdmin: new ListAdminWordsUseCase(wordRepo),
   list: new ListWordsUseCase(wordRepo),
   listLatest: new ListLatestWordsUseCase(wordRepo),
+  listDuplicates: new ListDuplicateWordsUseCase(wordRepo),
+  mergeDuplicates: new MergeDuplicateWordsUseCase(wordRepo, auditRepo),
   verify: new VerifyWordUseCase(wordRepo, auditRepo),
   publish: new PublishWordUseCase(wordRepo, auditRepo),
   deleteWord: new SoftDeleteWordUseCase(wordRepo, auditRepo),
@@ -346,6 +408,7 @@ const wordController = new WordController({
   addWordImage: new AddWordImageUseCase(wordRepo, auditRepo, publicImageStorage.providerName),
   addExample: new AddExampleUseCase(wordRepo, auditRepo),
   addMeaning: new AddMeaningUseCase(wordRepo, auditRepo),
+  importWords: new ImportWordsUseCase(wordRepo, languageRepo, auditRepo),
   uploadPronunciationAudio: new UploadPronunciationAudioUseCase(
     wordRepo,
     pronunciationStorage,
@@ -372,8 +435,6 @@ const contributionController = new ContributionController({
   correct: new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo, recordInbox),
   imageProviderName: publicImageStorage.providerName,
 });
-
-const languageRepo = new LanguageRepositoryImpl(db);
 
 const searchMissController = new SearchMissController({
   list: new ListSearchMissesUseCase(searchMissRepo),
@@ -456,6 +517,8 @@ const userController = new UserController({
   getPublicActivity: new GetPublicActivityUseCase(publicUserRepo),
   uploadAvatar: new UploadAvatarUseCase(userRepo, publicImageStorage),
   deleteAvatar: new DeleteAvatarUseCase(userRepo, publicImageStorage),
+  getMyProfile: new GetMyProfileUseCase(userRepo),
+  updateMyProfile: new UpdateMyProfileUseCase(userRepo),
 });
 
 // ---- Modul device (FCM token register/revoke, multi-device) ----
@@ -543,6 +606,7 @@ const pingRoute = createRoute({
               time: z.string(),
               env: z.string(),
               runtime: z.enum(['node', 'cloudflare-workers']),
+              host: z.string(),
             }),
           }),
         },
@@ -562,6 +626,10 @@ app.openapi(pingRoute, (c) =>
         typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers'
           ? 'cloudflare-workers'
           : 'node',
+      // `runtime` tidak cukup memilah tier: tier 2 dan 3 dua-duanya 'node'.
+      // Host yang diminta memastikan tier mana yang benar-benar melayani -
+      // dipakai memverifikasi failover mendarat di tempat yang diharapkan.
+      host: c.req.header('host') ?? 'unknown',
     },
   }),
 );
@@ -575,7 +643,7 @@ const accountDeletion = new AccountDeletionUseCase(
   publicImageStorage,
   imageStorage,
   auditRepo,
-  `${env.APP_URL}/hapus-akun`,
+  `${env.webAppUrl}/hapus-akun`,
 );
 app.route('/api/v1/auth', createAuthRoutes({ controller, authenticate, accountDeletion }));
 
@@ -621,11 +689,16 @@ app.route('/api/v1/bookmarks', createBookmarkRoutes({ controller: bookmarkContro
 
 // Profil publik by username (19-api-profil-publik.md) - tanpa auth, rate
 // limit 100/menit/IP di routes factory. Tidak bentrok /admin/users.
-app.route('/api/v1/users', createPublicUserRoutes({ controller: userController }));
+// Mount /me dulu supaya tidak tertangkap oleh /:username.
+app.route(
+  '/api/v1/users/me',
+  createMeProfileRoutes({ controller: userController, authenticate }),
+);
 app.route(
   '/api/v1/users/me/avatar',
   createMeAvatarRoutes({ controller: userController, authenticate }),
 );
+app.route('/api/v1/users', createPublicUserRoutes({ controller: userController }));
 
 const publicImageController = new PublicImageController({
   uploadPublicImage: new UploadPublicImageUseCase(publicImageStorage),
@@ -709,6 +782,54 @@ app.route(
   '/api/v1/admin/bug-reports',
   createAdminBugReportRoutes({ controller: bugReportController, authenticate }),
 );
+
+const translationHelpRepo = new TranslationHelpRepositoryImpl(db);
+const translationHelpController = new TranslationHelpController({
+  create: new CreateTranslationHelpUseCase(translationHelpRepo, auditRepo),
+  listPublished: new ListPublishedTranslationHelpsUseCase(translationHelpRepo),
+  listMine: new ListMyTranslationHelpsUseCase(translationHelpRepo),
+  getDetail: new GetTranslationHelpDetailUseCase(translationHelpRepo),
+  listAdmin: new ListAdminTranslationHelpsUseCase(translationHelpRepo),
+  approve: new ApproveTranslationHelpUseCase(
+    translationHelpRepo,
+    publicImageStorage,
+    imageStorage,
+    auditRepo,
+    recordInbox,
+  ),
+  reject: new RejectTranslationHelpUseCase(
+    translationHelpRepo,
+    imageStorage,
+    auditRepo,
+    recordInbox,
+  ),
+  takedown: new TakedownTranslationHelpUseCase(translationHelpRepo, auditRepo, recordInbox),
+  createReply: new CreateTranslationHelpReplyUseCase(
+    translationHelpRepo,
+    auditRepo,
+    commentBlocklistRepo,
+  ),
+  deleteReply: new DeleteTranslationHelpReplyUseCase(translationHelpRepo, auditRepo),
+  pinReply: new PinTranslationHelpReplyUseCase(translationHelpRepo, auditRepo),
+  takedownReply: new TakedownTranslationHelpReplyUseCase(translationHelpRepo, auditRepo),
+  imageController,
+});
+app.route(
+  '/api/v1/translation-helps',
+  createTranslationHelpRoutes({
+    controller: translationHelpController,
+    authenticate,
+    optionalAuthenticate,
+  }),
+);
+app.route(
+  '/api/v1/admin/translation-helps',
+  createAdminTranslationHelpRoutes({
+    controller: translationHelpController,
+    authenticate,
+  }),
+);
+
 app.route(
   '/api/v1/admin/word-reports',
   createAdminWordReportRoutes({ controller: wordReportController, authenticate }),
@@ -752,6 +873,59 @@ app.route(
   '/api/v1/admin/verifier-applications',
   createAdminVerifierApplicationRoutes({ controller: verifierApplicationController, authenticate }),
 );
+
+// ---- Notification campaigns (admin/root): template + broadcast ----
+const notificationCampaignRepo = new NotificationCampaignRepositoryImpl(db);
+const processCampaignDelivery = new ProcessCampaignDeliveryUseCase(
+  notificationCampaignRepo,
+  notificationRepo,
+  deviceTokenRepo,
+  pushSender,
+);
+const processDueCampaigns = new ProcessDueCampaignsUseCase(
+  notificationCampaignRepo,
+  processCampaignDelivery,
+);
+const notificationCampaignController = new NotificationCampaignController({
+  createTemplate: new CreateNotificationTemplateUseCase(notificationCampaignRepo, auditRepo),
+  updateTemplate: new UpdateNotificationTemplateUseCase(notificationCampaignRepo, auditRepo),
+  deleteTemplate: new DeleteNotificationTemplateUseCase(notificationCampaignRepo, auditRepo),
+  listTemplates: new ListNotificationTemplatesUseCase(notificationCampaignRepo),
+  getTemplate: new GetNotificationTemplateUseCase(notificationCampaignRepo),
+  createCampaign: new CreateCampaignDraftUseCase(notificationCampaignRepo),
+  listCampaigns: new ListCampaignsUseCase(notificationCampaignRepo),
+  getCampaign: new GetCampaignDetailUseCase(notificationCampaignRepo),
+  cancelCampaign: new CancelCampaignUseCase(notificationCampaignRepo, auditRepo),
+  sendCampaign: new SendCampaignUseCase(
+    notificationCampaignRepo,
+    auditRepo,
+    processCampaignDelivery,
+  ),
+  retryCampaign: new RetryFailedCampaignRecipientsUseCase(
+    notificationCampaignRepo,
+    processCampaignDelivery,
+  ),
+  estimateAudience: new EstimateCampaignAudienceUseCase(notificationCampaignRepo),
+});
+app.route(
+  '/api/v1/admin/notification-templates',
+  createAdminNotificationTemplateRoutes({
+    controller: notificationCampaignController,
+    authenticate,
+  }),
+);
+app.route(
+  '/api/v1/admin/notification-campaigns',
+  createAdminNotificationCampaignRoutes({
+    controller: notificationCampaignController,
+    authenticate,
+  }),
+);
+
+/** Dipanggil cron Workers untuk scheduled + lanjutkan chunk sending. */
+export async function runDueNotificationCampaigns(): Promise<{ processed: number }> {
+  return processDueCampaigns.execute(5);
+}
 
 // Lookup definisi lemma (KBBI via port) - prefill field definition di form
 // form kontribusi web (anonim). Tidak menulis DB. docs/api/13-api-kbbi-lemma-definition.md

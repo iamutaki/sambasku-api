@@ -20,7 +20,16 @@ export interface AuthIdentityRepository {
    * Unique (provider, provider_user_id) tidak partial.
    */
   findByProvider(provider: string, providerUserId: string): Promise<AuthIdentity | null>;
+  findActiveByUserAndProvider(userId: string, provider: string): Promise<AuthIdentity | null>;
+  listActiveByUserId(userId: string): Promise<AuthIdentity[]>;
   create(input: NewAuthIdentity): Promise<AuthIdentity>;
+  /**
+   * Link identity ke user. Jika baris soft-deleted untuk (provider, sub)
+   * milik user yang sama: restore. Race unique ditangani di impl.
+   */
+  link(userId: string, identity: NewGoogleIdentity): Promise<AuthIdentity>;
+  /** Soft-delete identity aktif milik user untuk provider. Null jika tidak ada. */
+  unlink(userId: string, provider: string, deletedBy: string): Promise<AuthIdentity | null>;
   createUserWithGoogleIdentity(
     newUser: NewUser,
     identity: NewGoogleIdentity,

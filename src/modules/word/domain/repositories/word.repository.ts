@@ -89,6 +89,27 @@ export interface SaveWithInlineResult {
   inlineCreatedWords: InlineCreatedWordSummary[];
 }
 
+/** Satu entri dalam kelompok lemma duplikat (tab Duplikasi). */
+export interface DuplicateWordItem {
+  id: string;
+  lemma: string;
+  languageId: string;
+  languageCode: string;
+  wordType: WordType;
+  status: WordStatus;
+  isVerified: boolean;
+  meaningsCount: number;
+  createdAt: Date;
+}
+
+/** Kelompok 2+ entri aktif dengan lemma sama (case-insensitive) + bahasa. */
+export interface DuplicateWordGroup {
+  lemma: string;
+  languageId: string;
+  languageCode: string;
+  items: DuplicateWordItem[];
+}
+
 // Pagination cursor-based (base-stack.md Section 13): cursor = ULID id
 // item terakhir halaman sebelumnya; urutan id DESC (terbaru dulu).
 // searchIn: 'lemma' = Sambas→Indonesia (default); 'translation' = Indonesia→Sambas
@@ -193,6 +214,15 @@ export interface WordRepository {
    *  excludeWordId (05-api-edit-kata.md): cek duplikat EDIT harus mengabaikan
    *  kata itu sendiri - tanpa ini setiap edit selalu "duplikat" dirinya. */
   findDuplicate(languageId: string, lemma: string, excludeWordId?: string): Promise<boolean>;
+  /** Lemma aktif (belum dihapus), apa pun status tayangnya. Null = boleh dibuat baru. */
+  findActiveByLemma(
+    languageId: string,
+    lemma: string,
+  ): Promise<{ id: string; status: WordStatus } | null>;
+  /** Sidik makna yang sudah ada, untuk menolak impor ulang yang sama. */
+  listMeaningKeys(wordId: string): Promise<
+    { definition: string; translation: string; isHaveDefinition: boolean; isHaveTranslation: boolean }[]
+  >;
   /** hanya published + belum soft-deleted; includeAllStatuses = layar review */
   findDetailById(id: string, opts?: { includeAllStatuses?: boolean }): Promise<WordDetail | null>;
   /**
@@ -259,6 +289,22 @@ export interface WordRepository {
     id: string,
     actorId: string,
   ): Promise<{ wordId: string; mergedIntoWordId: string | null } | null>;
+
+  /**
+   * Kelompok lemma aktif (case-insensitive + bahasa) dengan ≥2 entri.
+   * Panel tab Duplikasi.
+   */
+  listDuplicateGroups(): Promise<DuplicateWordGroup[]>;
+
+  /**
+   * Gabung manual: pindahkan makna/media/relasi dari mergeWordIds ke
+   * keepWordId, lalu soft-delete sumber. Semua harus satu lemma+bahasa.
+   */
+  mergeDuplicateWords(
+    keepWordId: string,
+    mergeWordIds: string[],
+    actorId: string,
+  ): Promise<{ keepWordId: string; mergedWordIds: string[] }>;
 
   /**
    * Soft-delete kata (07-api-delete-kata.md): set deleted_at + deleted_by,
@@ -401,8 +447,10 @@ export interface WordRepository {
     data: {
       wordClassId?: string | null;
       definition: string;
+      isHaveDefinition?: boolean;
+      isHaveTranslation?: boolean;
       translations: { languageId: string; translationText: string; translationType: string }[];
-      status: ChildStatus;
+      status: ChildStatus | 'draft';
       isVerified: boolean;
     },
     actorId: string,

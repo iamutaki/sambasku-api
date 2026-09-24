@@ -6,6 +6,11 @@ import type { UpdateWordDto } from '../dto/update-word.dto';
 import type { Actor } from './create-word.use-case';
 import { collectLanguageIds, mapMissingToDetails } from './create-word.use-case';
 import { resolvePublication } from '../utils/resolve-publication';
+import {
+  DUPLICATE_LEMMA_MERGED_NOW,
+  DUPLICATE_LEMMA_PENDING_MERGE,
+  DUPLICATE_LEMMA_USE_TAB,
+} from '../utils/duplicate-lemma-warning';
 
 export interface UpdateWordResult {
   word: Word;
@@ -62,10 +67,7 @@ export class UpdateWordUseCase {
     if (details.length > 0) throw new ValidationError(details);
 
     // 4. Cek duplikat - warning, bukan error; WAJIB exclude diri sendiri
-    const warnings: { field: string; message: string }[] = [];
-    if (await this.wordRepo.findDuplicate(dto.languageId, dto.lemma, id)) {
-      warnings.push({ field: 'lemma', message: 'Lemma serupa sudah ada di bahasa ini' });
-    }
+    const wasDuplicate = await this.wordRepo.findDuplicate(dto.languageId, dto.lemma, id);
 
     // 5. Model publikasi (Section 22) - helper sama dengan create.
     //    Preserve is_corrected dari kata lama: edit biasa TIDAK boleh
@@ -81,9 +83,25 @@ export class UpdateWordUseCase {
     // 6. Transaksi replace (impl: hapus children lama → insert baru, satu
     //    db.transaction + baris contributions action 'update' otomatis).
     //    null = kalah race soft-delete → 404
-    const word = await this.wordRepo.updateWithRelations(id, toSave, actor.userId);
+    let word = await this.wordRepo.updateWithRelations(id, toSave, actor.userId);
     if (!word) {
       throw new NotFoundError('WORD_NOT_FOUND', 'Kata dengan id tersebut tidak ditemukan');
+    }
+
+    const warnings: { field: string; message: string }[] = [];
+    if (wasDuplicate) {
+      if (word.status === 'published') {
+        const merge = await this.wordRepo.publishOrMergeMeanings(word.id, actor.userId);
+        if (merge?.mergedIntoWordId) {
+          const kept = await this.wordRepo.findById(merge.mergedIntoWordId);
+          if (kept) word = kept;
+          warnings.push({ field: 'lemma', message: DUPLICATE_LEMMA_MERGED_NOW });
+        } else {
+          warnings.push({ field: 'lemma', message: DUPLICATE_LEMMA_USE_TAB });
+        }
+      } else {
+        warnings.push({ field: 'lemma', message: DUPLICATE_LEMMA_PENDING_MERGE });
+      }
     }
 
     // 7. Audit trail (Section 21) - update MEMBAWA old_data (snapshot pra-edit)
@@ -91,7 +109,7 @@ export class UpdateWordUseCase {
       userId: actor.userId,
       action: 'update',
       entityType: 'word',
-      entityId: id,
+      entityId: word.id,
       oldData: {
         lemma: existing.lemma,
         word_type: existing.wordType,
@@ -107,6 +125,7 @@ export class UpdateWordUseCase {
         status: word.status,
         is_verified: word.isVerified,
         meanings_count: dto.meanings.length,
+        ...(word.id !== id ? { source_word_id: id, merged_on_update: true } : {}),
       },
       requestId: actor.requestId ?? null,
     });

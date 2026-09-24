@@ -16,6 +16,8 @@ export class GetPublicProfileUseCase {
 
     return {
       username: user.username,
+      displayName: user.displayName,
+      bio: user.bio,
       role: user.role,
       isVerifier: isVerifierRole(user.role),
       joinedAt: user.joinedAt,

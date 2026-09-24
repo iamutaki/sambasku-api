@@ -24,10 +24,13 @@ import type { AppDatabase, AppTransaction } from '@/shared/database/drizzle/clie
 import { publicAccountName } from '@/shared/constants/deleted-account';
 import { ConflictError, ValidationError } from '@/shared/errors/app-error';
 import { publishOrMergeMeaningsInTx } from './publish-or-merge-meanings';
+import { mergeDuplicateWordsInTx } from './merge-duplicate-words';
 import type { ChildStatus, LatestWordSummary, Word, WordDetail, WordStatus, WordSummary } from '../domain/entities/word.entity';
 import type { MeaningMedia } from '../domain/entities/meaning.entity';
 import type {
   CursorPage,
+  DuplicateWordGroup,
+  DuplicateWordItem,
   ExampleMedia,
   InlineCreatedWordSummary,
   ListAtoZParams,
@@ -47,6 +50,13 @@ import type {
 import { encodeLatestCursor, encodeListCursor } from '../domain/repositories/word.repository';
 import type { CreateWordRelatedDto } from '../application/dto/create-word.dto';
 import { generateId } from '@/shared/utils/ulid';
+import type { UsageLabel } from '@/shared/constants/usage-labels';
+import { USAGE_LABEL_SET } from '@/shared/constants/usage-labels';
+
+function toUsageLabels(raw: unknown): UsageLabel[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((x): x is UsageLabel => typeof x === 'string' && USAGE_LABEL_SET.has(x));
+}
 
 function verificationCols(isVerified: boolean, actorId: string, at = new Date()) {
   return isVerified
@@ -64,6 +74,7 @@ function toWord(row: typeof words.$inferSelect): Word {
     lemma: row.lemma,
     notes: row.notes,
     wordType: row.wordType as Word['wordType'],
+    usageLabels: toUsageLabels(row.usageLabels),
     status: row.status as WordStatus,
     isVerified: row.isVerified,
     verifiedBy: row.verifiedBy,
@@ -196,6 +207,7 @@ export class WordRepositoryImpl implements WordRepository {
             lemma: word.lemma.trim(),
             notes: word.notes ?? null,
             wordType: word.wordType,
+            usageLabels: word.usageLabels ?? [],
             status: word.status,
             isVerified: word.isVerified,
             isCorrected: word.isCorrected ?? false,
@@ -261,6 +273,7 @@ export class WordRepositoryImpl implements WordRepository {
             lemma: word.lemma.trim(),
             notes: word.notes ?? null,
             wordType: word.wordType,
+            usageLabels: word.usageLabels ?? [],
             status: word.status,
             isVerified: word.isVerified,
             isCorrected: word.isCorrected ?? false,
@@ -291,6 +304,7 @@ export class WordRepositoryImpl implements WordRepository {
               lemma: rel.inlineWord.lemma.trim(),
               notes: rel.inlineWord.notes ?? null,
               wordType: rel.inlineWord.wordType,
+              usageLabels: rel.inlineWord.usageLabels ?? [],
               status: rel.inlineWord.status,
               isVerified: rel.inlineWord.isVerified,
               isCorrected: rel.inlineWord.isCorrected ?? false,
@@ -378,6 +392,63 @@ export class WordRepositoryImpl implements WordRepository {
       )
       .limit(1);
     return !!row;
+  }
+
+  async findActiveByLemma(
+    languageId: string,
+    lemma: string,
+  ): Promise<{ id: string; status: WordStatus } | null> {
+    const [row] = await this.db
+      .select({ id: words.id, status: words.status })
+      .from(words)
+      .where(
+        and(
+          eq(words.languageId, languageId),
+          sql`lower(${words.lemma}) = lower(${lemma.trim()})`,
+          isNull(words.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!row) return null;
+    return { id: row.id, status: row.status as WordStatus };
+  }
+
+  async listMeaningKeys(wordId: string): Promise<
+    { definition: string; translation: string; isHaveDefinition: boolean; isHaveTranslation: boolean }[]
+  > {
+    const rows = await this.db
+      .select({
+        meaningId: meanings.id,
+        definition: meanings.definition,
+        isHaveDefinition: meanings.isHaveDefinition,
+        isHaveTranslation: meanings.isHaveTranslation,
+        translation: meaningTranslations.translationText,
+      })
+      .from(meanings)
+      .leftJoin(
+        meaningTranslations,
+        and(eq(meaningTranslations.meaningId, meanings.id), isNull(meaningTranslations.deletedAt)),
+      )
+      .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)));
+    const byMeaning = new Map<
+      string,
+      { definition: string; translation: string; isHaveDefinition: boolean; isHaveTranslation: boolean }
+    >();
+    for (const row of rows) {
+      const prev = byMeaning.get(row.meaningId);
+      const translation = row.isHaveTranslation ? (row.translation ?? '').trim() : '';
+      if (!prev) {
+        byMeaning.set(row.meaningId, {
+          definition: row.definition,
+          translation,
+          isHaveDefinition: row.isHaveDefinition,
+          isHaveTranslation: row.isHaveTranslation,
+        });
+      } else if (translation && !prev.translation) {
+        prev.translation = translation;
+      }
+    }
+    return [...byMeaning.values()];
   }
 
   async findPublishedIdByLemma(lemma: string): Promise<string | null> {
@@ -822,6 +893,7 @@ export class WordRepositoryImpl implements WordRepository {
         languageId: words.languageId,
         languageCode: languages.code,
         wordType: words.wordType,
+        usageLabels: words.usageLabels,
         isVerified: words.isVerified,
         status: words.status,
       })
@@ -838,6 +910,7 @@ export class WordRepositoryImpl implements WordRepository {
       languageId: r.languageId,
       languageCode: r.languageCode,
       wordType: r.wordType as Word['wordType'],
+      usageLabels: toUsageLabels(r.usageLabels),
       isVerified: r.isVerified,
       status: r.status as WordStatus,
       sense: null,
@@ -907,6 +980,7 @@ export class WordRepositoryImpl implements WordRepository {
         languageId: words.languageId,
         languageCode: languages.code,
         wordType: words.wordType,
+        usageLabels: words.usageLabels,
         isVerified: words.isVerified,
         status: words.status,
       })
@@ -923,6 +997,7 @@ export class WordRepositoryImpl implements WordRepository {
       languageId: r.languageId,
       languageCode: r.languageCode,
       wordType: r.wordType as Word['wordType'],
+      usageLabels: toUsageLabels(r.usageLabels),
       isVerified: r.isVerified,
       status: r.status as WordStatus,
       sense: null,
@@ -1052,6 +1127,7 @@ export class WordRepositoryImpl implements WordRepository {
         languageId: words.languageId,
         languageCode: languages.code,
         wordType: words.wordType,
+        usageLabels: words.usageLabels,
         isVerified: words.isVerified,
         status: words.status,
         verifiedAt: words.verifiedAt,
@@ -1070,6 +1146,7 @@ export class WordRepositoryImpl implements WordRepository {
       languageId: r.languageId,
       languageCode: r.languageCode,
       wordType: r.wordType as Word['wordType'],
+      usageLabels: toUsageLabels(r.usageLabels),
       isVerified: r.isVerified,
       status: r.status as WordStatus,
       approvedAt: r.verifiedAt ?? r.createdAt,
@@ -1196,6 +1273,7 @@ export class WordRepositoryImpl implements WordRepository {
         languageId: words.languageId,
         languageCode: languages.code,
         wordType: words.wordType,
+        usageLabels: words.usageLabels,
         isVerified: words.isVerified,
         status: words.status,
         matchedTranslation: sql<string>`min(${meaningTranslations.translationText})`,
@@ -1211,6 +1289,7 @@ export class WordRepositoryImpl implements WordRepository {
         words.languageId,
         languages.code,
         words.wordType,
+        words.usageLabels,
         words.isVerified,
         words.status,
       )
@@ -1224,6 +1303,7 @@ export class WordRepositoryImpl implements WordRepository {
       languageId: r.languageId,
       languageCode: r.languageCode,
       wordType: r.wordType as Word['wordType'],
+      usageLabels: toUsageLabels(r.usageLabels),
       isVerified: r.isVerified,
       status: r.status as WordStatus,
       matchedTranslation: r.matchedTranslation,
@@ -1413,6 +1493,98 @@ export class WordRepositoryImpl implements WordRepository {
     actorId: string,
   ): Promise<{ wordId: string; mergedIntoWordId: string | null } | null> {
     return this.db.transaction((tx) => publishOrMergeMeaningsInTx(tx, id, actorId));
+  }
+
+  async listDuplicateGroups(): Promise<DuplicateWordGroup[]> {
+    const keyRows = await this.db
+      .select({
+        lemmaKey: sql<string>`lower(${words.lemma})`,
+        languageId: words.languageId,
+      })
+      .from(words)
+      .where(isNull(words.deletedAt))
+      .groupBy(sql`lower(${words.lemma})`, words.languageId)
+      .having(sql`count(*) > 1`);
+
+    if (keyRows.length === 0) return [];
+
+    const allActive = await this.db
+      .select({
+        id: words.id,
+        lemma: words.lemma,
+        languageId: words.languageId,
+        languageCode: languages.code,
+        wordType: words.wordType,
+        status: words.status,
+        isVerified: words.isVerified,
+        createdAt: words.createdAt,
+      })
+      .from(words)
+      .innerJoin(languages, eq(words.languageId, languages.id))
+      .where(isNull(words.deletedAt));
+
+    const keySet = new Set(keyRows.map((k) => `${k.languageId}\0${k.lemmaKey}`));
+    const grouped = new Map<string, DuplicateWordItem[]>();
+
+    for (const row of allActive) {
+      const key = `${row.languageId}\0${row.lemma.trim().toLowerCase()}`;
+      if (!keySet.has(key)) continue;
+      const list = grouped.get(key) ?? [];
+      list.push({
+        id: row.id,
+        lemma: row.lemma,
+        languageId: row.languageId,
+        languageCode: row.languageCode,
+        wordType: row.wordType as DuplicateWordItem['wordType'],
+        status: row.status as WordStatus,
+        isVerified: row.isVerified,
+        meaningsCount: 0,
+        createdAt: row.createdAt,
+      });
+      grouped.set(key, list);
+    }
+
+    const wordIds = [...grouped.values()].flat().map((i) => i.id);
+    const countRows =
+      wordIds.length === 0
+        ? []
+        : await this.db
+            .select({
+              wordId: meanings.wordId,
+              n: sql<number>`count(*)`,
+            })
+            .from(meanings)
+            .where(and(inArray(meanings.wordId, wordIds), isNull(meanings.deletedAt)))
+            .groupBy(meanings.wordId);
+    const countByWord = new Map(countRows.map((r) => [r.wordId, Number(r.n)]));
+
+    const groups: DuplicateWordGroup[] = [];
+    for (const items of grouped.values()) {
+      if (items.length < 2) continue;
+      for (const item of items) {
+        item.meaningsCount = countByWord.get(item.id) ?? 0;
+      }
+      items.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      groups.push({
+        lemma: items[0].lemma,
+        languageId: items[0].languageId,
+        languageCode: items[0].languageCode,
+        items,
+      });
+    }
+
+    groups.sort((a, b) => a.lemma.localeCompare(b.lemma, 'id'));
+    return groups;
+  }
+
+  async mergeDuplicateWords(
+    keepWordId: string,
+    mergeWordIds: string[],
+    actorId: string,
+  ): Promise<{ keepWordId: string; mergedWordIds: string[] }> {
+    return this.db.transaction((tx) =>
+      mergeDuplicateWordsInTx(tx, keepWordId, mergeWordIds, actorId),
+    );
   }
 
   async findMeaningById(meaningId: string): Promise<{ id: string; wordId: string } | null> {
@@ -1682,8 +1854,10 @@ export class WordRepositoryImpl implements WordRepository {
     data: {
       wordClassId?: string | null;
       definition: string;
+      isHaveDefinition?: boolean;
+      isHaveTranslation?: boolean;
       translations: { languageId: string; translationText: string; translationType: string }[];
-      status: ChildStatus;
+      status: ChildStatus | 'draft';
       isVerified: boolean;
     },
     actorId: string,
@@ -1703,8 +1877,8 @@ export class WordRepositoryImpl implements WordRepository {
             wordId,
             wordClassId: data.wordClassId ?? null,
             definition: data.definition,
-            isHaveDefinition: true,
-            isHaveTranslation: data.translations.length > 0,
+            isHaveDefinition: data.isHaveDefinition ?? true,
+            isHaveTranslation: data.isHaveTranslation ?? data.translations.length > 0,
             orderIndex: (last?.maxOrder ?? 0) + 1,
             status: data.status,
             isVerified: data.isVerified,
@@ -1813,6 +1987,7 @@ export class WordRepositoryImpl implements WordRepository {
             lemma: trimmed,
             notes: `Sinonim dari ${detail.lemma}`,
             wordType: detail.wordType,
+            usageLabels: detail.usageLabels ?? [],
             status: 'published',
             isVerified: true,
             verifiedBy: actorId,
@@ -1980,6 +2155,7 @@ export class WordRepositoryImpl implements WordRepository {
             lemma: word.lemma.trim(),
             notes: word.notes ?? null,
             wordType: word.wordType,
+            usageLabels: word.usageLabels ?? [],
             status: word.status,
             isVerified: word.isVerified,
             isCorrected: word.isCorrected ?? false,

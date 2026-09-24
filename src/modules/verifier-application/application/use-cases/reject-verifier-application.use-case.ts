@@ -59,7 +59,12 @@ export class RejectVerifierApplicationUseCase {
       userId: row.userId,
       title: 'Pengajuan verifikator ditolak',
       body: 'Pengajuan ditolak. Buka profil untuk memperbaiki.',
-      data: { type: 'verifier_application_rejected', application_id: row.id },
+      data: {
+        type: 'verifier_application_rejected',
+        target_kind: 'verifier_application',
+        target_id: row.id,
+        application_id: row.id,
+      },
     });
 
     return { id: row.id, status: 'rejected' };

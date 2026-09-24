@@ -7,6 +7,7 @@ import type { NotificationRepository } from '../../domain/repositories/notificat
 function repo(overrides: Partial<NotificationRepository> = {}): NotificationRepository {
   return {
     create: vi.fn().mockResolvedValue(undefined),
+    createMany: vi.fn().mockResolvedValue(0),
     upsertUnread: vi.fn().mockResolvedValue(undefined),
     listByUser: vi.fn(),
     countUnread: vi.fn(),

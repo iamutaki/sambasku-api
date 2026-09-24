@@ -17,6 +17,7 @@ import type { AddPronunciationUseCase } from '../../application/use-cases/add-pr
 import type { AddWordImageUseCase } from '../../application/use-cases/add-word-image.use-case';
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
 import type { AddMeaningUseCase } from '../../application/use-cases/add-meaning.use-case';
+import type { ImportWordsUseCase } from '../../application/use-cases/import-words.use-case';
 import type { UploadPronunciationAudioUseCase } from '../../application/use-cases/upload-pronunciation-audio.use-case';
 import type { DeletePronunciationAudioUseCase } from '../../application/use-cases/delete-pronunciation-audio.use-case';
 import type {
@@ -26,6 +27,7 @@ import type {
   ListWordsQueryBody,
   ListLatestWordsQueryBody,
 } from './validators/create-word.validator';
+import type { ImportWordsBody } from './validators/import-words.validator';
 import type { UpdateWordBody } from './validators/update-word.validator';
 import type { TakedownWordBody } from '@/modules/word-report/presentation/v1/validators/word-report.validator';
 import type {
@@ -40,7 +42,13 @@ import type { LatestWordSummary, WordClassSummary, WordDetail } from '../../doma
 import type { ListAdminWordsUseCase } from '../../application/use-cases/list-admin-words.use-case';
 import type { ListWordsUseCase } from '../../application/use-cases/list-words.use-case';
 import type { ListLatestWordsUseCase } from '../../application/use-cases/list-latest-words.use-case';
+import type { ListDuplicateWordsUseCase } from '../../application/use-cases/list-duplicate-words.use-case';
+import {
+  pickDefaultKeepWordId,
+} from '../../application/use-cases/list-duplicate-words.use-case';
+import type { MergeDuplicateWordsUseCase } from '../../application/use-cases/merge-duplicate-words.use-case';
 import { MAX_AUDIO_BYTES } from '../../application/utils/validate-audio-file';
+import type { MergeDuplicateWordsBody } from './validators/create-word.validator';
 
 export class WordController {
   constructor(
@@ -54,6 +62,8 @@ export class WordController {
       listAdmin: ListAdminWordsUseCase;
       list: ListWordsUseCase;
       listLatest: ListLatestWordsUseCase;
+      listDuplicates: ListDuplicateWordsUseCase;
+      mergeDuplicates: MergeDuplicateWordsUseCase;
       verify: VerifyWordUseCase;
       publish: PublishWordUseCase;
       deleteWord: SoftDeleteWordUseCase;
@@ -63,6 +73,7 @@ export class WordController {
       addWordImage: AddWordImageUseCase;
       addExample: AddExampleUseCase;
       addMeaning: AddMeaningUseCase;
+      importWords: ImportWordsUseCase;
       uploadPronunciationAudio: UploadPronunciationAudioUseCase;
       deletePronunciationAudio: DeletePronunciationAudioUseCase;
       listWordClasses: () => Promise<WordClassSummary[]>;
@@ -125,6 +136,18 @@ export class WordController {
       },
       201,
     );
+  }
+
+  async importWords(c: Context, body: ImportWordsBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    const result = await this.deps.importWords.execute(body, {
+      userId: actor.user_id,
+      role: actor.role,
+      requestId,
+    });
+    return c.json({ success: true as const, data: result }, body.mode === 'commit' ? 201 : 200);
   }
 
   async detail(c: Context, id: string) {
@@ -210,6 +233,7 @@ export class WordController {
       language_id: word.languageId,
       notes: word.notes,
       word_type: word.wordType,
+      usage_labels: word.usageLabels,
       status: word.status,
       is_verified: word.isVerified,
       is_corrected: word.isCorrected,
@@ -404,6 +428,60 @@ export class WordController {
     });
   }
 
+  async listDuplicates(c: Context) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+
+    const { groups, totalGroups } = await this.deps.listDuplicates.execute();
+    return c.json({
+      success: true as const,
+      data: {
+        total_groups: totalGroups,
+        groups: groups.map((g) => {
+          const defaultKeep = pickDefaultKeepWordId(g.items);
+          return {
+            lemma: g.lemma,
+            language_id: g.languageId,
+            language_code: g.languageCode,
+            default_keep_word_id: defaultKeep,
+            items: g.items.map((item) => ({
+              id: item.id,
+              lemma: item.lemma,
+              language_id: item.languageId,
+              language_code: item.languageCode,
+              word_type: item.wordType,
+              status: item.status,
+              is_verified: item.isVerified,
+              meanings_count: item.meaningsCount,
+              created_at: item.createdAt.toISOString(),
+              suggested_keep: item.id === defaultKeep,
+            })),
+          };
+        }),
+      },
+    });
+  }
+
+  async mergeDuplicates(c: Context, body: MergeDuplicateWordsBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+
+    const result = await this.deps.mergeDuplicates.execute({
+      keepWordId: body.keep_word_id,
+      mergeWordIds: body.merge_word_ids,
+      actorId: actor.user_id,
+      requestId,
+    });
+    return c.json({
+      success: true as const,
+      data: {
+        keep_word_id: result.keepWordId,
+        merged_word_ids: result.mergedWordIds,
+      },
+    });
+  }
+
   /**
    * Submit kata via endpoint publik /api/v1/contributions/words.
    * - Tanpa Bearer → user sistem Anonim (legacy anonim).
@@ -500,6 +578,7 @@ export class WordController {
         wordId,
         {
           url: body.url,
+          provider: body.provider,
           providerFileId: body.provider_file_id,
           sha: body.sha ?? null,
           altText: body.alt_text,
@@ -732,6 +811,7 @@ function toListItem(w: {
   languageId: string;
   languageCode: string;
   wordType: string;
+  usageLabels?: string[];
   isVerified: boolean;
   status: string;
   matchedTranslation?: string;
@@ -744,6 +824,7 @@ function toListItem(w: {
     language_id: w.languageId,
     language_code: w.languageCode,
     word_type: w.wordType,
+    usage_labels: w.usageLabels ?? [],
     is_verified: w.isVerified,
     status: w.status,
     ...(w.matchedTranslation !== undefined ? { matched_translation: w.matchedTranslation } : {}),
@@ -760,6 +841,7 @@ function toLatestItem(w: LatestWordSummary) {
     language_id: w.languageId,
     language_code: w.languageCode,
     word_type: w.wordType,
+    usage_labels: w.usageLabels,
     is_verified: w.isVerified,
     status: w.status,
     approved_at: w.approvedAt.toISOString(),

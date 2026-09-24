@@ -156,6 +156,7 @@ describe('CorrectContributionUseCase', () => {
     languageId: '01LANGLANGUAGESMB0000000',
     lemma: 'kalintiak',
     wordType: 'word' as const,
+    usageLabels: [],
     meanings: [
       {
         wordClassId: '01WORDCLASSESESNOMINA000000',

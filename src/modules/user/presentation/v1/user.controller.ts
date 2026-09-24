@@ -5,7 +5,12 @@ import type { GetPublicProfileUseCase } from '../../application/use-cases/get-pu
 import type { GetPublicActivityUseCase } from '../../application/use-cases/get-public-activity.use-case';
 import type { UploadAvatarUseCase } from '../../application/use-cases/upload-avatar.use-case';
 import type { DeleteAvatarUseCase } from '../../application/use-cases/delete-avatar.use-case';
+import type {
+  GetMyProfileUseCase,
+  UpdateMyProfileUseCase,
+} from '../../application/use-cases/update-my-profile.use-case';
 import { MAX_IMAGE_BYTES } from '@/modules/public-image/application/utils/validate-image-file';
+import type { UpdateMyProfileBody } from './validators/update-my-profile.validator';
 
 export class UserController {
   constructor(
@@ -14,6 +19,8 @@ export class UserController {
       getPublicActivity: GetPublicActivityUseCase;
       uploadAvatar: UploadAvatarUseCase;
       deleteAvatar: DeleteAvatarUseCase;
+      getMyProfile: GetMyProfileUseCase;
+      updateMyProfile: UpdateMyProfileUseCase;
     },
   ) {}
 
@@ -24,6 +31,8 @@ export class UserController {
       success: true as const,
       data: {
         username: profile.username,
+        display_name: profile.displayName,
+        bio: profile.bio,
         role: profile.role,
         is_verifier: profile.isVerifier,
         joined_at: profile.joinedAt.toISOString(),
@@ -49,6 +58,39 @@ export class UserController {
           lemma: item.lemma,
           summary: item.summary,
         })),
+      },
+    });
+  }
+
+  async getMyProfile(c: Context) {
+    const user = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!user) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const profile = await this.deps.getMyProfile.execute(user.user_id);
+    return c.json({
+      success: true as const,
+      data: {
+        username: profile.username,
+        display_name: profile.displayName,
+        bio: profile.bio,
+        avatar_url: profile.avatarUrl,
+      },
+    });
+  }
+
+  async updateMyProfile(c: Context, body: UpdateMyProfileBody) {
+    const user = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!user) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const profile = await this.deps.updateMyProfile.execute(user.user_id, {
+      displayName: body.display_name,
+      bio: body.bio,
+    });
+    return c.json({
+      success: true as const,
+      data: {
+        username: profile.username,
+        display_name: profile.displayName,
+        bio: profile.bio,
+        avatar_url: profile.avatarUrl,
       },
     });
   }

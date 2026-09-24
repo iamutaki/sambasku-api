@@ -16,6 +16,8 @@ function makeUser(overrides: Partial<User> = {}): User {
   return {
     id: USER_ID,
     username: 'tester',
+    displayName: 'tester',
+    bio: null,
     email: 'tester@test.com',
     phone: '6281234567890',
     passwordHash: 'pbkdf2-sha256$lama',

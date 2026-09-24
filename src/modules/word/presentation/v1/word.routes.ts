@@ -19,6 +19,9 @@ import {
   latestWordsResponseSchema,
   listLatestWordsQuerySchema,
   wordListResponseSchema,
+  duplicateWordGroupsResponseSchema,
+  mergeDuplicateWordsBodySchema,
+  mergeDuplicateWordsResponseSchema,
 } from './validators/create-word.validator';
 import {
   adminWordDetailResponseSchema,
@@ -26,6 +29,7 @@ import {
   updateWordSchema,
 } from './validators/update-word.validator';
 import { takedownWordBodySchema } from '@/modules/word-report/presentation/v1/validators/word-report.validator';
+import { importWordsBodySchema, importWordsResponseSchema } from './validators/import-words.validator';
 
 const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
@@ -85,6 +89,81 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
 
   routes.openapi(listAdminWordsRoute, (c) => deps.controller.listAdmin(c, c.req.valid('query')) as never);
   routes.openapi(createWordRoute, (c) => deps.controller.create(c, c.req.valid('json')) as never);
+
+  routes.use(
+    '/import',
+    deps.authenticate,
+    authorizeRole('admin', 'editor', 'root', 'reviewer'),
+    rateLimit({
+      points: 30,
+      duration: 60,
+      keyFn: (c) => {
+        const user = (c.get('user') as AuthUser | undefined) ?? null;
+        return `word-import:${user?.user_id ?? 'unknown'}`;
+      },
+    }),
+  );
+  const importWordsRoute = createRoute({
+    method: 'post',
+    path: '/import',
+    tags: ['Words', 'Admin'],
+    summary: 'Impor kata dari CSV yang sudah dipratinjau (maksimal 25 kata)',
+    request: { body: { content: json(importWordsBodySchema) } },
+    responses: {
+      200: { description: 'Hasil cek tanpa menulis', content: json(importWordsResponseSchema) },
+      201: { description: 'Kata atau makna tersimpan', content: json(importWordsResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+    },
+  });
+  routes.openapi(importWordsRoute, (c) => deps.controller.importWords(c, c.req.valid('json')) as never);
+
+  // Tab Duplikasi - literal SEBELUM /:id
+  routes.use(
+    '/duplicates',
+    deps.authenticate,
+    authorizeRole('admin', 'editor', 'root', 'reviewer'),
+    rateLimit({ points: 60, duration: 60 }),
+  );
+  routes.use(
+    '/duplicates/merge',
+    deps.authenticate,
+    authorizeRole('admin', 'root', 'reviewer'),
+    rateLimit({ points: 30, duration: 60 }),
+  );
+
+  const listDuplicatesRoute = createRoute({
+    method: 'get',
+    path: '/duplicates',
+    tags: ['Words', 'Admin'],
+    summary: 'Kelompok lemma duplikat (tab Duplikasi)',
+    responses: {
+      200: { description: 'Kelompok duplikat', content: json(duplicateWordGroupsResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+    },
+  });
+
+  const mergeDuplicatesRoute = createRoute({
+    method: 'post',
+    path: '/duplicates/merge',
+    tags: ['Words', 'Admin'],
+    summary: 'Gabungkan entri lemma duplikat ke satu entri yang dipilih',
+    request: { body: { content: json(mergeDuplicateWordsBodySchema) } },
+    responses: {
+      200: { description: 'Gabungan berhasil', content: json(mergeDuplicateWordsResponseSchema) },
+      400: { description: 'Body tidak valid / lemma tidak cocok', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Bukan verifikator', content: json(errorResponseSchema) },
+      404: { description: 'Entri tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
+  routes.openapi(listDuplicatesRoute, (c) => deps.controller.listDuplicates(c) as never);
+  routes.openapi(mergeDuplicatesRoute, (c) =>
+    deps.controller.mergeDuplicates(c, c.req.valid('json')) as never,
+  );
 
   // Edit kata (05-api-edit-kata.md) - verifier team saja: perubahan
   // contributor atas entri existing adalah kontribusi → jalur antrean

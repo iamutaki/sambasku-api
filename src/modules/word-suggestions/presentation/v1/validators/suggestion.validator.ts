@@ -1,5 +1,10 @@
 import { z } from 'zod';
 import { choiceId, opaqueId } from '@/shared/validation/id';
+import {
+  STOCK_WORD_IMAGE_PROVIDERS,
+  isAllowedStockImageUrl,
+  isStockWordImageProvider,
+} from '@/modules/word/domain/word-image-provider';
 import type {
   ProposedChanges,
   SuggestionReasonCode,
@@ -54,6 +59,7 @@ const imageChangeSchema = z
     action: z.enum(['add', 'remove', 'set_primary']),
     image_id: ulid.optional(),
     url: z.string().url().optional(),
+    provider: z.enum([...STOCK_WORD_IMAGE_PROVIDERS, 'github']).optional(),
     provider_file_id: z.string().trim().min(1).max(255).optional(),
     alt_text: z.string().trim().max(500).optional(),
     is_primary: z.boolean().optional(),
@@ -66,6 +72,18 @@ const imageChangeSchema = z
           code: 'custom',
           path: ['provider_file_id'],
           message: 'action=add wajib provider_file_id',
+        });
+      }
+      if (
+        img.provider &&
+        isStockWordImageProvider(img.provider) &&
+        img.url &&
+        !isAllowedStockImageUrl(img.provider, img.url)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['url'],
+          message: 'URL gambar tidak cocok dengan penyedia yang dipilih',
         });
       }
     }
@@ -212,6 +230,7 @@ export function mapProposedChanges(
       action: i.action,
       imageId: i.image_id,
       url: i.url,
+      provider: i.provider,
       providerFileId: i.provider_file_id,
       altText: i.alt_text,
       isPrimary: i.is_primary,

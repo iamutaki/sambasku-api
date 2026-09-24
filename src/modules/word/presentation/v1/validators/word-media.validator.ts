@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { choiceId, opaqueId } from '@/shared/validation/id';
+import { wordImageInputSchema } from './word-image-input';
 
 const ulid = opaqueId;
 const wordClassId = choiceId('Kelas kata');
@@ -17,13 +18,7 @@ export const addPronunciationSchema = z.object({
   notes: z.string().optional(),
 });
 
-export const addWordImageSchema = z.object({
-  url: z.url('URL gambar tidak valid'),
-  provider_file_id: z.string().trim().min(1, 'provider_file_id wajib diisi'),
-  sha: z.string().trim().min(1).max(128).optional(),
-  alt_text: z.string().trim().max(500).optional(),
-  is_primary: z.boolean().default(false),
-});
+export const addWordImageSchema = wordImageInputSchema;
 
 export const addExampleSchema = z.object({
   source_language_id: ulid,

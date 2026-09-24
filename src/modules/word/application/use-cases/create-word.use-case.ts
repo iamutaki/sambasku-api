@@ -18,6 +18,11 @@ import type {
 } from '../dto/create-word.dto';
 import { resolvePublication } from '../utils/resolve-publication';
 import { assertCanContribute } from '../utils/assert-can-contribute';
+import {
+  DUPLICATE_LEMMA_MERGED_NOW,
+  DUPLICATE_LEMMA_PENDING_MERGE,
+  DUPLICATE_LEMMA_USE_TAB,
+} from '../utils/duplicate-lemma-warning';
 
 export interface InlineCreatedResult {
   /** skema, urut sesuai request - diteruskan ke respons (04) */
@@ -94,19 +99,16 @@ export class CreateWordUseCase {
     const details = mapMissingToDetails(dto, missing);
     if (details.length > 0) throw new ValidationError(details);
 
-    // 2. Cek duplikat - warning, bukan error (induk + tiap lemma inline)
-    const warnings: { field: string; message: string }[] = [];
-    const isDuplicate = await this.wordRepo.findDuplicate(dto.languageId, dto.lemma);
-    if (isDuplicate) {
-      warnings.push({ field: 'lemma', message: 'Lemma serupa sudah ada di bahasa ini' });
-    }
+    // 2. Cek duplikat - warning, bukan error (induk + tiap lemma inline).
+    //    Copy + auto-merge published dijalankan SETELAH save (butuh id baru).
+    const parentWasDuplicate = await this.wordRepo.findDuplicate(dto.languageId, dto.lemma);
     const inlineWarnings: { field: string; message: string }[][] = inlineRelations.map(() => []);
     for (const [index, rel] of inlineRelations.entries()) {
       const dupInline = await this.wordRepo.findDuplicate(dto.languageId, rel.word.lemma);
       if (dupInline) {
         inlineWarnings[index].push({
           field: `related_words.${index}.word.lemma`,
-          message: 'Lemma serupa sudah ada di bahasa ini',
+          message: DUPLICATE_LEMMA_PENDING_MERGE,
         });
       }
     }
@@ -120,9 +122,17 @@ export class CreateWordUseCase {
     // 4. Simpan atomik - induk + kata inline dlm SATU transaksi (bila ada)
     const parentToSave = { ...dto, ...parentPublication };
     const hasInline = resolvedRelations.length > 0;
-    const { word, inlineCreatedWords } = hasInline
+    const { word: saved, inlineCreatedWords } = hasInline
       ? await this.wordRepo.saveWithInlineRelations(parentToSave, actor.userId, resolvedRelations)
       : { word: await this.wordRepo.saveWithRelations(parentToSave, actor.userId), inlineCreatedWords: [] };
+
+    // 4b. Duplikat + langsung tayang → gabung ke kembaran published (bila ada)
+    const { word, warnings } = await this.resolveDuplicateAfterSave(
+      saved,
+      parentWasDuplicate,
+      actor.userId,
+      'lemma',
+    );
 
     // 5. Audit trail (Section 21) - SATU entri per entitas yang dibuat
     await this.auditRepo.record({
@@ -138,6 +148,7 @@ export class CreateWordUseCase {
         is_verified: word.isVerified,
         meanings_count: dto.meanings.length,
         ...(dto.searchMissId ? { search_miss_id: dto.searchMissId } : {}),
+        ...(word.id !== saved.id ? { source_word_id: saved.id, merged_on_create: true } : {}),
       },
       requestId: actor.requestId ?? null,
     });
@@ -166,6 +177,41 @@ export class CreateWordUseCase {
       inlineCreatedWords,
       inlineWarnings,
       searchMissId: dto.searchMissId ?? null,
+    };
+  }
+
+  /**
+   * Setelah insert: kalau lemma duplikat & status published, coba
+   * publishOrMergeMeanings (sama seperti tombol Tayang). Tanpa kembaran
+   * published → arahkan ke tab Duplikasi.
+   */
+  private async resolveDuplicateAfterSave(
+    saved: Word,
+    wasDuplicate: boolean,
+    actorId: string,
+    field: string,
+  ): Promise<{ word: Word; warnings: { field: string; message: string }[] }> {
+    if (!wasDuplicate) return { word: saved, warnings: [] };
+
+    if (saved.status !== 'published') {
+      return {
+        word: saved,
+        warnings: [{ field, message: DUPLICATE_LEMMA_PENDING_MERGE }],
+      };
+    }
+
+    const merge = await this.wordRepo.publishOrMergeMeanings(saved.id, actorId);
+    if (merge?.mergedIntoWordId) {
+      const kept = await this.wordRepo.findById(merge.mergedIntoWordId);
+      return {
+        word: kept ?? saved,
+        warnings: [{ field, message: DUPLICATE_LEMMA_MERGED_NOW }],
+      };
+    }
+
+    return {
+      word: saved,
+      warnings: [{ field, message: DUPLICATE_LEMMA_USE_TAB }],
     };
   }
 
@@ -233,6 +279,7 @@ function resolveInlineRelations(
         lemma: rel.word.lemma,
         notes: rel.word.notes ?? undefined,
         wordType: rel.word.wordType ?? dto.wordType,
+        usageLabels: rel.word.usageLabels ?? [],
         meanings,
         categoryIds: rel.word.categoryIds ?? [],
         relatedWords: [], // kata inline tidak menampung relasi bersarang

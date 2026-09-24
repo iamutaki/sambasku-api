@@ -106,6 +106,8 @@ export interface ImageChange {
   action: ImageAction;
   imageId?: string;
   url?: string;
+  /** Stock Media Explorer; absen → storage aktif saat apply */
+  provider?: string;
   providerFileId?: string;
   altText?: string;
   isPrimary?: boolean;

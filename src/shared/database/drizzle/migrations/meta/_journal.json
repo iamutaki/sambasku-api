@@ -71,6 +71,41 @@
       "when": 1790900000000,
       "tag": "0009_account-deletion",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1791000000000,
+      "tag": "0010_user-display-name-bio",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1791100000000,
+      "tag": "0011_word-usage-labels",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1791200000000,
+      "tag": "0012_translation-helps",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1791300000000,
+      "tag": "0013_notification-campaigns",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1791400000000,
+      "tag": "0014_word-images-unique-per-word",
+      "breakpoints": true
     }
   ]
 }

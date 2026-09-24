@@ -20,3 +20,8 @@ export function buildAvatarImagePath(userId: string, mimeType: string): string {
   const safeUser = userId.replace(/[^a-zA-Z0-9_-]/g, '');
   return `assets/avatars/${safeUser}/${generateId()}.${extensionForImageMime(mimeType)}`;
 }
+
+/** Path bantuan terjemahan: assets/translation-helps/<ulid>.<ext> */
+export function buildTranslationHelpImagePath(mimeType: string): string {
+  return `assets/translation-helps/${generateId()}.${extensionForImageMime(mimeType)}`;
+}

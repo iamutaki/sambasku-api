@@ -8,6 +8,8 @@ export const publicProfileResponseSchema = z.object({
   success: z.literal(true),
   data: z.object({
     username: z.string(),
+    display_name: z.string(),
+    bio: z.string().nullable(),
     role: z.string(),
     is_verifier: z.boolean(),
     joined_at: z.string(),

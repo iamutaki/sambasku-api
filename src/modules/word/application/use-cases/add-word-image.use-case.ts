@@ -1,12 +1,15 @@
 import { NotFoundError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { WordRepository, WordImageMedia } from '../../domain/repositories/word.repository';
+import { resolveWordImageProvider } from '../../domain/word-image-provider';
 import { resolveChildPublication } from '../utils/resolve-publication';
 import { assertCanContribute } from '../utils/assert-can-contribute';
 import type { Actor } from './create-word.use-case';
 
 export interface AddWordImageDto {
   url: string;
+  /** Stock Media Explorer; absen/github → storage aktif */
+  provider?: string;
   providerFileId: string;
   sha?: string | null;
   altText?: string | null;
@@ -14,7 +17,7 @@ export interface AddWordImageDto {
 }
 
 // Kontribusi gambar contoh pada kata existing (03-api-kontribusi-verifikasi.md).
-// Gambar hasil direct-upload client (upload-token) - backend hanya simpan referensi.
+// Upload GitHub ATAU referensi URL stock dari Media Explorer.
 export class AddWordImageUseCase {
   constructor(
     private readonly wordRepo: WordRepository,
@@ -30,9 +33,10 @@ export class AddWordImageUseCase {
     }
 
     const publication = resolveChildPublication(actor.role);
+    const provider = resolveWordImageProvider(dto.provider, this.imageProviderName);
     const media = await this.wordRepo.addWordImage(
       wordId,
-      { ...dto, provider: this.imageProviderName, ...publication },
+      { ...dto, provider, ...publication },
       actor.userId,
     );
 

@@ -4,6 +4,10 @@ export type UserRole = 'root' | 'admin' | 'reviewer' | 'editor' | 'contributor';
 export interface User {
   id: string; // ULID
   username: string;
+  /** Nama tampilan publik; awalnya = username, boleh diedit tanpa ganti username. */
+  displayName: string;
+  /** Bio publik opsional. */
+  bio: string | null;
   email: string;
   // Digit internasional tanpa '+', mis. 62899… - null bila user skip saat register
   phone: string | null;
@@ -24,6 +28,9 @@ export interface User {
 
 export type NewUser = Pick<User, 'username' | 'email' | 'passwordHash' | 'phone'> & {
   emailVerified?: boolean;
+  /** Default = username bila diabaikan saat save. */
+  displayName?: string;
+  bio?: string | null;
 };
 
 export interface UserListFilter {

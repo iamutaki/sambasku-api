@@ -17,6 +17,9 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `OAUTH_NO_PASSWORD` | 400 | Ubah password pada akun tanpa password (OAuth-only) - arahkan ke lupa password |
 | `INVALID_GOOGLE_TOKEN` | 401 | ID token Google gagal verifikasi / akun Google tidak bisa dipakai |
 | `INVALID_FACEBOOK_TOKEN` | 401 | Access token Facebook gagal verifikasi / akun Facebook tidak bisa dipakai |
+| `GOOGLE_ALREADY_LINKED` | 409 | ID Google (`sub`) sudah terhubung ke akun lain |
+| `GOOGLE_NOT_LINKED` | 404 | Lepas Google padahal identity belum terhubung |
+| `LAST_AUTH_METHOD` | 409 | Lepas Google padahal itu satu-satunya cara masuk (belum punya password) |
 | `FORBIDDEN` | 403 | Role tidak diizinkan akses endpoint |
 | `NOT_FOUND` | 404 | Route/endpoint tidak ditemukan (via `app.notFound`) |
 | `USER_NOT_FOUND` | 404 | User tidak ditemukan (profil publik by username; akun soft-deleted / nonaktif; update role admin; user id tidak ada) |
@@ -47,6 +50,9 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan nama (username) yang sudah dipakai |
 | `PHONE_ALREADY_EXISTS` | 409 | Registrasi / pengajuan verifikator dengan nomor HP yang sudah dipakai user lain |
 | `BUG_REPORT_NOT_FOUND` | 404 | Laporan masalah tidak ditemukan / sudah selesai (resolve admin) |
+| `TRANSLATION_HELP_NOT_FOUND` | 404 | Bantuan terjemahan tidak ditemukan / tidak boleh diakses |
+| `TRANSLATION_HELP_REPLY_NOT_FOUND` | 404 | Balasan bantuan terjemahan tidak ditemukan |
+| `TRANSLATION_HELP_NOT_PUBLISHED` | 409 | Balasan hanya untuk bantuan yang sudah tayang |
 | `VERIFIER_APPLICATION_NOT_FOUND` | 404 | Pengajuan verifikator tidak ada (GET me belum apply; detail admin id tidak dikenal) |
 | `VERIFIER_APPLICATION_NOT_REJECTED` | 409 | PATCH me hanya boleh jika status rejected |
 | `ALREADY_VERIFIER` | 403 | POST/PATCH pengajuan oleh user yang role-nya bukan contributor; juga approve jika pemohon sudah bukan contributor |
@@ -62,6 +68,7 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `INVALID_SUGGESTION_CHANGES` | 400 | proposed_changes kosong / tidak valid |
 | `RATE_LIMITED` | 429 | Terlalu banyak percobaan (lihat tabel limit di api-base-stack.md Section 15). Resend OTP: 1/2 menit per IP, dan cooldown 2 menit per email |
 | `INTERNAL_ERROR` | 500 | Error tak terduga (bug, koneksi DB putus, dst) |
+| `UPSTREAM_CAPACITY` | 503 | Kapasitas runtime habis, bukan bug: batas subrequest / CPU Workers terlampaui. SATU-SATUNYA kode yang memicu circuit breaker klien pindah tier (lihat `docs/backlogs/FAILOVER.md`). Hanya muncul di tier 1 (Workers); tier 2/3 proses Node tanpa batas subrequest |
 | `IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider penyimpanan gambar belum dikonfigurasi (env `IMAGEKIT_*`) |
 | `PUBLIC_IMAGE_UPLOAD_UNAVAILABLE` | 503 | Provider gambar publik belum dikonfigurasi / token GitHub invalid (`PUBLIC_IMAGE_GITHUB_*`) |
 | `PUBLIC_IMAGE_UPLOAD_FAILED` | 502 | Upload gambar publik ke GitHub Contents API gagal |
@@ -82,3 +89,10 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `LEMMA_DEFINITION_PROVIDER_UNAVAILABLE` | 503 | Provider KBBI dinonaktifkan (`KBBI_PROVIDER=none` / `RAF555_BASE_URL=""`) |
 | `SHARE_BACKGROUND_PROVIDER_ERROR` | 502 | Unsplash gagal (timeout / non-OK / payload); endpoint share biasanya swallow → items [] |
 | `SHARE_BACKGROUND_PROVIDER_UNAVAILABLE` | 503 | `UNSPLASH_ACCESS_KEY` kosong (provider internal); endpoint publik tetap 200 + items [] |
+| `TEMPLATE_NOT_FOUND` | 404 | Template notifikasi campaign tidak ditemukan / sudah dihapus |
+| `CAMPAIGN_NOT_FOUND` | 404 | Campaign notifikasi tidak ditemukan |
+| `CAMPAIGN_NOT_CANCELLABLE` | 400 | Cancel hanya untuk status draft/scheduled |
+| `CAMPAIGN_NOT_SENDABLE` | 400 | Send hanya dari draft/scheduled |
+| `CAMPAIGN_NOT_RETRYABLE` | 400 | Retry hanya setelah completed/failed |
+| `RETRY_NOT_SUPPORTED` | 400 | Retry hanya untuk audience selected |
+| `NO_FAILED_RECIPIENTS` | 400 | Tidak ada penerima gagal untuk di-retry |

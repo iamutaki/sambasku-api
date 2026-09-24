@@ -46,6 +46,14 @@ class LazyEnvPushSender implements PushSenderPort {
     }
     return new FcmPushSender(projectId, clientEmail, privateKey).send(fcmTokens, message);
   }
+
+  async sendToTopic(topic: string, message: PushMessage): Promise<boolean> {
+    const { projectId, clientEmail, privateKey } = readFirebaseEnv();
+    if (!projectId || !clientEmail || !privateKey) {
+      return new NoopPushSender().sendToTopic(topic, message);
+    }
+    return new FcmPushSender(projectId, clientEmail, privateKey).sendToTopic(topic, message);
+  }
 }
 
 /** Pilih FCM nyata kalau ketiga env terisi; selain itu no-op (dev lokal). */

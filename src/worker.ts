@@ -12,18 +12,38 @@ interface Env {
 }
 
 // Tipe `app` via import type-only (dihapus saat build - runtime tetap lazy)
-type App = typeof import('./app').app;
+type AppModule = typeof import('./app');
 
-let appPromise: Promise<App> | null = null;
+let appPromise: Promise<AppModule> | null = null;
+
+function loadApp(env: Env): Promise<AppModule> {
+  if (!appPromise) {
+    appPromise = bootstrap(env)
+      .then(() => import('./app'));
+  }
+  return appPromise;
+}
 
 export default {
   fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
-    if (!appPromise) {
-      appPromise = bootstrap(env)
-        .then(() => import('./app'))
-        .then((m) => m.app);
-    }
-    return appPromise.then((app) => app.fetch(request as never, env as never, ctx as never));
+    return loadApp(env).then((m) => m.app.fetch(request as never, env as never, ctx as never));
+  },
+
+  /** Cron: lanjutkan campaign sending + jalankan scheduled yang sudah due. */
+  async scheduled(
+    _controller: { cron: string; scheduledTime: number },
+    env: Env,
+    _ctx: { waitUntil: (p: Promise<unknown>) => void },
+  ): Promise<void> {
+    const m = await loadApp(env);
+    const result = await m.runDueNotificationCampaigns();
+    console.log(
+      JSON.stringify({
+        level: 'info',
+        msg: 'notification campaign cron done',
+        processed: result.processed,
+      }),
+    );
   },
 };
 

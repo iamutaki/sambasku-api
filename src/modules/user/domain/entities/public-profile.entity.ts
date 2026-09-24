@@ -6,6 +6,8 @@ export interface PublicProfileStats {
 
 export interface PublicProfile {
   username: string;
+  displayName: string;
+  bio: string | null;
   role: string;
   isVerifier: boolean;
   joinedAt: Date;
@@ -17,6 +19,8 @@ export interface PublicProfile {
 export interface PublicUserRow {
   id: string;
   username: string;
+  displayName: string;
+  bio: string | null;
   role: string;
   joinedAt: Date;
   avatarUrl: string | null;

@@ -1,3 +1,5 @@
+import type { UsageLabel } from '@/shared/constants/usage-labels';
+
 // Entitas domain - murni TypeScript, tidak tahu Drizzle/HTTP
 // Section 22 (approval gate): pending_review/rejected hanya di-set sistem
 export type WordStatus = 'draft' | 'pending_review' | 'published' | 'rejected' | 'taken_down';
@@ -22,6 +24,7 @@ export interface Word {
   lemma: string;
   notes: string | null;
   wordType: WordType;
+  usageLabels: UsageLabel[];
   status: WordStatus;
   isVerified: boolean;
   verifiedBy: string | null;
@@ -45,6 +48,7 @@ export interface WordSummary {
   languageId: string;
   languageCode: string;
   wordType: WordType;
+  usageLabels: UsageLabel[];
   status: WordStatus;
   isVerified: boolean;
   /** terisi saat pencarian terjemahan (Indonesia→Sambas): teks yang cocok */

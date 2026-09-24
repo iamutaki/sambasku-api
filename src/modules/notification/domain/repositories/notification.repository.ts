@@ -27,6 +27,8 @@ export interface NotificationListResult {
 
 export interface NotificationRepository {
   create(input: CreateInboxNotificationInput): Promise<void>;
+  /** Insert banyak baris; conflict diabaikan (unique user+target). */
+  createMany(inputs: CreateInboxNotificationInput[]): Promise<number>;
   /** Insert, atau timpa baris yang sama lalu tandai belum dibaca. */
   upsertUnread(input: CreateInboxNotificationInput): Promise<void>;
   listByUser(userId: string, opts: NotificationListOptions): Promise<NotificationListResult>;
