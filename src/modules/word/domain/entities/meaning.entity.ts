@@ -22,6 +22,7 @@ export interface MeaningDetail extends Meaning {
     languageId: string;
     translationText: string;
     translationType: string;
+    translationAllowsComma?: boolean;
   }[];
   examples: {
     id: string;

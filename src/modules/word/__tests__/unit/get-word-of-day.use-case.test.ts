@@ -97,4 +97,45 @@ describe('GetWordOfDayUseCase', () => {
     expect(result.word).toBeNull();
     expect(result.isNewThisWeek).toBe(false);
   });
+
+  it('cache invalid jika kata ter-cache punya label feed-excluded', async () => {
+    const findWordOfDayId = vi
+      .fn()
+      .mockResolvedValueOnce('A'.repeat(26))
+      .mockResolvedValueOnce('B'.repeat(26));
+    const findDetailById = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'A'.repeat(26),
+        verifiedAt: new Date('2026-09-01T00:00:00Z'),
+        usageLabels: ['kasar'],
+      } as unknown as WordDetail)
+      .mockResolvedValueOnce({
+        id: 'B'.repeat(26),
+        verifiedAt: new Date('2026-09-01T00:00:00Z'),
+        usageLabels: ['informal'],
+      } as unknown as WordDetail);
+    const uc = new GetWordOfDayUseCase(makeRepo({ findWordOfDayId, findDetailById }));
+
+    const first = await uc.execute(WIB_NOW);
+    expect(first.word).toBeNull();
+
+    // Simulasikan cache berisi kata sensitif (setelah assign manual)
+    (uc as unknown as { cache: { date: string; result: unknown } }).cache = {
+      date: '2026-09-21',
+      result: {
+        date: '2026-09-21',
+        isNewThisWeek: false,
+        word: {
+          id: 'A'.repeat(26),
+          usageLabels: ['seksual'],
+          verifiedAt: null,
+        },
+      },
+    };
+
+    const second = await uc.execute(WIB_NOW);
+    expect(second.word?.id).toBe('B'.repeat(26));
+    expect(findWordOfDayId).toHaveBeenCalledTimes(2);
+  });
 });

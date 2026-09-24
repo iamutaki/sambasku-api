@@ -4,6 +4,8 @@ import {
   examples,
   meanings,
   pronunciations,
+  translationHelpReplies,
+  translationHelps,
   users,
   votes,
   wordImages,
@@ -93,6 +95,31 @@ export class VoteRepositoryImpl implements VoteRepository {
           .select({ id: comments.id })
           .from(comments)
           .where(and(eq(comments.id, target.entityId), isNull(comments.deletedAt)))
+          .limit(1);
+        return rows.length > 0;
+      }
+      case 'translation_help_reply': {
+        // Hanya balasan tayang yang boleh di-vote (taken_down /
+        // deleted_by_author → 404 VOTE_TARGET_NOT_FOUND).
+        const rows = await this.db
+          .select({ id: translationHelpReplies.id })
+          .from(translationHelpReplies)
+          .where(
+            and(
+              eq(translationHelpReplies.id, target.entityId),
+              eq(translationHelpReplies.status, 'published'),
+            ),
+          )
+          .limit(1);
+        return rows.length > 0;
+      }
+      case 'translation_help': {
+        const rows = await this.db
+          .select({ id: translationHelps.id })
+          .from(translationHelps)
+          .where(
+            and(eq(translationHelps.id, target.entityId), eq(translationHelps.status, 'published')),
+          )
           .limit(1);
         return rows.length > 0;
       }
@@ -585,6 +612,42 @@ export class VoteRepositoryImpl implements VoteRepository {
             for (const r of rows) {
               const label = r.altText?.trim() || r.url;
               out.set(voteTargetKey({ entityType: 'word_image', entityId: r.id }), clipPreview(label));
+            }
+          }),
+      );
+    }
+
+    const replyIds = [...new Set(idsByType.get('translation_help_reply') ?? [])];
+    if (replyIds.length > 0) {
+      jobs.push(
+        this.db
+          .select({ id: translationHelpReplies.id, body: translationHelpReplies.body })
+          .from(translationHelpReplies)
+          .where(inArray(translationHelpReplies.id, replyIds))
+          .then((rows) => {
+            for (const r of rows) {
+              out.set(
+                voteTargetKey({ entityType: 'translation_help_reply', entityId: r.id }),
+                clipPreview(r.body),
+              );
+            }
+          }),
+      );
+    }
+
+    const helpIds = [...new Set(idsByType.get('translation_help') ?? [])];
+    if (helpIds.length > 0) {
+      jobs.push(
+        this.db
+          .select({ id: translationHelps.id, body: translationHelps.body })
+          .from(translationHelps)
+          .where(inArray(translationHelps.id, helpIds))
+          .then((rows) => {
+            for (const r of rows) {
+              out.set(
+                voteTargetKey({ entityType: 'translation_help', entityId: r.id }),
+                clipPreview(r.body?.trim() || 'Pertanyaan bantuan'),
+              );
             }
           }),
       );

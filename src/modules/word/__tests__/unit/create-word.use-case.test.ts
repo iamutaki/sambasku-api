@@ -49,6 +49,7 @@ function makeWord(overrides: Partial<Word> = {}): Word {
     id: '01WORDULID000000000000000',
     languageId: '01LANGLANGUAGESMB0000000',
     lemma: 'makatn',
+    lemmaAllowsComma: false,
     notes: null,
     wordType: 'word',
     usageLabels: [],

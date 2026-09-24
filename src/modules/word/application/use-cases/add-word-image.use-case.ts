@@ -1,3 +1,4 @@
+import type { ImageContentWarning } from '@/shared/constants/image-content-warnings';
 import { NotFoundError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { WordRepository, WordImageMedia } from '../../domain/repositories/word.repository';
@@ -20,6 +21,7 @@ export interface AddWordImageDto {
   sha?: string | null;
   altText?: string | null;
   isPrimary: boolean;
+  contentWarnings?: ImageContentWarning[];
 }
 
 // Kontribusi gambar contoh pada kata existing (03-api-kontribusi-verifikasi.md).
@@ -54,6 +56,7 @@ export class AddWordImageUseCase {
         sha: dto.sha,
         altText: dto.altText,
         isPrimary: dto.isPrimary,
+        contentWarnings: dto.contentWarnings ?? [],
         provider,
         status,
         isVerified,
@@ -72,6 +75,7 @@ export class AddWordImageUseCase {
         provider_file_id: media.providerFileId,
         status: media.status,
         is_verified: media.isVerified,
+        content_warnings: media.contentWarnings,
       },
       requestId: actor.requestId ?? null,
     });

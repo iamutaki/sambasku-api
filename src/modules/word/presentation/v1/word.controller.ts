@@ -48,8 +48,15 @@ import {
   pickDefaultKeepWordId,
 } from '../../application/use-cases/list-duplicate-words.use-case';
 import type { MergeDuplicateWordsUseCase } from '../../application/use-cases/merge-duplicate-words.use-case';
+import type { ListCommaSplitsUseCase } from '../../application/use-cases/list-comma-splits.use-case';
+import type { ApplyCommaSplitUseCase } from '../../application/use-cases/apply-comma-split.use-case';
+import type { MarkCommaLiteralUseCase } from '../../application/use-cases/mark-comma-literal.use-case';
 import { MAX_AUDIO_BYTES } from '../../application/utils/validate-audio-file';
-import type { MergeDuplicateWordsBody } from './validators/create-word.validator';
+import type {
+  ApplyCommaSplitBody,
+  MarkCommaLiteralBody,
+  MergeDuplicateWordsBody,
+} from './validators/create-word.validator';
 
 export class WordController {
   constructor(
@@ -65,6 +72,9 @@ export class WordController {
       listLatest: ListLatestWordsUseCase;
       listDuplicates: ListDuplicateWordsUseCase;
       mergeDuplicates: MergeDuplicateWordsUseCase;
+      listCommaSplits: ListCommaSplitsUseCase;
+      applyCommaSplit: ApplyCommaSplitUseCase;
+      markCommaLiteral: MarkCommaLiteralUseCase;
       verify: VerifyWordUseCase;
       publish: PublishWordUseCase;
       deleteWord: SoftDeleteWordUseCase;
@@ -236,6 +246,7 @@ export class WordController {
     return {
       id: word.id,
       lemma: word.lemma,
+      lemma_allows_comma: word.lemmaAllowsComma,
       language_id: word.languageId,
       notes: word.notes,
       word_type: word.wordType,
@@ -271,6 +282,7 @@ export class WordController {
           language_id: t.languageId,
           translation_text: t.translationText,
           translation_type: t.translationType,
+          translation_allows_comma: t.translationAllowsComma ?? false,
         })),
         examples: m.examples.map((e) => ({
           id: e.id,
@@ -318,11 +330,13 @@ export class WordController {
             : img.sha,
           alt_text: img.altText,
           is_primary: img.isPrimary,
+          content_warnings: img.contentWarnings ?? [],
+          // Publik juga butuh is_verified agar klien blur/pending tanpa tebak placehold.co
+          is_verified: img.isVerified ?? false,
           ...(opts.redactStagingImages
             ? {}
             : {
                 provider: img.provider,
-                is_verified: img.isVerified ?? false,
               }),
         };
       }),
@@ -507,6 +521,105 @@ export class WordController {
     });
   }
 
+  async listCommaSplits(c: Context) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+
+    const result = await this.deps.listCommaSplits.execute();
+    return c.json({
+      success: true as const,
+      data: {
+        total: result.total,
+        lemmas: result.lemmas.map((item) => ({
+          word_id: item.wordId,
+          lemma: item.lemma,
+          language_id: item.languageId,
+          language_code: item.languageCode,
+          word_type: item.wordType,
+          status: item.status,
+          is_verified: item.isVerified,
+          meanings_count: item.meaningsCount,
+          suggested_parts: item.suggestedParts,
+          meaning_preview: item.meaningPreview,
+        })),
+        translations: result.translations.map((item) => ({
+          meaning_translation_id: item.meaningTranslationId,
+          meaning_id: item.meaningId,
+          word_id: item.wordId,
+          lemma: item.lemma,
+          translation_text: item.translationText,
+          language_id: item.languageId,
+          language_code: item.languageCode,
+          suggested_parts: item.suggestedParts,
+          definition: item.definition,
+          word_class_id: item.wordClassId,
+        })),
+      },
+    });
+  }
+
+  async applyCommaSplit(c: Context, body: ApplyCommaSplitBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+
+    const result =
+      body.kind === 'lemma'
+        ? await this.deps.applyCommaSplit.execute({
+            kind: 'lemma',
+            wordId: body.word_id,
+            parts: body.parts,
+            actorId: actor.user_id,
+            requestId,
+          })
+        : await this.deps.applyCommaSplit.execute({
+            kind: 'translation',
+            meaningTranslationId: body.meaning_translation_id,
+            parts: body.parts,
+            actorId: actor.user_id,
+            requestId,
+          });
+
+    return c.json({
+      success: true as const,
+      data: {
+        kind: result.kind,
+        word_id: result.wordId,
+        ...(result.createdWordIds ? { created_word_ids: result.createdWordIds } : {}),
+        ...(result.meaningIds ? { meaning_ids: result.meaningIds } : {}),
+      },
+    });
+  }
+
+  async markCommaLiteral(c: Context, body: MarkCommaLiteralBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+
+    const result =
+      body.kind === 'lemma'
+        ? await this.deps.markCommaLiteral.execute({
+            kind: 'lemma',
+            wordId: body.word_id,
+            actorId: actor.user_id,
+            requestId,
+          })
+        : await this.deps.markCommaLiteral.execute({
+            kind: 'translation',
+            meaningTranslationId: body.meaning_translation_id,
+            actorId: actor.user_id,
+            requestId,
+          });
+
+    return c.json({
+      success: true as const,
+      data: {
+        kind: result.kind,
+        id: result.id,
+      },
+    });
+  }
+
   /**
    * Submit kata via endpoint publik /api/v1/contributions/words.
    * - Tanpa Bearer → user sistem Anonim (legacy anonim).
@@ -608,6 +721,7 @@ export class WordController {
           sha: body.sha ?? null,
           altText: body.alt_text,
           isPrimary: body.is_primary,
+          contentWarnings: body.content_warnings ?? [],
         },
         actor,
       ),
@@ -622,6 +736,7 @@ export class WordController {
           provider_file_id: media.providerFileId,
           alt_text: media.altText,
           is_primary: media.isPrimary,
+          content_warnings: media.contentWarnings,
           status: media.status,
           is_verified: media.isVerified,
           is_corrected: media.isCorrected,

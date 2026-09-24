@@ -64,6 +64,9 @@ import { ListWordsUseCase } from '@/modules/word/application/use-cases/list-word
 import { ListLatestWordsUseCase } from '@/modules/word/application/use-cases/list-latest-words.use-case';
 import { ListDuplicateWordsUseCase } from '@/modules/word/application/use-cases/list-duplicate-words.use-case';
 import { MergeDuplicateWordsUseCase } from '@/modules/word/application/use-cases/merge-duplicate-words.use-case';
+import { ListCommaSplitsUseCase } from '@/modules/word/application/use-cases/list-comma-splits.use-case';
+import { ApplyCommaSplitUseCase } from '@/modules/word/application/use-cases/apply-comma-split.use-case';
+import { MarkCommaLiteralUseCase } from '@/modules/word/application/use-cases/mark-comma-literal.use-case';
 import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-word.use-case';
 import { PublishWordUseCase } from '@/modules/word/application/use-cases/publish-word.use-case';
 import { SoftDeleteWordUseCase } from '@/modules/word/application/use-cases/soft-delete-word.use-case';
@@ -142,7 +145,9 @@ import { ListWordReportsUseCase } from '@/modules/word-report/application/use-ca
 import {
   ResolveWordReportUseCase,
   TakedownWordReportUseCase,
+  FlagViolentImageReportUseCase,
 } from '@/modules/word-report/application/use-cases/resolve-word-report.use-case';
+import { SetWordImageContentWarningsUseCase } from '@/modules/word/application/use-cases/set-word-image-content-warnings.use-case';
 import { WordReportController } from '@/modules/word-report/presentation/v1/word-report.controller';
 import { createWordReportRoutes } from '@/modules/word-report/presentation/v1/word-report.routes';
 import { createAdminWordReportRoutes } from '@/modules/word-report/presentation/v1/admin-word-report.routes';
@@ -399,6 +404,9 @@ const wordController = new WordController({
   listLatest: new ListLatestWordsUseCase(wordRepo),
   listDuplicates: new ListDuplicateWordsUseCase(wordRepo),
   mergeDuplicates: new MergeDuplicateWordsUseCase(wordRepo, auditRepo),
+  listCommaSplits: new ListCommaSplitsUseCase(wordRepo),
+  applyCommaSplit: new ApplyCommaSplitUseCase(wordRepo, auditRepo),
+  markCommaLiteral: new MarkCommaLiteralUseCase(wordRepo, auditRepo),
   verify: new VerifyWordUseCase(wordRepo, auditRepo),
   publish: new PublishWordUseCase(wordRepo, auditRepo),
   deleteWord: new SoftDeleteWordUseCase(wordRepo, auditRepo),
@@ -664,11 +672,17 @@ app.route('/api/v1/words', createWordMediaRoutes({ controller: wordController, a
 // Komentar per kata (09) - SEBELUM public word routes (pola media routes),
 // supaya /:wordId/comments tidak tertelan routes.use('*') rate limit publik
 app.route('/api/v1/words', createWordCommentRoutes({ controller: commentController, authenticate }));
+const setWordImageContentWarnings = new SetWordImageContentWarningsUseCase(wordRepo, auditRepo);
 const wordReportController = new WordReportController({
   create: new CreateWordReportUseCase(wordReportRepo, wordRepo, auditRepo),
   list: new ListWordReportsUseCase(wordReportRepo),
   resolve: new ResolveWordReportUseCase(wordReportRepo, auditRepo),
   takedown: new TakedownWordReportUseCase(wordReportRepo, takedownWord),
+  flagViolentImage: new FlagViolentImageReportUseCase(
+    wordReportRepo,
+    setWordImageContentWarnings,
+    auditRepo,
+  ),
 });
 app.route('/api/v1/words', createWordReportRoutes({ controller: wordReportController, authenticate }));
 app.route('/api/v1/words', createPublicWordRoutes({ controller: wordController, authenticate }));
@@ -794,9 +808,9 @@ app.route(
 const translationHelpRepo = new TranslationHelpRepositoryImpl(db);
 const translationHelpController = new TranslationHelpController({
   create: new CreateTranslationHelpUseCase(translationHelpRepo, auditRepo),
-  listPublished: new ListPublishedTranslationHelpsUseCase(translationHelpRepo),
+  listPublished: new ListPublishedTranslationHelpsUseCase(translationHelpRepo, voteRepo),
   listMine: new ListMyTranslationHelpsUseCase(translationHelpRepo),
-  getDetail: new GetTranslationHelpDetailUseCase(translationHelpRepo),
+  getDetail: new GetTranslationHelpDetailUseCase(translationHelpRepo, voteRepo),
   listAdmin: new ListAdminTranslationHelpsUseCase(translationHelpRepo),
   approve: new ApproveTranslationHelpUseCase(
     translationHelpRepo,

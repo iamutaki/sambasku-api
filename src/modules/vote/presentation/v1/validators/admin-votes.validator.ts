@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
-const VoteTargetTypeZodEnum = z.enum(['word', 'meaning', 'example', 'pronunciation', 'word_image', 'comment']);
+const VoteTargetTypeZodEnum = z.enum([
+  'word',
+  'meaning',
+  'example',
+  'pronunciation',
+  'word_image',
+  'comment',
+  'translation_help_reply',
+  'translation_help',
+]);
 export type AdminVoteTargetType = z.infer<typeof VoteTargetTypeZodEnum>;
 
 // Query: GET /api/v1/admin/votes

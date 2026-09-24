@@ -1,9 +1,12 @@
 import type { UsageLabel } from '@/shared/constants/usage-labels';
+import type { ImageContentWarning } from '@/shared/constants/image-content-warnings';
 
 export interface CreateWordTranslationDto {
   languageId: string;
   translationText: string;
   translationType: string;
+  /** true = koma di padanan literal (bukan multi-makna). */
+  translationAllowsComma?: boolean;
 }
 
 export interface CreateWordExampleDto {
@@ -35,6 +38,8 @@ export interface CreateWordImageDto {
   sha?: string | null;
   altText?: string;
   isPrimary?: boolean;
+  /** Peringatan visual per foto (bukan usage_labels kata). */
+  contentWarnings?: ImageContentWarning[];
 }
 
 export type WordType = 'word' | 'idiom' | 'peribahasa' | 'ungkapan';
@@ -96,6 +101,8 @@ export interface CreateWordDto {
   languageId: string;
   dialectId?: string;
   lemma: string;
+  /** true = koma di lemma literal (bukan multi-kata). */
+  lemmaAllowsComma?: boolean;
   notes?: string;
   wordType: WordType;
   usageLabels: UsageLabel[];

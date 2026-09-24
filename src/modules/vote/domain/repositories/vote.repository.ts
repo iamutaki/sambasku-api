@@ -1,6 +1,15 @@
 // Target vote yang dikenal (08-api-upvote-downvote.md): entitas kamus +
-// children-nya + komentar (09-api-comment.md).
-export type VoteTargetType = 'word' | 'meaning' | 'example' | 'pronunciation' | 'word_image' | 'comment';
+// children-nya + komentar (09-api-comment.md) + balasan bantuan terjemahan
+// (32-api-translation-helps.md).
+export type VoteTargetType =
+  | 'word'
+  | 'meaning'
+  | 'example'
+  | 'pronunciation'
+  | 'word_image'
+  | 'comment'
+  | 'translation_help_reply'
+  | 'translation_help';
 
 export interface VoteTarget {
   entityType: VoteTargetType;

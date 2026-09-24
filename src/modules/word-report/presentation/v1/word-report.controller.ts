@@ -7,6 +7,7 @@ import type { ListWordReportsUseCase } from '../../application/use-cases/list-wo
 import type {
   ResolveWordReportUseCase,
   TakedownWordReportUseCase,
+  FlagViolentImageReportUseCase,
 } from '../../application/use-cases/resolve-word-report.use-case';
 import type {
   CreateWordReportBody,
@@ -19,6 +20,7 @@ export function toWordReportItem(row: WordReport) {
   return {
     id: row.id,
     word_id: row.wordId,
+    image_id: row.imageId,
     lemma: row.wordLemma,
     word_status: row.wordStatus,
     user_id: row.userId,
@@ -40,6 +42,7 @@ export class WordReportController {
       list: ListWordReportsUseCase;
       resolve: ResolveWordReportUseCase;
       takedown: TakedownWordReportUseCase;
+      flagViolentImage: FlagViolentImageReportUseCase;
     },
   ) {}
 
@@ -47,6 +50,7 @@ export class WordReportController {
     const user = this.requireUser(c);
     const row = await this.deps.create.execute({
       wordId,
+      imageId: body.image_id,
       userId: user.user_id,
       reasonCode: body.reason_code,
       note: body.note,
@@ -58,6 +62,7 @@ export class WordReportController {
         data: {
           id: row.id,
           word_id: row.wordId,
+          image_id: row.imageId,
           status: 'open' as const,
           created_at: row.createdAt.toISOString(),
         },
@@ -103,6 +108,17 @@ export class WordReportController {
     });
     const found = await this.deps.list.getById(id);
     return c.json({ success: true as const, data: toWordReportItem(found) });
+  }
+
+  async flagViolentImage(c: Context, id: string, body: ResolveWordReportBody) {
+    const user = this.requireUser(c);
+    const row = await this.deps.flagViolentImage.execute({
+      id,
+      actorId: user.user_id,
+      note: body.note,
+      requestId: this.requestId(c),
+    });
+    return c.json({ success: true as const, data: toWordReportItem(row) });
   }
 
   private async resolve(

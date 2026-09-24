@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { IMAGE_CONTENT_WARNINGS } from '@/shared/constants/image-content-warnings';
 import {
   STOCK_WORD_IMAGE_PROVIDERS,
   isAllowedStockImageUrl,
@@ -11,6 +12,21 @@ export const wordImageClientProviderSchema = z.enum([
   'github',
   'imagekit',
 ]);
+
+export const imageContentWarningSchema = z.enum(IMAGE_CONTENT_WARNINGS);
+
+/** Multi-label tertutup per foto; tolak duplikat. */
+export const contentWarningsField = z
+  .array(imageContentWarningSchema)
+  .default([])
+  .superRefine((arr, ctx) => {
+    if (new Set(arr).size !== arr.length) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'content_warnings tidak boleh ada duplikat',
+      });
+    }
+  });
 
 /**
  * Item images[] / body add-word-image.
@@ -25,6 +41,7 @@ export const wordImageInputSchema = z
     sha: z.string().trim().min(1).max(128).optional(),
     alt_text: z.string().trim().max(500).optional(),
     is_primary: z.boolean().default(false),
+    content_warnings: contentWarningsField,
   })
   .superRefine((img, ctx) => {
     if (!img.provider || !isStockWordImageProvider(img.provider)) return;

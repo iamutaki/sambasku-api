@@ -4,7 +4,16 @@ import { opaqueId } from '@/shared/validation/id';
 
 const ulid = opaqueId;
 
-export const voteTargetTypeEnum = z.enum(['word', 'meaning', 'example', 'pronunciation', 'word_image', 'comment']);
+export const voteTargetTypeEnum = z.enum([
+  'word',
+  'meaning',
+  'example',
+  'pronunciation',
+  'word_image',
+  'comment',
+  'translation_help_reply',
+  'translation_help',
+]);
 
 export const toggleVoteSchema = z.object({
   target_type: voteTargetTypeEnum,
@@ -19,7 +28,8 @@ export type ToggleVoteBody = z.infer<typeof toggleVoteSchema>;
 // adalah cek eksistensi di use case (404). Alfabet sengaja longgar
 // ([0-9A-Za-z], bukan Crockford ketat) karena fixture ULID handmade di
 // repo memakai huruf bebas (mis. 01U2E... mengandung U).
-const TARGET_PATTERN = /^(word|meaning|example|pronunciation|word_image|comment):[0-9A-Za-z]{26}$/;
+const TARGET_PATTERN =
+  /^(word|meaning|example|pronunciation|word_image|comment|translation_help_reply|translation_help):[0-9A-Za-z]{26}$/;
 export const MAX_VOTE_TARGETS = 50;
 
 // "word:01X,meaning:01Y" → array target tervalidasi (trim, dedupe, maks 50)

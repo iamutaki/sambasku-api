@@ -22,6 +22,11 @@ import {
   duplicateWordGroupsResponseSchema,
   mergeDuplicateWordsBodySchema,
   mergeDuplicateWordsResponseSchema,
+  commaSplitCandidatesResponseSchema,
+  applyCommaSplitBodySchema,
+  applyCommaSplitResponseSchema,
+  markCommaLiteralBodySchema,
+  markCommaLiteralResponseSchema,
 } from './validators/create-word.validator';
 import {
   adminWordDetailResponseSchema,
@@ -163,6 +168,76 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
   routes.openapi(listDuplicatesRoute, (c) => deps.controller.listDuplicates(c) as never);
   routes.openapi(mergeDuplicatesRoute, (c) =>
     deps.controller.mergeDuplicates(c, c.req.valid('json')) as never,
+  );
+
+  // Tab Pemisahan - literal SEBELUM /:id
+  routes.use(
+    '/comma-splits',
+    deps.authenticate,
+    authorizeRole('admin', 'editor', 'root', 'reviewer'),
+    rateLimit({ points: 60, duration: 60 }),
+  );
+  routes.use(
+    '/comma-splits/apply',
+    deps.authenticate,
+    authorizeRole('admin', 'root', 'reviewer'),
+    rateLimit({ points: 30, duration: 60 }),
+  );
+  routes.use(
+    '/comma-splits/mark-literal',
+    deps.authenticate,
+    authorizeRole('admin', 'root', 'reviewer'),
+    rateLimit({ points: 30, duration: 60 }),
+  );
+
+  const listCommaSplitsRoute = createRoute({
+    method: 'get',
+    path: '/comma-splits',
+    tags: ['Words', 'Admin'],
+    summary: 'Kandidat pecah koma (tab Pemisahan)',
+    responses: {
+      200: { description: 'Kandidat lemma & padanan berkoma', content: json(commaSplitCandidatesResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+    },
+  });
+
+  const applyCommaSplitRoute = createRoute({
+    method: 'post',
+    path: '/comma-splits/apply',
+    tags: ['Words', 'Admin'],
+    summary: 'Pisahkan lemma jadi beberapa kata, atau padanan jadi beberapa makna',
+    request: { body: { content: json(applyCommaSplitBodySchema) } },
+    responses: {
+      200: { description: 'Pemisahan berhasil', content: json(applyCommaSplitResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Bukan verifikator', content: json(errorResponseSchema) },
+      404: { description: 'Entri tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
+  const markCommaLiteralRoute = createRoute({
+    method: 'post',
+    path: '/comma-splits/mark-literal',
+    tags: ['Words', 'Admin'],
+    summary: 'Tandai koma sebagai literal (keluar antrean Pemisahan)',
+    request: { body: { content: json(markCommaLiteralBodySchema) } },
+    responses: {
+      200: { description: 'Ditandai literal', content: json(markCommaLiteralResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Bukan verifikator', content: json(errorResponseSchema) },
+      404: { description: 'Entri tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+
+  routes.openapi(listCommaSplitsRoute, (c) => deps.controller.listCommaSplits(c) as never);
+  routes.openapi(applyCommaSplitRoute, (c) =>
+    deps.controller.applyCommaSplit(c, c.req.valid('json')) as never,
+  );
+  routes.openapi(markCommaLiteralRoute, (c) =>
+    deps.controller.markCommaLiteral(c, c.req.valid('json')) as never,
   );
 
   // Edit kata (05-api-edit-kata.md) - verifier team saja: perubahan

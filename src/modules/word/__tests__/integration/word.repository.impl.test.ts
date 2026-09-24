@@ -954,4 +954,23 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(byLemma.get('polos')?.sense).toBe('memasukkan makanan ke mulut');
     expect(byLemma.get('polos')?.approvedAt.getTime()).toBe(plain.createdAt.getTime());
   });
+
+  it('listLatest: kata dengan label kasar/tabu/seksual/diskriminatif tidak ikut', async () => {
+    await repo.saveWithRelations(baseWord({ lemma: 'aman', usageLabels: ['informal'] }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'kasarx', usageLabels: ['kasar'] }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'tabux', usageLabels: ['tabu'] }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'seksx', usageLabels: ['seksual'] }), ACTOR);
+    await repo.saveWithRelations(
+      baseWord({ lemma: 'diskrx', usageLabels: ['diskriminatif'] }),
+      ACTOR,
+    );
+
+    const page = await repo.listLatest({ limit: 20 });
+    const lemmas = page.items.map((w) => w.lemma);
+    expect(lemmas).toContain('aman');
+    expect(lemmas).not.toContain('kasarx');
+    expect(lemmas).not.toContain('tabux');
+    expect(lemmas).not.toContain('seksx');
+    expect(lemmas).not.toContain('diskrx');
+  });
 });

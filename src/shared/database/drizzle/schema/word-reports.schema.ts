@@ -3,8 +3,9 @@ import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqli
 import { generateId } from '@/shared/utils/ulid';
 import { users } from './users.schema';
 import { words } from './words.schema';
+import { wordImages } from './word-images.schema';
 
-/** Laporan entri yang tayang. Satu laporan open per (kata, pelapor). */
+/** Laporan entri/foto yang tayang. Open unik per (kata, pelapor[, foto]). */
 export const wordReports = sqliteTable(
   'word_reports',
   {
@@ -12,6 +13,8 @@ export const wordReports = sqliteTable(
     wordId: text('word_id')
       .notNull()
       .references(() => words.id),
+    /** Null = laporan entri kata; terisi = laporan foto spesifik (kekerasan). */
+    imageId: text('image_id').references(() => wordImages.id),
     userId: text('user_id')
       .notNull()
       .references(() => users.id),
@@ -30,6 +33,9 @@ export const wordReports = sqliteTable(
     index('word_reports_word_id_idx').on(t.wordId),
     uniqueIndex('word_reports_open_user_word_idx')
       .on(t.wordId, t.userId)
-      .where(sql`${t.status} = 'open'`),
+      .where(sql`${t.status} = 'open' AND ${t.imageId} IS NULL`),
+    uniqueIndex('word_reports_open_user_word_image_idx')
+      .on(t.wordId, t.userId, t.imageId)
+      .where(sql`${t.status} = 'open' AND ${t.imageId} IS NOT NULL`),
   ],
 );

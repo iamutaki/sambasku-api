@@ -107,6 +107,7 @@ export class ImportWordsUseCase {
     const parent = await this.wordRepo.findActiveByLemma(refs.languageId, lemma);
     const publication = decideImportPublication({
       verify: item.verify,
+      verified: item.verified,
       role: actor.role,
       parentStatus: parent?.status ?? null,
     });

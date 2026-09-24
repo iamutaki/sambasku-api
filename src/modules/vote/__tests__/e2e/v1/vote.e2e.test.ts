@@ -227,4 +227,136 @@ describe.skipIf(!hasTestDb)('Vote E2E v1 - toggle + counts + my (08 doc)', () =>
     expect(afterBody.data.length).toBeGreaterThan(0);
     expect(afterBody.data.every((row) => row.word === null)).toBe(true);
   });
+
+  it('translation_help_reply: vote published → 200; taken_down → 404; detail counts', async () => {
+    const { getTestDb } = await import('@/shared/database/drizzle/test-client');
+    const { translationHelps, translationHelpReplies, users } = await import(
+      '@/shared/database/drizzle/schema'
+    );
+    const db = getTestDb();
+
+    const allUsers = await db.select({ id: users.id, role: users.role }).from(users);
+    const askerId = allUsers.find((u) => u.role === 'contributor')!.id;
+    const adminId = allUsers.find((u) => u.role === 'admin')!.id;
+    const helpId = ulid26('01U2EHELPVOTE');
+    const replyOk = ulid26('01U2EREPLYOKv');
+    const replyDown = ulid26('01U2EREPLYDNv');
+
+    await db.insert(translationHelps).values({
+      id: helpId,
+      userId: askerId,
+      body: 'Bantuan untuk vote e2e',
+      images: [],
+      status: 'published',
+      reviewedBy: adminId,
+      reviewedAt: new Date(),
+    });
+    await db.insert(translationHelpReplies).values([
+      {
+        id: replyOk,
+        helpId,
+        userId: askerId,
+        body: 'Jawaban bagus',
+        status: 'published',
+      },
+      {
+        id: replyDown,
+        helpId,
+        userId: askerId,
+        body: 'Jawaban diturunkan',
+        status: 'taken_down',
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+      },
+    ]);
+
+    const voted = await post(
+      '/api/v1/votes',
+      { target_type: 'translation_help_reply', target_id: replyOk, value: 1 },
+      contributorToken,
+    );
+    expect(voted.status).toBe(200);
+    expect(await voted.json()).toMatchObject({
+      success: true,
+      data: {
+        target_type: 'translation_help_reply',
+        target_id: replyOk,
+        my_vote: 1,
+        upvotes: 1,
+        downvotes: 0,
+      },
+    });
+
+    const bad = await post(
+      '/api/v1/votes',
+      { target_type: 'translation_help_reply', target_id: replyDown, value: 1 },
+      contributorToken,
+    );
+    expect(bad.status).toBe(404);
+    expect((await bad.json()).error_code).toBe('VOTE_TARGET_NOT_FOUND');
+
+    const detail = await get(`/api/v1/translation-helps/${helpId}`);
+    expect(detail.status).toBe(200);
+    const body = (await detail.json()) as {
+      data: { replies: { id: string; upvotes: number; downvotes: number }[] };
+    };
+    const ok = body.data.replies.find((r) => r.id === replyOk);
+    expect(ok).toMatchObject({ upvotes: 1, downvotes: 0 });
+  });
+
+  it('translation_help: upvote pertanyaan → 200; downvote → 400; sort popular', async () => {
+    const { getTestDb } = await import('@/shared/database/drizzle/test-client');
+    const { translationHelps, users } = await import('@/shared/database/drizzle/schema');
+    const db = getTestDb();
+
+    const allUsers = await db.select({ id: users.id, role: users.role }).from(users);
+    const askerId = allUsers.find((u) => u.role === 'contributor')!.id;
+    const adminId = allUsers.find((u) => u.role === 'admin')!.id;
+    const helpId = ulid26('01U2EHELPASK');
+
+    await db.insert(translationHelps).values({
+      id: helpId,
+      userId: askerId,
+      body: 'Pertanyaan untuk upvote',
+      images: [],
+      status: 'published',
+      reviewedBy: adminId,
+      reviewedAt: new Date(),
+    });
+
+    const voted = await post(
+      '/api/v1/votes',
+      { target_type: 'translation_help', target_id: helpId, value: 1 },
+      contributorToken,
+    );
+    expect(voted.status).toBe(200);
+    expect(await voted.json()).toMatchObject({
+      success: true,
+      data: {
+        target_type: 'translation_help',
+        target_id: helpId,
+        my_vote: 1,
+        upvotes: 1,
+      },
+    });
+
+    const down = await post(
+      '/api/v1/votes',
+      { target_type: 'translation_help', target_id: helpId, value: -1 },
+      contributorToken,
+    );
+    expect(down.status).toBe(400);
+    expect((await down.json()).error_code).toBe('VALIDATION_ERROR');
+
+    const detail = await get(`/api/v1/translation-helps/${helpId}`);
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({
+      data: { id: helpId, upvotes: 1 },
+    });
+
+    const popular = await get('/api/v1/translation-helps?sort=popular&limit=5');
+    expect(popular.status).toBe(200);
+    const popBody = (await popular.json()) as { data: { id: string; upvotes: number }[] };
+    expect(popBody.data[0]).toMatchObject({ id: helpId, upvotes: 1 });
+  });
 });

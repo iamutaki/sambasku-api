@@ -1,13 +1,22 @@
 import { ValidationError } from '@/shared/errors/app-error';
-import { TAKEDOWN_REASON_CODES, type TakedownReasonCode } from './entities/word.entity';
+import {
+  TAKEDOWN_REASON_CODES,
+  WORD_REPORT_REASON_CODES,
+  type TakedownReasonCode,
+  type WordReportReasonCode,
+} from './entities/word.entity';
 
 export function isTakedownReasonCode(value: string): value is TakedownReasonCode {
   return (TAKEDOWN_REASON_CODES as readonly string[]).includes(value);
 }
 
+export function isWordReportReasonCode(value: string): value is WordReportReasonCode {
+  return (WORD_REPORT_REASON_CODES as readonly string[]).includes(value);
+}
+
 /** Catatan wajib untuk `other` dan `duplicate`. Kosong selain itu jadi null. */
 export function normalizeTakedownNote(
-  reason: TakedownReasonCode,
+  reason: WordReportReasonCode,
   note: string | null | undefined,
 ): string | null {
   const trimmed = note?.trim() ?? '';

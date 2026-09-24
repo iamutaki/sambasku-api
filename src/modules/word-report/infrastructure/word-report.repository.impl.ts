@@ -1,10 +1,10 @@
-import { and, desc, eq, lt } from 'drizzle-orm';
+import { and, desc, eq, isNull, lt } from 'drizzle-orm';
 import { users, wordReports, words } from '@/shared/database/drizzle/schema';
 import type { AppDatabase } from '@/shared/database/drizzle/client';
 import { ConflictError } from '@/shared/errors/app-error';
 import { isUniqueViolation } from '@/shared/database/drizzle/sqlite-errors';
 import type { CursorPage } from '@/modules/word/domain/repositories/word.repository';
-import type { TakedownReasonCode } from '@/modules/word/domain/entities/word.entity';
+import type { WordReportReasonCode } from '@/modules/word/domain/entities/word.entity';
 import type {
   NewWordReport,
   WordReport,
@@ -25,11 +25,12 @@ function toEntity(row: Joined): WordReport {
   return {
     id: row.report.id,
     wordId: row.report.wordId,
+    imageId: row.report.imageId ?? null,
     wordLemma: row.lemma ?? '',
     wordStatus: row.wordStatus ?? '',
     userId: row.report.userId,
     username: row.username,
-    reasonCode: row.report.reasonCode as TakedownReasonCode,
+    reasonCode: row.report.reasonCode as WordReportReasonCode,
     note: row.report.note,
     status: row.report.status as WordReportStatus,
     resolution: (row.report.resolution as WordReportResolution | null) ?? null,
@@ -63,6 +64,7 @@ export class WordReportRepositoryImpl implements WordReportRepository {
         .insert(wordReports)
         .values({
           wordId: input.wordId,
+          imageId: input.imageId ?? null,
           userId: input.userId,
           reasonCode: input.reasonCode,
           note: input.note,
@@ -77,17 +79,32 @@ export class WordReportRepositoryImpl implements WordReportRepository {
       if (isUniqueViolation(err)) {
         throw new ConflictError(
           'WORD_REPORT_ALREADY_OPEN',
-          'Kamu sudah melaporkan entri ini dan laporannya masih terbuka',
+          input.imageId
+            ? 'Kamu sudah melaporkan foto ini dan laporannya masih terbuka'
+            : 'Kamu sudah melaporkan entri ini dan laporannya masih terbuka',
         );
       }
       throw err;
     }
   }
 
-  async findOpenByUserAndWord(userId: string, wordId: string): Promise<WordReport | null> {
+  async findOpenByUserAndWord(
+    userId: string,
+    wordId: string,
+    imageId?: string | null,
+  ): Promise<WordReport | null> {
+    const imageFilter =
+      imageId == null || imageId === undefined
+        ? isNull(wordReports.imageId)
+        : eq(wordReports.imageId, imageId);
     const [row] = await this.selectJoined()
       .where(
-        and(eq(wordReports.userId, userId), eq(wordReports.wordId, wordId), eq(wordReports.status, 'open')),
+        and(
+          eq(wordReports.userId, userId),
+          eq(wordReports.wordId, wordId),
+          eq(wordReports.status, 'open'),
+          imageFilter,
+        ),
       )
       .limit(1);
     return row ? toEntity(row) : null;

@@ -33,4 +33,18 @@ describe('ToggleVoteUseCase', () => {
     ).rejects.toMatchObject({ errorCode: 'VOTE_TARGET_NOT_FOUND', statusCode: 404 });
     expect(voteRepo.toggle).not.toHaveBeenCalled();
   });
+
+  it('translation_help + downvote → VALIDATION_ERROR, toggle TIDAK dipanggil', async () => {
+    const { useCase, voteRepo } = makeDeps();
+    await expect(
+      useCase.execute({
+        userId: USER,
+        targetType: 'translation_help',
+        targetId: WORD_ID,
+        value: -1,
+      }),
+    ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR', statusCode: 400 });
+    expect(voteRepo.targetExists).not.toHaveBeenCalled();
+    expect(voteRepo.toggle).not.toHaveBeenCalled();
+  });
 });

@@ -16,7 +16,26 @@ export const REGISTER_LABELS = ['kasar', 'tabu', 'informal', 'halus'] as const s
 /** Peringatan: sensitivitas isi makna. */
 export const WARNING_LABELS = ['seksual', 'diskriminatif'] as const satisfies readonly UsageLabel[];
 
+/**
+ * Label yang disembunyikan dari feed (Aktivitas terbaru) dan WOTD.
+ * Detail/cari tetap boleh menampilkan kata + badge.
+ */
+export const FEED_EXCLUDED_USAGE_LABELS = [
+  'kasar',
+  'tabu',
+  'seksual',
+  'diskriminatif',
+] as const satisfies readonly UsageLabel[];
+
 export const USAGE_LABEL_SET = new Set<string>(USAGE_LABELS);
+
+const FEED_EXCLUDED_SET = new Set<string>(FEED_EXCLUDED_USAGE_LABELS);
+
+/** True jika kata tidak boleh muncul di feed / WOTD. */
+export function hasFeedExcludedUsageLabels(labels: readonly string[] | null | undefined): boolean {
+  if (!labels?.length) return false;
+  return labels.some((l) => FEED_EXCLUDED_SET.has(l));
+}
 
 /** `halus` dan `kasar` saling bertentangan. */
 export function hasConflictingUsageLabels(labels: readonly string[]): boolean {

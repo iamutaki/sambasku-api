@@ -72,6 +72,7 @@ const meaningTranslationItemSchema = z.object({
   language_id: ulid,
   translation_text: z.string().trim().min(1, 'Terjemahan tidak boleh kosong'),
   translation_type: z.enum(['direct', 'descriptive', 'idiomatic']).default('direct'),
+  translation_allows_comma: z.boolean().optional().default(false),
 });
 
 /** Aturan padanan opsional: translations[] boleh kosong jika definisi nyata. */
@@ -264,6 +265,7 @@ export const createWordBodySchema = z.object({
   language_id: ulid,
   dialect_id: ulid.optional(),
   lemma: z.string().trim().min(1, 'Kata tidak boleh kosong').max(255),
+  lemma_allows_comma: z.boolean().optional().default(false),
   notes: z.string().optional(),
   meanings: z.array(meaningInputObjectSchema).min(1, 'Minimal harus ada 1 makna'),
   word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']).default('word'),
@@ -467,6 +469,7 @@ export const wordDetailResponseSchema = z.object({
   data: z.object({
     id: z.string(),
     lemma: z.string(),
+    lemma_allows_comma: z.boolean().optional().default(false),
     language_id: z.string(),
     notes: z.string().nullable(),
     word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']),
@@ -513,6 +516,7 @@ export const wordDetailResponseSchema = z.object({
             language_id: z.string(),
             translation_text: z.string(),
             translation_type: z.string(),
+            translation_allows_comma: z.boolean().optional().default(false),
           }),
         ),
         examples: z.array(
@@ -735,3 +739,83 @@ export const mergeDuplicateWordsResponseSchema = z.object({
 });
 
 export type MergeDuplicateWordsBody = z.infer<typeof mergeDuplicateWordsBodySchema>;
+
+export const commaSplitCandidatesResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    total: z.number().int(),
+    lemmas: z.array(
+      z.object({
+        word_id: z.string(),
+        lemma: z.string(),
+        language_id: z.string(),
+        language_code: z.string(),
+        word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']),
+        status: wordStatusSchema,
+        is_verified: z.boolean(),
+        meanings_count: z.number().int(),
+        suggested_parts: z.array(z.string()),
+        meaning_preview: z.array(z.string()),
+      }),
+    ),
+    translations: z.array(
+      z.object({
+        meaning_translation_id: z.string(),
+        meaning_id: z.string(),
+        word_id: z.string(),
+        lemma: z.string(),
+        translation_text: z.string(),
+        language_id: z.string(),
+        language_code: z.string(),
+        suggested_parts: z.array(z.string()),
+        definition: z.string(),
+        word_class_id: z.string().nullable(),
+      }),
+    ),
+  }),
+});
+
+export const applyCommaSplitBodySchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('lemma'),
+    word_id: opaqueId,
+    parts: z.array(z.string().trim().min(1)).min(2, 'Minimal dua bagian'),
+  }),
+  z.object({
+    kind: z.literal('translation'),
+    meaning_translation_id: opaqueId,
+    parts: z.array(z.string().trim().min(1)).min(2, 'Minimal dua bagian'),
+  }),
+]);
+
+export const applyCommaSplitResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    kind: z.enum(['lemma', 'translation']),
+    word_id: z.string(),
+    created_word_ids: z.array(z.string()).optional(),
+    meaning_ids: z.array(z.string()).optional(),
+  }),
+});
+
+export const markCommaLiteralBodySchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('lemma'),
+    word_id: opaqueId,
+  }),
+  z.object({
+    kind: z.literal('translation'),
+    meaning_translation_id: opaqueId,
+  }),
+]);
+
+export const markCommaLiteralResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    kind: z.enum(['lemma', 'translation']),
+    id: z.string(),
+  }),
+});
+
+export type ApplyCommaSplitBody = z.infer<typeof applyCommaSplitBodySchema>;
+export type MarkCommaLiteralBody = z.infer<typeof markCommaLiteralBodySchema>;
