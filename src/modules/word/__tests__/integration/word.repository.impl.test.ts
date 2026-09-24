@@ -402,10 +402,13 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
       {
         id: expect.any(String),
         url: 'https://ik.imagekit.io/dev/words/makan.jpg',
+        provider: 'imagekit',
         providerFileId: 'file_abc123', // wajib ikut: round-trip PUT edit
         sha: null,
         altText: 'Orang sedang makan',
         isPrimary: true,
+        // ImageKit staging tidak auto-verified; kata induk juga belum verified
+        isVerified: false,
       },
     ]);
   });
