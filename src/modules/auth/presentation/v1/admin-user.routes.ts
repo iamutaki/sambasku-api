@@ -7,9 +7,14 @@ import { createOpenApiApp } from '@/shared/openapi/openapi-app';
 import { errorResponseSchema } from '@/shared/openapi/error-response.schema';
 import type { AppVariables } from '@/shared/types';
 import type { AdminUsersController } from './admin-user.controller';
+import { opaqueId } from '@/shared/validation/id';
 import {
+  adminUserMutationResponseSchema,
   adminUsersListResponseSchema,
+  createAdminUserBodySchema,
   listAdminUsersQuerySchema,
+  setUserActiveBodySchema,
+  setUserActiveResponseSchema,
   updateUserRoleBodySchema,
   updateUserRoleResponseSchema,
 } from './validators/admin-users.validator';
@@ -89,7 +94,48 @@ export function createAdminUserRoutes(deps: AdminUserRoutesDeps) {
     },
   });
 
+  const createRouteDef = createRoute({
+    method: 'post',
+    path: '/',
+    tags: ['Admin Users'],
+    summary: 'Buat akun manual (admin & root). Email dianggap sudah terverifikasi.',
+    request: {
+      body: { content: json(createAdminUserBodySchema) },
+    },
+    responses: {
+      201: { description: 'Akun dibuat', content: json(adminUserMutationResponseSchema) },
+      400: { description: 'Peran tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan (hanya admin/root)', content: json(errorResponseSchema) },
+      409: { description: 'Username, email, atau HP sudah dipakai', content: json(errorResponseSchema) },
+    },
+  });
+
+  const setActiveRoute = createRoute({
+    method: 'patch',
+    path: '/:id/active',
+    tags: ['Admin Users'],
+    summary: 'Aktifkan atau nonaktifkan akun (admin & root)',
+    request: {
+      params: z.object({ id: opaqueId }),
+      body: { content: json(setUserActiveBodySchema) },
+    },
+    responses: {
+      200: { description: 'Status aktif diperbarui', content: json(setUserActiveResponseSchema) },
+      400: { description: 'User tidak ditemukan atau user sistem anonim', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: {
+        description: 'Target root atau akun sendiri (CANNOT_CHANGE_ROOT/CANNOT_DEACTIVATE_SELF)',
+        content: json(errorResponseSchema),
+      },
+    },
+  });
+
   routes.openapi(listRoute, (c) => deps.controller.list(c, c.req.valid('query')) as never);
+  routes.openapi(createRouteDef, (c) => deps.controller.create(c, c.req.valid('json')) as never);
+  routes.openapi(setActiveRoute, (c) =>
+    deps.controller.setActive(c, c.req.valid('param').id, c.req.valid('json').is_active) as never,
+  );
   routes.openapi(setContributeRoute, (c) =>
     deps.controller.setCanContribute(c, c.req.valid('param').id, c.req.valid('json').can_contribute) as never,
   );

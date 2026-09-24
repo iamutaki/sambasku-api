@@ -48,7 +48,8 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `BLOCKLIST_BULK_TOO_LARGE` | 400 | Batch blocklist lebih dari 2000 kata |
 | `EMAIL_ALREADY_EXISTS` | 409 | Registrasi dengan email yang sudah dipakai |
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan nama (username) yang sudah dipakai |
-| `PHONE_ALREADY_EXISTS` | 409 | Registrasi / pengajuan verifikator dengan nomor HP yang sudah dipakai user lain |
+| `PHONE_ALREADY_EXISTS` | 409 | Registrasi / pengajuan verifikator / buat user admin dengan nomor HP yang sudah dipakai user lain |
+| `CANNOT_DEACTIVATE_SELF` | 403 | Admin mencoba mengubah status aktif akunnya sendiri |
 | `BUG_REPORT_NOT_FOUND` | 404 | Laporan masalah tidak ditemukan / sudah selesai (resolve admin) |
 | `TRANSLATION_HELP_NOT_FOUND` | 404 | Bantuan terjemahan tidak ditemukan / tidak boleh diakses |
 | `TRANSLATION_HELP_REPLY_NOT_FOUND` | 404 | Balasan bantuan terjemahan tidak ditemukan |

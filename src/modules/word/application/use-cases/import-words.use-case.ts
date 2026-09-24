@@ -27,8 +27,8 @@ export class ImportWordsUseCase {
     input: { mode: 'validate' | 'commit'; items: ImportWordInput[] },
     actor: Actor,
   ): Promise<ImportWordsResult> {
-    if (input.items.length > 25) {
-      throw new BadRequestError('IMPORT_TOO_LARGE', 'Maksimal 25 kata per permintaan');
+    if (input.items.length > 5) {
+      throw new BadRequestError('IMPORT_TOO_LARGE', 'Maksimal 5 kata per permintaan');
     }
     const refs = await this.resolveRefs();
     const items: ImportWordResult[] = [];

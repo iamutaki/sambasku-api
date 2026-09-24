@@ -23,7 +23,7 @@ export const importWordsBodySchema = z.object({
       }),
     )
     .min(1)
-    .max(25),
+    .max(5),
 });
 
 export const importWordsResponseSchema = z.object({

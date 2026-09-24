@@ -141,6 +141,16 @@ export class UserRepositoryImpl implements UserRepository {
     return !!updated;
   }
 
+  async setIsActive(id: string, isActive: boolean): Promise<boolean> {
+    if (id === ANONIM_USER_ID) return false;
+    const [updated] = await this.db
+      .update(users)
+      .set({ isActive, updatedAt: new Date() })
+      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .returning({ id: users.id });
+    return !!updated;
+  }
+
   async updateRole(id: string, role: UserRole): Promise<void> {
     const [updated] = await this.db
       .update(users)

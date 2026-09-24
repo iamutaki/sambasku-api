@@ -112,7 +112,7 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
     method: 'post',
     path: '/import',
     tags: ['Words', 'Admin'],
-    summary: 'Impor kata dari CSV yang sudah dipratinjau (maksimal 25 kata)',
+    summary: 'Impor kata dari CSV yang sudah dipratinjau (maksimal 5 kata)',
     request: { body: { content: json(importWordsBodySchema) } },
     responses: {
       200: { description: 'Hasil cek tanpa menulis', content: json(importWordsResponseSchema) },
