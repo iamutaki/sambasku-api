@@ -39,6 +39,7 @@ import type {
 import { toCreateWordDto, toUpdateWordDto } from './map-create-word';
 import { ANONIM_USER_ID } from '@/shared/constants/anonim';
 import type { LatestWordSummary, WordClassSummary, WordDetail } from '../../domain/entities/word.entity';
+import { mapPublicWordImageUrl } from './map-word-image-url';
 import type { ListAdminWordsUseCase } from '../../application/use-cases/list-admin-words.use-case';
 import type { ListWordsUseCase } from '../../application/use-cases/list-words.use-case';
 import type { ListLatestWordsUseCase } from '../../application/use-cases/list-latest-words.use-case';
@@ -152,13 +153,13 @@ export class WordController {
 
   async detail(c: Context, id: string) {
     const word = await this.deps.getById.execute(id);
-    return c.json({ success: true as const, data: this.toDetailData(word) });
+    return c.json({ success: true as const, data: this.toDetailData(word, { redactStagingImages: true }) });
   }
 
   /** URL publik /words/<lemma> - resolusi homonim di repository. */
   async detailByLemma(c: Context, lemma: string) {
     const word = await this.deps.getByLemma.execute(lemma);
-    return c.json({ success: true as const, data: this.toDetailData(word) });
+    return c.json({ success: true as const, data: this.toDetailData(word, { redactStagingImages: true }) });
   }
 
   /** 28-api-word-of-the-day.md - payload detail + date + is_new_this_week,
@@ -168,7 +169,11 @@ export class WordController {
     return c.json({
       success: true as const,
       data: word
-        ? { ...this.toDetailData(word), date, is_new_this_week: isNewThisWeek }
+        ? {
+            ...this.toDetailData(word, { redactStagingImages: true }),
+            date,
+            is_new_this_week: isNewThisWeek,
+          }
         : null,
     });
   }
@@ -183,7 +188,7 @@ export class WordController {
     return c.json({
       success: true as const,
       data: {
-        ...this.toDetailData(word),
+        ...this.toDetailData(word, { redactStagingImages: false }),
         created_at: word.createdAt.toISOString(),
         updated_at: word.updatedAt ? word.updatedAt.toISOString() : null,
         takedown_reason_code: word.takedownReasonCode,
@@ -225,8 +230,9 @@ export class WordController {
     });
   }
 
-  // Mapping WordDetail → response - dipakai bersama detail publik & admin
-  private toDetailData(word: WordDetail) {
+  // Mapping WordDetail → response - dipakai bersama detail publik & admin.
+  // redactStagingImages: GET publik menyembunyikan URL ImageKit belum diverifikasi.
+  private toDetailData(word: WordDetail, opts: { redactStagingImages: boolean }) {
     return {
       id: word.id,
       lemma: word.lemma,
@@ -291,16 +297,35 @@ export class WordController {
         value: p.value,
         dialect_id: p.dialectId,
       })),
-      images: word.images.map((img) => ({
-        id: img.id,
-        url: img.url,
-        // WAJIB untuk round-trip PUT edit (full-replace): tanpa ini form
-        // edit tidak bisa mengirim ulang images[] → gambar terhapus senyap
-        provider_file_id: img.providerFileId,
-        sha: img.sha,
-        alt_text: img.altText,
-        is_primary: img.isPrimary,
-      })),
+      images: word.images.map((img) => {
+        const mapped = mapPublicWordImageUrl(
+          {
+            url: img.url,
+            provider: img.provider,
+            isVerified: img.isVerified,
+            providerFileId: img.providerFileId,
+          },
+          { redactStaging: opts.redactStagingImages },
+        );
+        return {
+          id: img.id,
+          url: mapped.url,
+          // WAJIB untuk round-trip PUT edit (full-replace): tanpa ini form
+          // edit tidak bisa mengirim ulang images[] → gambar terhapus senyap
+          provider_file_id: mapped.providerFileId,
+          sha: opts.redactStagingImages && img.provider === 'imagekit' && img.isVerified !== true
+            ? null
+            : img.sha,
+          alt_text: img.altText,
+          is_primary: img.isPrimary,
+          ...(opts.redactStagingImages
+            ? {}
+            : {
+                provider: img.provider,
+                is_verified: img.isVerified ?? false,
+              }),
+        };
+      }),
       audios: word.audios.map((a) => ({
         id: a.id,
         url: a.url,

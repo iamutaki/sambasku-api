@@ -23,6 +23,7 @@ import {
 import type { AppDatabase, AppTransaction } from '@/shared/database/drizzle/client';
 import { publicAccountName } from '@/shared/constants/deleted-account';
 import { ConflictError, ValidationError } from '@/shared/errors/app-error';
+import { wordImageIsAutoVerified } from '../domain/word-image-provider';
 import { publishOrMergeMeaningsInTx } from './publish-or-merge-meanings';
 import { mergeDuplicateWordsInTx } from './merge-duplicate-words';
 import type { ChildStatus, LatestWordSummary, Word, WordDetail, WordStatus, WordSummary } from '../domain/entities/word.entity';
@@ -777,14 +778,16 @@ export class WordRepositoryImpl implements WordRepository {
       images: imageRows.map((i) => ({
         id: i.id,
         url: i.url,
+        provider: i.provider,
         // Untuk round-trip PUT edit: provider_file_id WAJIB dikirim ulang
         // di images[] (full-replace) - tanpa ini gambar terhapus senyap
         providerFileId: i.providerFileId,
         sha: i.sha ?? null,
         altText: i.altText,
         isPrimary: i.isPrimary,
+        isVerified: i.isVerified,
         ...(includeAll
-          ? { status: i.status as ChildStatus, isVerified: i.isVerified, isCorrected: i.isCorrected }
+          ? { status: i.status as ChildStatus, isCorrected: i.isCorrected }
           : {}),
       })),
       audios: (() => {
@@ -1688,6 +1691,45 @@ export class WordRepositoryImpl implements WordRepository {
     }
   }
 
+  async listStagingWordImages(wordId: string): Promise<WordImageMedia[]> {
+    const rows = await this.db
+      .select()
+      .from(wordImages)
+      .where(
+        and(
+          eq(wordImages.wordId, wordId),
+          eq(wordImages.provider, 'imagekit'),
+          eq(wordImages.isVerified, false),
+          isNull(wordImages.deletedAt),
+        ),
+      );
+    return rows.map(toWordImage);
+  }
+
+  async findWordImageById(id: string): Promise<WordImageMedia | null> {
+    const [row] = await this.db
+      .select()
+      .from(wordImages)
+      .where(and(eq(wordImages.id, id), isNull(wordImages.deletedAt)))
+      .limit(1);
+    return row ? toWordImage(row) : null;
+  }
+
+  async applyPromotedWordImage(
+    id: string,
+    data: { url: string; provider: string; providerFileId: string; sha: string },
+  ): Promise<void> {
+    await this.db
+      .update(wordImages)
+      .set({
+        url: data.url,
+        provider: data.provider,
+        providerFileId: data.providerFileId,
+        sha: data.sha,
+      })
+      .where(and(eq(wordImages.id, id), isNull(wordImages.deletedAt)));
+  }
+
   async addWordAudio(
     wordId: string,
     data: {
@@ -2492,7 +2534,8 @@ export class WordRepositoryImpl implements WordRepository {
           altText: img.altText ?? null,
           isPrimary: img.isPrimary ?? false,
           status: childStatusOf(word.status),
-          isVerified: word.isVerified,
+          // Stock/github auto-verified; ImageKit staging menunggu tinjauan
+          isVerified: wordImageIsAutoVerified(img.provider) || word.isVerified,
           createdBy: actorId,
         })),
       );

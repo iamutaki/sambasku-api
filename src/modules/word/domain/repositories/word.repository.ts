@@ -367,6 +367,17 @@ export interface WordRepository {
     actorId: string,
   ): Promise<WordImageMedia>;
 
+  /** Gambar ImageKit belum diverifikasi pada kata (untuk promote saat approve). */
+  listStagingWordImages(wordId: string): Promise<WordImageMedia[]>;
+
+  findWordImageById(id: string): Promise<WordImageMedia | null>;
+
+  /** Setelah promote staging → GitHub. */
+  applyPromotedWordImage(
+    id: string,
+    data: { url: string; provider: string; providerFileId: string; sha: string },
+  ): Promise<void>;
+
   /**
    * Insert audio pelafalan (multi) pada kata / contoh + contributions.
    * exampleId null = pelafalan lemma; terisi = pelafalan contoh.

@@ -431,7 +431,15 @@ const contributionRepo = new ContributionRepositoryImpl(db);
 const contributionController = new ContributionController({
   list: new ListContributionsUseCase(contributionRepo),
   getDetail: new GetContributionDetailUseCase(contributionRepo, wordRepo),
-  review: new ReviewContributionUseCase(contributionRepo, auditRepo, notifyUser, recordInbox),
+  review: new ReviewContributionUseCase(
+    contributionRepo,
+    auditRepo,
+    wordRepo,
+    publicImageStorage,
+    imageStorage,
+    notifyUser,
+    recordInbox,
+  ),
   correct: new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo, recordInbox),
   imageProviderName: publicImageStorage.providerName,
 });

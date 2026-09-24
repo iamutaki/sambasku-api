@@ -5,15 +5,17 @@ import {
   isStockWordImageProvider,
 } from '@/modules/word/domain/word-image-provider';
 
-/** Provider yang boleh dikirim client: stock Media Explorer atau github (upload). */
+/** Provider yang boleh dikirim client: stock, ImageKit staging, atau github (upload verifikator). */
 export const wordImageClientProviderSchema = z.enum([
   ...STOCK_WORD_IMAGE_PROVIDERS,
   'github',
+  'imagekit',
 ]);
 
 /**
  * Item images[] / body add-word-image.
- * `provider` opsional: stock → disimpan apa adanya; absen/github → storage aktif.
+ * `provider` opsional: stock → disimpan apa adanya; imagekit → staging;
+ * absen/github → storage aktif (biasanya github untuk verifikator).
  */
 export const wordImageInputSchema = z
   .object({

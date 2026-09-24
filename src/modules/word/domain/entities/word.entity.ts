@@ -103,13 +103,16 @@ export interface WordDetail extends Word {
   images: {
     id: string;
     url: string;
+    /** Provider storage / stock (imagekit staging, github, pexels, …) */
+    provider: string;
     /** wajib dibawa form edit untuk round-trip PUT (full-replace images[]) */
     providerFileId: string;
     sha?: string | null;
     altText: string | null;
     isPrimary: boolean;
     status?: ChildStatus;
-    isVerified?: boolean;
+    /** selalu diisi agar mapper publik bisa redact staging ImageKit */
+    isVerified: boolean;
     isCorrected?: boolean;
   }[];
   /** Audio pelafalan lemma (example_id IS NULL). Multi-take. */

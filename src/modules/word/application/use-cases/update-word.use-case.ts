@@ -6,6 +6,7 @@ import type { UpdateWordDto } from '../dto/update-word.dto';
 import type { Actor } from './create-word.use-case';
 import { collectLanguageIds, mapMissingToDetails } from './create-word.use-case';
 import { resolvePublication } from '../utils/resolve-publication';
+import { assertContributorWordImageProvider } from '../utils/assert-word-image-provider';
 import {
   DUPLICATE_LEMMA_MERGED_NOW,
   DUPLICATE_LEMMA_PENDING_MERGE,
@@ -47,6 +48,10 @@ export class UpdateWordUseCase {
           message: 'has_component hanya untuk entri idiom/peribahasa/ungkapan',
         },
       ]);
+    }
+
+    for (const img of dto.images ?? []) {
+      assertContributorWordImageProvider(img.provider, actor.role);
     }
 
     // 3. Validasi referensi eksternal - bentuk panggilan sama dengan create

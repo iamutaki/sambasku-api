@@ -60,14 +60,29 @@ function makeDeps() {
   return { contributionRepo, wordRepo, auditRepo };
 }
 
+function makeReviewDeps() {
+  const { contributionRepo, wordRepo, auditRepo } = makeDeps();
+  Object.assign(wordRepo, {
+    listStagingWordImages: vi.fn().mockResolvedValue([]),
+    findWordImageById: vi.fn().mockResolvedValue(null),
+    applyPromotedWordImage: vi.fn().mockResolvedValue(undefined),
+  });
+  const publicImageStorage = { providerName: 'github', upload: vi.fn(), delete: vi.fn() };
+  const imageStorage = { providerName: 'imagekit', createUploadCredentials: vi.fn(), deleteFile: vi.fn() };
+  return { contributionRepo, wordRepo, auditRepo, publicImageStorage, imageStorage };
+}
+
 describe('ReviewContributionUseCase', () => {
   it('approve → panggil review + audit action approve', async () => {
-    const { contributionRepo, auditRepo } = makeDeps();
+    const { contributionRepo, wordRepo, auditRepo, publicImageStorage, imageStorage } = makeReviewDeps();
     const notifyUser = { execute: vi.fn().mockResolvedValue(undefined) };
     const inbox = { execute: vi.fn().mockResolvedValue(undefined) };
     const useCase = new ReviewContributionUseCase(
       contributionRepo,
       auditRepo as unknown as AuditLogRepository,
+      wordRepo,
+      publicImageStorage as never,
+      imageStorage as never,
       notifyUser as never,
       inbox as never,
     );
@@ -103,12 +118,15 @@ describe('ReviewContributionUseCase', () => {
   });
 
   it('reject → tidak kirim push notifikasi', async () => {
-    const { contributionRepo, auditRepo } = makeDeps();
+    const { contributionRepo, wordRepo, auditRepo, publicImageStorage, imageStorage } = makeReviewDeps();
     const notifyUser = { execute: vi.fn().mockResolvedValue(undefined) };
     const inbox = { execute: vi.fn().mockResolvedValue(undefined) };
     const useCase = new ReviewContributionUseCase(
       contributionRepo,
       auditRepo as unknown as AuditLogRepository,
+      wordRepo,
+      publicImageStorage as never,
+      imageStorage as never,
       notifyUser as never,
       inbox as never,
     );
@@ -128,8 +146,14 @@ describe('ReviewContributionUseCase', () => {
   });
 
   it('reject tanpa comment → VALIDATION_ERROR field comment (domain rule)', async () => {
-    const { contributionRepo, auditRepo } = makeDeps();
-    const useCase = new ReviewContributionUseCase(contributionRepo, auditRepo as unknown as AuditLogRepository);
+    const { contributionRepo, wordRepo, auditRepo, publicImageStorage, imageStorage } = makeReviewDeps();
+    const useCase = new ReviewContributionUseCase(
+      contributionRepo,
+      auditRepo as unknown as AuditLogRepository,
+      wordRepo,
+      publicImageStorage as never,
+      imageStorage as never,
+    );
     await expect(
       useCase.execute({ contributionId: '01CONTRIBULID0000000000000', decision: 'reject', comment: '', actorId: ACTOR.userId }),
     ).rejects.toMatchObject({
@@ -140,11 +164,17 @@ describe('ReviewContributionUseCase', () => {
   });
 
   it('404/409 diteruskan dari repository (dicek di dalam transaksi)', async () => {
-    const { contributionRepo, auditRepo } = makeDeps();
+    const { contributionRepo, wordRepo, auditRepo, publicImageStorage, imageStorage } = makeReviewDeps();
     contributionRepo.review = vi.fn().mockRejectedValue(
       Object.assign(new Error('sudah'), { errorCode: 'CONTRIBUTION_ALREADY_REVIEWED', statusCode: 409 }),
     );
-    const useCase = new ReviewContributionUseCase(contributionRepo, auditRepo as unknown as AuditLogRepository);
+    const useCase = new ReviewContributionUseCase(
+      contributionRepo,
+      auditRepo as unknown as AuditLogRepository,
+      wordRepo,
+      publicImageStorage as never,
+      imageStorage as never,
+    );
     await expect(
       useCase.execute({ contributionId: '01CONTRIBULID0000000000000', decision: 'approve', comment: null, actorId: ACTOR.userId }),
     ).rejects.toMatchObject({ errorCode: 'CONTRIBUTION_ALREADY_REVIEWED' });
