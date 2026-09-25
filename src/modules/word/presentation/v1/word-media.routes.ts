@@ -85,7 +85,7 @@ export function createWordMediaRoutes(deps: WordMediaRoutesDeps) {
     method: 'post',
     path: '/:wordId/pronunciations/audio',
     tags: ['Words'],
-    summary: 'Upload file audio pelafalan (multipart) — multi-take; opsional example_id',
+    summary: 'Upload file audio pelafalan (multipart) - multi-take; opsional example_id',
     request: {
       params: z.object({ wordId: z.string().length(26) }),
       body: {
@@ -171,7 +171,7 @@ export function createWordMediaRoutes(deps: WordMediaRoutesDeps) {
     deps.controller.addPronunciation(c, c.req.param('wordId'), c.req.valid('json')) as never,
   );
 
-  // bodyLimit hanya di route upload (±6 MB) — jangan global
+  // bodyLimit hanya di route upload (±6 MB) - jangan global
   routes.use(
     '/:wordId/pronunciations/audio',
     bodyLimit({

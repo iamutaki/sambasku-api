@@ -985,8 +985,8 @@ app.route(
   createLemmaDefinitionRoutes({ controller: lemmaDefinitionController }),
 );
 
-// Latar kartu share — proxy Unsplash (docs/backlogs/SHARE.md). Publik.
-// Latar kartu share — multi-provider (docs/backlogs/SHARE.md). Publik.
+// Latar kartu share - proxy Unsplash (docs/backlogs/SHARE.md). Publik.
+// Latar kartu share - multi-provider (docs/backlogs/SHARE.md). Publik.
 const shareBackgroundProviders = createShareBackgroundProviderRegistry();
 const shareController = new ShareController({
   listBackgrounds: new ListShareBackgroundsUseCase(

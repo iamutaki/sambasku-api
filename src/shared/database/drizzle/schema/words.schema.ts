@@ -22,7 +22,7 @@ export const words = sqliteTable(
     // (topik = categories). Mengaktifkan relasi has_component & filter search.
     wordType: text('word_type').notNull().default('word'),
     // Register + peringatan konten (closed enum JSON array). Bukan kategori
-    // topik — lihat shared/constants/usage-labels.ts.
+    // topik - lihat shared/constants/usage-labels.ts.
     usageLabels: text('usage_labels', { mode: 'json' })
       .$type<UsageLabel[]>()
       .notNull()

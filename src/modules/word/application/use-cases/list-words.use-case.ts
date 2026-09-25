@@ -8,7 +8,7 @@ import {
 
 export interface ListWordsQuery {
   q: string;
-  /** Satu huruf A–Z untuk jump prefix (panel beranda). */
+  /** Satu huruf A-Z untuk jump prefix (panel beranda). */
   letter?: string;
   limit: number;
   cursor?: string;

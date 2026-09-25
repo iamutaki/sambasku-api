@@ -1,6 +1,6 @@
 /**
  * Denylist query Media Explorer (EN/ID singkat).
- * Best-effort — eufemisme / bahasa lain tetap bisa lolos flag provider.
+ * Best-effort - eufemisme / bahasa lain tetap bisa lolos flag provider.
  */
 const BLOCKED_TERMS = [
   'porn',

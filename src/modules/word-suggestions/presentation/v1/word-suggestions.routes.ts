@@ -63,7 +63,7 @@ export function createWordSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
   const routes = createOpenApiApp();
 
   // Path harus sama dengan route. `use('/')` di Hono hanya match `/`,
-  // bukan `/:id/suggest-edit` — auth terlewat, user_id jadi '' lalu FK gagal.
+  // bukan `/:id/suggest-edit` - auth terlewat, user_id jadi '' lalu FK gagal.
   routes.use(
     '/:id/suggest-edit',
     deps.authenticate,

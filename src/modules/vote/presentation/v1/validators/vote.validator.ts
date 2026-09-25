@@ -124,7 +124,7 @@ export const myVotesResponseSchema = z.object({
   ),
 });
 
-/** GET /api/v1/votes/deck — antrean kata belum di-vote (34-api-vote-deck.md). */
+/** GET /api/v1/votes/deck - antrean kata belum di-vote (34-api-vote-deck.md). */
 export const voteDeckQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(20).default(10),
   cursor: z.string().min(1).optional(),

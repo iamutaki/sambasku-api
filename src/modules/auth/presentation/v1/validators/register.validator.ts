@@ -15,7 +15,7 @@ export function normalizeIdPhone(raw: string | undefined | null): string | null 
   if (digits.startsWith('0')) digits = digits.slice(1);
   if (digits.startsWith('62')) digits = digits.slice(2);
 
-  // Mobile ID: mulai 8, total 8–13 digit setelah country code
+  // Mobile ID: mulai 8, total 8-13 digit setelah country code
   if (!/^8\d{7,12}$/.test(digits)) {
     return '__INVALID__';
   }

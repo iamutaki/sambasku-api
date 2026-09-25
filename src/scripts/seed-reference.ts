@@ -75,12 +75,12 @@ const SEED_CATEGORIES = [
 
 /**
  * Seed referensi + user sistem.
- * Insert-if-missing saja — baris yang sudah ada tidak diubah (aman staging/prod).
+ * Insert-if-missing saja - baris yang sudah ada tidak diubah (aman staging/prod).
  */
 export async function seedReference(): Promise<void> {
   const hasher = new Pbkdf2PasswordService();
 
-  // User sistem — password acak hanya saat insert pertama; skip jika id sudah ada.
+  // User sistem - password acak hanya saat insert pertama; skip jika id sudah ada.
   await db
     .insert(users)
     .values({

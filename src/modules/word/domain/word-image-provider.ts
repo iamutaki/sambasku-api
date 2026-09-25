@@ -21,7 +21,7 @@ const STOCK_URL_HOST_SUFFIXES: Record<StockWordImageProvider, readonly string[] 
   pixabay: ['cdn.pixabay.com', 'pixabay.com'],
   unsplash: ['images.unsplash.com', 'plus.unsplash.com'],
   wikimedia: ['upload.wikimedia.org'],
-  // Openverse mengagregasi banyak sumber — izinkan HTTPS apa saja.
+  // Openverse mengagregasi banyak sumber - izinkan HTTPS apa saja.
   openverse: 'any-https',
 };
 

@@ -8,7 +8,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']),
   PORT: z.coerce.number().default(3000),
 
-  // file:./local.db | libsql://… | https://… — bukan selalu URL HTTP (Zod url).
+  // file:./local.db | libsql://… | https://… - bukan selalu URL HTTP (Zod url).
   DATABASE_URL: z
     .string()
     .min(1)
@@ -53,7 +53,7 @@ const envSchema = z.object({
   IMAGEKIT_PUBLIC_KEY: z.string().optional(),
   IMAGEKIT_URL_ENDPOINT: z.string().optional(), // mis. https://ik.imagekit.io/akun
 
-  // Gambar publik (kata + avatar) — GitHub Contents API + jsDelivr.
+  // Gambar publik (kata + avatar) - GitHub Contents API + jsDelivr.
   // Terpisah dari IMAGEKIT_* (laporan bug / bukti verifikator tetap ImageKit).
   // Tanpa kredensial: POST /api/v1/images dan avatar balas 503
   // PUBLIC_IMAGE_UPLOAD_UNAVAILABLE.
@@ -76,7 +76,7 @@ const envSchema = z.object({
   RAF555_BASE_URL: z.string().optional(), // default https://kbbi.raf555.dev di factory
   LEMMA_DEFINITION_CACHE_TTL_SECONDS: z.coerce.number().default(3600),
 
-  // Unsplash / Pixabay — latar kartu share (docs/api/22-api-share-backgrounds.md).
+  // Unsplash / Pixabay - latar kartu share (docs/api/22-api-share-backgrounds.md).
   // Tanpa key → provider terkait degraded (items []).
   UNSPLASH_ACCESS_KEY: z.string().optional(),
   PIXABAY_API_KEY: z.string().optional(),

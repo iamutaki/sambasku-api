@@ -148,7 +148,7 @@ export interface VoteDeckWord {
   sense: string | null;
   upvotes: number;
   downvotes: number;
-  /** upvotes + downvotes — kunci cursor + sort */
+  /** upvotes + downvotes - kunci cursor + sort */
   totalVotes: number;
 }
 

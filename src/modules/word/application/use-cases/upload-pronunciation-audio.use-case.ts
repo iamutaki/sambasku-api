@@ -22,7 +22,7 @@ export interface UploadPronunciationAudioDto {
 }
 
 /**
- * Upload audio pelafalan (multi) — satu langkah: storage + insert word_audios.
+ * Upload audio pelafalan (multi) - satu langkah: storage + insert word_audios.
  * exampleId opsional → pelafalan kalimat contoh (harus milik wordId).
  */
 export class UploadPronunciationAudioUseCase {

@@ -38,7 +38,7 @@ export class GitHubPronunciationStorageService implements PronunciationStoragePo
   }
 
   /**
-   * URL publik lewat jsDelivr (CDN) — bukan raw.githubusercontent.com.
+   * URL publik lewat jsDelivr (CDN) - bukan raw.githubusercontent.com.
    * Path immutable (ULID) jadi cache CDN aman; repo harus publik.
    */
   private publicUrl(owner: string, repo: string, path: string): string {

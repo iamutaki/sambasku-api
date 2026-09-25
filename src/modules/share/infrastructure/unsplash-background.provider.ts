@@ -12,7 +12,7 @@ const POPULAR_FALLBACK_QUERY = 'nature';
 
 /**
  * Proxy Unsplash Search Photos (selalu content_filter=high).
- * Mode popular memakai search + query fallback — GET /photos tidak mendukung filter.
+ * Mode popular memakai search + query fallback - GET /photos tidak mendukung filter.
  */
 export class UnsplashBackgroundProvider implements ShareBackgroundProviderPort {
   readonly providerId = 'unsplash' as const;

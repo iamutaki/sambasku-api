@@ -62,7 +62,7 @@ export class WordImportSessionRepositoryImpl implements WordImportSessionReposit
   constructor(private readonly db: AppDatabase) {}
 
   async upsert(session: NewWordImportSession): Promise<WordImportSession> {
-    // null = masih running; undefined di NewWordImportSession jarang — treat sebagai now untuk final.
+    // null = masih running; undefined di NewWordImportSession jarang - treat sebagai now untuk final.
     const finishedAt = session.finishedAt === undefined ? new Date() : session.finishedAt;
     const itemsJson = JSON.stringify(session.items);
     await this.db

@@ -58,7 +58,7 @@ function eyebrowRow(label: string): string {
           </tr>`;
 }
 
-/** Kartu kode 8 karakter — dipakai verifikasi, reset password, dan hapus akun. */
+/** Kartu kode 8 karakter - dipakai verifikasi, reset password, dan hapus akun. */
 export function brandedCodeEmailHtml(input: {
   title: string;
   eyebrow: string;
@@ -119,7 +119,7 @@ export function brandedCodeEmailHtml(input: {
   );
 }
 
-/** Kartu pesan tanpa kode — ucapan dan pemberitahuan. */
+/** Kartu pesan tanpa kode - ucapan dan pemberitahuan. */
 export function brandedMessageEmailHtml(input: {
   title: string;
   eyebrow: string;

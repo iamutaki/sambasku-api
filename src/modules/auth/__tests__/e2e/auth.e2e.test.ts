@@ -383,7 +383,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(res.status).toBe(401);
   });
 
-  // ---- POST /api/v1/auth/google (AUTH_GOOGLE.md) — mock verifier, jangan hit Google ----
+  // ---- POST /api/v1/auth/google (AUTH_GOOGLE.md) - mock verifier, jangan hit Google ----
   const postGoogle = (body: unknown, headers: Record<string, string> = {}) =>
     app.request('/api/v1/auth/google', {
       method: 'POST',
@@ -606,7 +606,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     });
   });
 
-  // ---- POST /api/v1/auth/facebook (AUTH_FACEBOOK.md) — mock verifier, jangan hit Graph ----
+  // ---- POST /api/v1/auth/facebook (AUTH_FACEBOOK.md) - mock verifier, jangan hit Graph ----
   const postFacebook = (body: unknown, headers: Record<string, string> = {}) =>
     app.request('/api/v1/auth/facebook', {
       method: 'POST',

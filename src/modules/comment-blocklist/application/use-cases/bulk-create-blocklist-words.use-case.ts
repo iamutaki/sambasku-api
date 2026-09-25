@@ -14,7 +14,7 @@ export interface BulkCreateBlocklistResult {
 
 /**
  * Tambah banyak kata sekaligus. Kata yang sudah aktif, atau berulang
- * di batch yang sama, diabaikan — bukan 409. Dipakai input koma dan CSV.
+ * di batch yang sama, diabaikan - bukan 409. Dipakai input koma dan CSV.
  */
 export class BulkCreateBlocklistWordsUseCase {
   constructor(

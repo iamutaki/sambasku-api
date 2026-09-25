@@ -15,7 +15,7 @@ export const wordImages = sqliteTable(
       .references(() => words.id),
     provider: text('provider').notNull().default('imagekit'),
     providerFileId: text('provider_file_id').notNull(),
-    /** Blob sha GitHub — null untuk baris ImageKit lama */
+    /** Blob sha GitHub - null untuk baris ImageKit lama */
     sha: text('sha'),
     url: text('url').notNull(),
     altText: text('alt_text'),

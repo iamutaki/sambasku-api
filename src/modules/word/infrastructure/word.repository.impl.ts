@@ -876,7 +876,7 @@ export class WordRepositoryImpl implements WordRepository {
   }
 
   // 28-api-word-of-the-day.md: deterministik per tanggal WIB.
-  // SQLite tidak punya md5() — SHA-256 di app (Web Crypto, Workers-safe).
+  // SQLite tidak punya md5() - SHA-256 di app (Web Crypto, Workers-safe).
   async findWordOfDayId(date: string): Promise<string | null> {
     const rows = await this.db
       .select({ id: words.id })
@@ -1022,7 +1022,7 @@ export class WordRepositoryImpl implements WordRepository {
     const letter = params.letter?.trim().toLowerCase();
     // Browse tanpa q: jangan ekspos kasar/diskriminatif di listing publik.
     // Filter q / search endpoint tetap boleh menemukan + menampilkan badge.
-    // `letter` = prefix A–Z (panel beranda); `q` = contains (kotak filter).
+    // `letter` = prefix A-Z (panel beranda); `q` = contains (kotak filter).
     const where = and(
       isNull(words.deletedAt),
       // Endpoint publik - selalu published (bukan opsional seperti search())
@@ -1078,7 +1078,7 @@ export class WordRepositoryImpl implements WordRepository {
   /**
    * Gloss daftar A-Z / search: `[n] makan,[v] santap`.
    * Semua makna published × terjemahan valid, urut orderIndex makna lalu id terjemahan.
-   * Batch (bukan N+1) — pola sama attachSenses feed.
+   * Batch (bukan N+1) - pola sama attachSenses feed.
    */
   private async attachListGlosses(page: WordSummary[]): Promise<void> {
     if (page.length === 0) return;
@@ -1327,7 +1327,7 @@ export class WordRepositoryImpl implements WordRepository {
       params.cursor ? lt(words.id, params.cursor) : undefined,
     );
 
-    // Satu kata bisa punya banyak makna yang cocok — GROUP BY words.id
+    // Satu kata bisa punya banyak makna yang cocok - GROUP BY words.id
     // + min(translation_text) (setara DISTINCT ON + ORDER BY translation ASC).
     const rows = await this.db
       .select({
@@ -2493,7 +2493,7 @@ export class WordRepositoryImpl implements WordRepository {
   /**
    * Tulis ulang audio yang di-snapshot sebelum replace anak.
    * Lemma (example_id null) tetap. Audio contoh hanya kembali jika kalimat
-   * yang sama masih ada di contoh baru — id baris audio tidak berubah.
+   * yang sama masih ada di contoh baru - id baris audio tidak berubah.
    */
   private async restoreWordAudios(
     tx: Tx,

@@ -10,7 +10,7 @@ export const DUPLICATE_LEMMA_MERGED_NOW =
 
 /**
  * Entri sudah tayang tetapi tidak ada kembaran published untuk digabung
- * (mis. kembaran masih draf) — bersihkan lewat tab Duplikasi.
+ * (mis. kembaran masih draf) - bersihkan lewat tab Duplikasi.
  */
 export const DUPLICATE_LEMMA_USE_TAB =
   'Lemma ini sudah ada dan entri ini sudah tayang. Selesaikan di tab Duplikasi.';

@@ -1,4 +1,4 @@
-// Port penyimpanan gambar publik (kata + avatar) — backend-mediated.
+// Port penyimpanan gambar publik (kata + avatar) - backend-mediated.
 // Beda dari ImageStoragePort (direct-upload ImageKit untuk laporan/verifikator).
 export interface PublicImageStoragePort {
   /** Nama provider - disimpan ke word_images.provider / users.avatar_provider */

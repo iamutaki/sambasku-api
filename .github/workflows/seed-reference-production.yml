@@ -1,7 +1,7 @@
 name: Seed Reference Production (manual)
 
 # Referensi + user sistem (Anonim, Importir Data CSV).
-# Insert-if-missing saja — aman diulang, tidak menimpa password akun login.
+# Insert-if-missing saja - aman diulang, tidak menimpa password akun login.
 #
 # CLI: gh workflow run seed-reference-production.yml --ref main
 #

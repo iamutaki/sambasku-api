@@ -38,7 +38,7 @@ export interface TranslationHelpReply {
   helpId: string;
   userId: string;
   username: string | null;
-  /** Role penulis — dipakai highlight verifikator di render, bukan flag DB. */
+  /** Role penulis - dipakai highlight verifikator di render, bukan flag DB. */
   userRole: string | null;
   body: string;
   bodyOriginal: string | null;

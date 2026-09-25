@@ -9,7 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    // Integration/e2e berbagi satu file SQLite — wajib serial (SQLITE_BUSY).
+    // Integration/e2e berbagi satu file SQLite - wajib serial (SQLITE_BUSY).
     fileParallelism: false,
     maxWorkers: 1,
   },

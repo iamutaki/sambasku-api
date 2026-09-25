@@ -62,7 +62,7 @@ export function createPublicUserRoutes(deps: { controller: UserController }) {
   return routes;
 }
 
-/** GET/PATCH /api/v1/users/me — edit display_name + bio. Mount sebelum /:username. */
+/** GET/PATCH /api/v1/users/me - edit display_name + bio. Mount sebelum /:username. */
 export function createMeProfileRoutes(deps: {
   controller: UserController;
   authenticate: MiddlewareHandler<{ Variables: AppVariables }>;

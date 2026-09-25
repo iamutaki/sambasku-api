@@ -572,7 +572,7 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
   });
 
   it('search: ilike + cursor-based pagination (Section 13)', async () => {
-    // Sequential: SQLite single-writer — Promise.all dua transaksi tulis = SQLITE_BUSY
+    // Sequential: SQLite single-writer - Promise.all dua transaksi tulis = SQLITE_BUSY
     const w1 = await repo.saveWithRelations(baseWord({ lemma: 'makatn' }), ACTOR);
     const w2 = await repo.saveWithRelations(baseWord({ lemma: 'makanan' }), ACTOR);
 

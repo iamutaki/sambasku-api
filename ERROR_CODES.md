@@ -42,7 +42,7 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `WORD_REPORT_ALREADY_RESOLVED` | 409 | Laporan entri sudah ditutup |
 | `WORD_ALREADY_MODERATED` | 409 | Takedown pada kata bukan published, atau restore pada kata bukan taken_down |
 | `COMMENT_NOT_CENSORED` | 400 | Uncensor dipanggil tapi komentar tidak punya body_original |
-| `BLOCKLIST_WORD_EXISTS` | 409 | Kata blocklist sudah ada (aktif) — hanya endpoint satu kata |
+| `BLOCKLIST_WORD_EXISTS` | 409 | Kata blocklist sudah ada (aktif) - hanya endpoint satu kata |
 | `BLOCKLIST_WORD_NOT_FOUND` | 404 | Entry blocklist tidak ditemukan |
 | `BLOCKLIST_BULK_EMPTY` | 400 | Batch blocklist tidak berisi kata |
 | `BLOCKLIST_BULK_TOO_LARGE` | 400 | Batch blocklist lebih dari 2000 kata |

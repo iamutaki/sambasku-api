@@ -1,7 +1,7 @@
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { users } from './users.schema';
 
-/** Satu run impor massal (CSV / lembar) — ringkasan + item untuk riwayat admin. */
+/** Satu run impor massal (CSV / lembar) - ringkasan + item untuk riwayat admin. */
 export const wordImportSessions = sqliteTable(
   'word_import_sessions',
   {

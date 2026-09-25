@@ -67,11 +67,11 @@ jobs:
           DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_STAGING_AUTH_TOKEN }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "::error::Secret TURSO_STAGING_DATABASE_URL kosong — set di GitHub → Settings → Secrets"
+            echo "::error::Secret TURSO_STAGING_DATABASE_URL kosong - set di GitHub → Settings → Secrets"
             exit 1
           fi
           if [ -z "$DATABASE_AUTH_TOKEN" ]; then
-            echo "::error::Secret TURSO_STAGING_AUTH_TOKEN kosong — set di GitHub → Settings → Secrets"
+            echo "::error::Secret TURSO_STAGING_AUTH_TOKEN kosong - set di GitHub → Settings → Secrets"
             exit 1
           fi
           echo "Turso URL host: $(echo "$DATABASE_URL" | sed -E 's#^[a-z]+://##')"

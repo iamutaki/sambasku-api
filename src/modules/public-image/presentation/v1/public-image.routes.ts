@@ -50,7 +50,7 @@ export function createPublicImageRoutes(deps: {
     method: 'post',
     path: '/',
     tags: ['Images'],
-    summary: 'Upload gambar kata ke penyimpanan publik (GitHub) — multipart field `file`',
+    summary: 'Upload gambar kata ke penyimpanan publik (GitHub) - multipart field `file`',
     request: { query: uploadPublicImageQuerySchema },
     responses: {
       201: { description: 'Gambar tersimpan', content: json(uploadPublicImageResponseSchema) },

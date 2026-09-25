@@ -20,7 +20,7 @@ export const deviceTokens = sqliteTable(
   },
   (t) => [
     uniqueIndex('device_tokens_udid_unique').on(t.udid),
-    // Satu FCM token aktif hanya di satu device — cegah double push.
+    // Satu FCM token aktif hanya di satu device - cegah double push.
     uniqueIndex('device_tokens_active_fcm_token_idx')
       .on(t.fcmToken)
       .where(sql`deleted_at is null`),
