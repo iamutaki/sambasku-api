@@ -1,18 +1,26 @@
+import { brandedCodeEmailHtml } from './branded-email';
+
+const DETAIL =
+  'Masukkan kode ini bersama konfirmasi HAPUS. Akun, email, dan data pribadi akan dihapus. Entri kamus yang sudah tayang tetap ada tanpa namamu.';
+
 export function accountDeletionEmailText(displayCode: string, pageUrl: string): string {
   return (
     `Kode hapus akun SambasKu (berlaku 10 menit): ${displayCode}\n\n` +
-    `Masukkan kode ini di ${pageUrl} bersama konfirmasi HAPUS. ` +
-    'Akun, email, dan data pribadi akan dihapus. Entri kamus yang sudah tayang tetap ada tanpa nama kamu.\n\n' +
-    'Abaikan email ini jika kamu tidak meminta penghapusan akun.'
+    `${DETAIL}\n\n` +
+    `Halaman: ${pageUrl}\n\n` +
+    'Abaikan email ini jika Anda tidak meminta penghapusan akun di SambasKu.'
   );
 }
 
-export function accountDeletionEmailHtml(displayCode: string): string {
-  const code = displayCode
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-  return `<p>Kode hapus akun SambasKu (berlaku 10 menit): <strong>${code}</strong></p>
-<p>Masukkan kode ini di halaman hapus akun bersama konfirmasi HAPUS. Akun dan data pribadi akan dihapus. Entri kamus yang sudah tayang tetap ada tanpa namamu.</p>
-<p>Abaikan email ini jika kamu tidak meminta penghapusan akun.</p>`;
+export function accountDeletionEmailHtml(displayCode: string, pageUrl: string): string {
+  return brandedCodeEmailHtml({
+    title: 'Kode hapus akun SambasKu',
+    eyebrow: 'Hapus akun',
+    intro: 'Masukkan 8 karakter 0-9A-Z di halaman hapus akun',
+    code: displayCode,
+    note: 'Berlaku 10 menit. Format tampilan XXXX-XXXX.',
+    detail: DETAIL,
+    action: { href: pageUrl, label: 'Buka halaman hapus akun' },
+    footer: 'Abaikan email ini jika Anda tidak meminta penghapusan akun di SambasKu.',
+  });
 }

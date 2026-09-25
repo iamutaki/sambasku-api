@@ -4,6 +4,7 @@ import { logger } from '@/shared/logging/logger';
 import type { MailerPort } from '../application/ports/mailer.port';
 import { rememberOtp } from './otp-capture';
 import { accountDeletionEmailHtml, accountDeletionEmailText } from './account-deletion-email';
+import { verifierApprovedEmailHtml, verifierApprovedEmailText } from './verifier-approved-email';
 import { DEFAULT_MAIL_FROM, otpEmailHtml, otpEmailText } from './otp-email';
 import { resetPasswordEmailHtml, resetPasswordEmailText } from './reset-password-email';
 import {
@@ -35,7 +36,18 @@ export class ResendMailerService implements MailerPort {
       to,
       subject: 'Kode hapus akun - SambasKu',
       text: accountDeletionEmailText(displayCode, pageUrl),
-      html: accountDeletionEmailHtml(displayCode),
+      html: accountDeletionEmailHtml(displayCode, pageUrl),
+      inlineLogo: true,
+    });
+  }
+
+  async sendVerifierApprovedEmail(to: string, displayName: string): Promise<void> {
+    await this.send({
+      to,
+      subject: 'Selamat menjadi Verifikator - SambasKu',
+      text: verifierApprovedEmailText(displayName),
+      html: verifierApprovedEmailHtml(displayName),
+      inlineLogo: true,
     });
   }
 

@@ -4,6 +4,7 @@ import { logger } from '@/shared/logging/logger';
 import type { MailerPort } from '../application/ports/mailer.port';
 import { rememberOtp } from './otp-capture';
 import { accountDeletionEmailHtml, accountDeletionEmailText } from './account-deletion-email';
+import { verifierApprovedEmailHtml, verifierApprovedEmailText } from './verifier-approved-email';
 import { otpEmailHtml, otpEmailText } from './otp-email';
 import { resetPasswordEmailHtml, resetPasswordEmailText } from './reset-password-email';
 import {
@@ -36,14 +37,7 @@ export class SmtpMailerService implements MailerPort {
       subject: 'Reset password - SambasKu',
       text: resetPasswordEmailText(displayCode),
       html: resetPasswordEmailHtml(displayCode),
-      attachments: [
-        {
-          filename: OTP_EMAIL_LOGO_FILENAME,
-          content: Buffer.from(OTP_EMAIL_LOGO_BASE64, 'base64'),
-          contentType: OTP_EMAIL_LOGO_MIME,
-          cid: OTP_EMAIL_LOGO_CONTENT_ID,
-        },
-      ],
+      attachments: [this.logoAttachment()],
     });
   }
 
@@ -59,8 +53,33 @@ export class SmtpMailerService implements MailerPort {
       to,
       subject: 'Kode hapus akun - SambasKu',
       text,
-      html: accountDeletionEmailHtml(displayCode),
+      html: accountDeletionEmailHtml(displayCode, pageUrl),
+      attachments: [this.logoAttachment()],
     });
+  }
+
+  async sendVerifierApprovedEmail(to: string, displayName: string): Promise<void> {
+    if (!this.transporter) {
+      logger.info({ to }, 'DEV: email selamat verifikator tidak dikirim, SMTP belum di-set');
+      return;
+    }
+    await this.transporter.sendMail({
+      from: env.SMTP_USER,
+      to,
+      subject: 'Selamat menjadi Verifikator - SambasKu',
+      text: verifierApprovedEmailText(displayName),
+      html: verifierApprovedEmailHtml(displayName),
+      attachments: [this.logoAttachment()],
+    });
+  }
+
+  private logoAttachment() {
+    return {
+      filename: OTP_EMAIL_LOGO_FILENAME,
+      content: Buffer.from(OTP_EMAIL_LOGO_BASE64, 'base64'),
+      contentType: OTP_EMAIL_LOGO_MIME,
+      cid: OTP_EMAIL_LOGO_CONTENT_ID,
+    };
   }
 
   async sendVerificationOtpEmail(to: string, displayCode: string): Promise<void> {
@@ -76,14 +95,7 @@ export class SmtpMailerService implements MailerPort {
       subject: 'Kode verifikasi - SambasKu',
       text,
       html: otpEmailHtml(displayCode),
-      attachments: [
-        {
-          filename: OTP_EMAIL_LOGO_FILENAME,
-          content: Buffer.from(OTP_EMAIL_LOGO_BASE64, 'base64'),
-          contentType: OTP_EMAIL_LOGO_MIME,
-          cid: OTP_EMAIL_LOGO_CONTENT_ID,
-        },
-      ],
+      attachments: [this.logoAttachment()],
     });
   }
 }

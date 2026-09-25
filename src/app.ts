@@ -904,6 +904,8 @@ const verifierApplicationController = new VerifierApplicationController({
     refreshTokenRepo,
     auditRepo,
     notifyUser,
+    userRepo,
+    mailer,
   ),
   reject: new RejectVerifierApplicationUseCase(verifierApplicationRepo, auditRepo, notifyUser),
 });
