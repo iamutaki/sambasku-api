@@ -40,6 +40,8 @@ import type {
   DuplicateWordItem,
   ExampleMedia,
   InlineCreatedWordSummary,
+  LemmaSplitMeaningOverride,
+  LemmaSplitResult,
   ListAtoZParams,
   ListLatestParams,
   MissingReferences,
@@ -1639,9 +1641,12 @@ export class WordRepositoryImpl implements WordRepository {
   async applyCommaSplitLemma(
     wordId: string,
     parts: string[],
+    overrides: LemmaSplitMeaningOverride[] | undefined,
     actorId: string,
-  ): Promise<{ wordId: string; createdWordIds: string[] }> {
-    return this.db.transaction((tx) => applyCommaSplitLemmaInTx(tx, wordId, parts, actorId));
+  ): Promise<LemmaSplitResult> {
+    return this.db.transaction((tx) =>
+      applyCommaSplitLemmaInTx(tx, wordId, parts, overrides, actorId),
+    );
   }
 
   async applyCommaSplitTranslation(
@@ -1803,6 +1808,14 @@ export class WordRepositoryImpl implements WordRepository {
     return row ? toWordImage(row) : null;
   }
 
+  async listWordImages(wordId: string): Promise<WordImageMedia[]> {
+    const rows = await this.db
+      .select()
+      .from(wordImages)
+      .where(and(eq(wordImages.wordId, wordId), isNull(wordImages.deletedAt)));
+    return rows.map(toWordImage);
+  }
+
   async listStagingWordImages(wordId: string): Promise<WordImageMedia[]> {
     const rows = await this.db
       .select()
@@ -1840,6 +1853,15 @@ export class WordRepositoryImpl implements WordRepository {
         sha: data.sha,
       })
       .where(and(eq(wordImages.id, id), isNull(wordImages.deletedAt)));
+  }
+
+  async softDeleteWordImages(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const now = new Date();
+    await this.db
+      .update(wordImages)
+      .set({ deletedAt: now, isPrimary: false, isVerified: false })
+      .where(and(inArray(wordImages.id, ids), isNull(wordImages.deletedAt)));
   }
 
   async addWordAudio(

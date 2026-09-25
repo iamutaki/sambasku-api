@@ -10,6 +10,13 @@ export interface RefreshResult {
   refreshToken: string; // token baru hasil rotasi
 }
 
+/**
+ * Token yang baru dirotasi masih boleh dipakai sebentar. Respons refresh
+ * sering hilang (timeout, pindah tier, dua tab). Tanpa jendela ini klien
+ * mengulang token lama, dapat 401, dan user terlihat logout.
+ */
+export const REFRESH_ROTATION_GRACE_MS = 60_000;
+
 export class RefreshTokenUseCase {
   constructor(
     private readonly refreshTokenRepo: RefreshTokenRepository,
@@ -21,7 +28,7 @@ export class RefreshTokenUseCase {
 
   async execute(refreshToken: string): Promise<RefreshResult> {
     const record = await this.refreshTokenRepo.findByHash(hashToken(refreshToken));
-    if (!record || record.isRevoked || record.expiresAt.getTime() < Date.now()) {
+    if (!record || record.expiresAt.getTime() < Date.now()) {
       throw new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak valid');
     }
 
@@ -30,21 +37,43 @@ export class RefreshTokenUseCase {
       throw new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak valid');
     }
 
-    // Rotasi: revoke yang lama, buat yang baru - cegah replay attack
-    await this.refreshTokenRepo.revokeByHash(record.tokenHash);
+    if (record.isRevoked) {
+      if (!withinRotationGrace(record.rotatedAt)) {
+        throw new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak valid');
+      }
+      return this.issue(user.id, user.role, user.username);
+    }
+
+    const rotated = await this.refreshTokenRepo.markRotated(record.tokenHash);
+    if (!rotated) {
+      const again = await this.refreshTokenRepo.findByHash(record.tokenHash);
+      if (!again || !withinRotationGrace(again.rotatedAt)) {
+        throw new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak valid');
+      }
+    }
+
+    return this.issue(user.id, user.role, user.username);
+  }
+
+  private async issue(userId: string, role: string, username: string): Promise<RefreshResult> {
     const { token, tokenHash } = generateToken();
     await this.refreshTokenRepo.create({
-      userId: user.id,
+      userId,
       tokenHash,
       expiresAt: new Date(Date.now() + this.refreshTokenTtlSeconds * 1000),
     });
 
     const accessToken = await this.tokenService.generateAccessToken({
-      user_id: user.id,
-      role: user.role,
-      username: user.username,
+      user_id: userId,
+      role,
+      username,
     });
 
     return { accessToken, expiresIn: this.accessTokenTtlSeconds, refreshToken: token };
   }
+}
+
+function withinRotationGrace(rotatedAt: Date | null): boolean {
+  if (!rotatedAt) return false;
+  return Date.now() - rotatedAt.getTime() < REFRESH_ROTATION_GRACE_MS;
 }

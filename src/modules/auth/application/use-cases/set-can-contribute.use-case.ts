@@ -44,6 +44,7 @@ export class SetCanContributeUseCase {
       type: cmd.canContribute ? 'contribution_resumed' : 'contribution_paused',
       targetKind: 'word',
       targetId: cmd.targetUserId,
+      actorId: cmd.actorId,
     });
     return { id: cmd.targetUserId, canContribute: cmd.canContribute };
   }

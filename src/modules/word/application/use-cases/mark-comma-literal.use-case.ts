@@ -41,7 +41,7 @@ export class MarkCommaLiteralUseCase {
 
     if (!cmd.meaningTranslationId) {
       throw new ValidationError([
-        { field: 'meaning_translation_id', message: 'ID padanan wajib diisi' },
+        { field: 'meaning_translation_id', message: 'ID terjemahan wajib diisi' },
       ]);
     }
 
@@ -50,7 +50,7 @@ export class MarkCommaLiteralUseCase {
       cmd.actorId,
     );
     if (!ok) {
-      throw new NotFoundError('WORD_NOT_FOUND', 'Padanan tidak ditemukan atau sudah dihapus');
+      throw new NotFoundError('WORD_NOT_FOUND', 'Terjemahan tidak ditemukan atau sudah dihapus');
     }
     await this.auditRepo.record({
       userId: cmd.actorId,

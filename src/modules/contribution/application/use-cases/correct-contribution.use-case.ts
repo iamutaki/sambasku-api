@@ -169,6 +169,7 @@ export class CorrectContributionUseCase {
         type: 'contribution_corrected',
         targetKind: 'contribution',
         targetId: outcome.contributionId,
+        actorId: cmd.actorId,
       });
     }
 

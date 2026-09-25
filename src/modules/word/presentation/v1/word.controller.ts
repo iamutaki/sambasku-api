@@ -11,6 +11,7 @@ import type { SearchWordsUseCase } from '../../application/use-cases/search-word
 import type { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-case';
 import type { PublishWordUseCase } from '../../application/use-cases/publish-word.use-case';
 import type { SoftDeleteWordUseCase } from '../../application/use-cases/soft-delete-word.use-case';
+import type { BulkWordsActionUseCase } from '../../application/use-cases/bulk-words-action.use-case';
 import type { TakedownWordUseCase } from '../../application/use-cases/takedown-word.use-case';
 import type { RestoreWordUseCase } from '../../application/use-cases/restore-word.use-case';
 import type { AddPronunciationUseCase } from '../../application/use-cases/add-pronunciation.use-case';
@@ -18,6 +19,11 @@ import type { AddWordImageUseCase } from '../../application/use-cases/add-word-i
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
 import type { AddMeaningUseCase } from '../../application/use-cases/add-meaning.use-case';
 import type { ImportWordsUseCase } from '../../application/use-cases/import-words.use-case';
+import type {
+  GetWordImportSessionUseCase,
+  ListWordImportSessionsUseCase,
+  SaveWordImportSessionUseCase,
+} from '../../application/use-cases/word-import-session.use-cases';
 import type { UploadPronunciationAudioUseCase } from '../../application/use-cases/upload-pronunciation-audio.use-case';
 import type { DeletePronunciationAudioUseCase } from '../../application/use-cases/delete-pronunciation-audio.use-case';
 import type {
@@ -28,6 +34,11 @@ import type {
   ListLatestWordsQueryBody,
 } from './validators/create-word.validator';
 import type { ImportWordsBody } from './validators/import-words.validator';
+import type {
+  ListImportSessionsQuery,
+  SaveImportSessionBody,
+} from './validators/import-session.validator';
+import type { BulkWordsBody } from './validators/bulk-words.validator';
 import type { UpdateWordBody } from './validators/update-word.validator';
 import type { TakedownWordBody } from '@/modules/word-report/presentation/v1/validators/word-report.validator';
 import type {
@@ -78,6 +89,7 @@ export class WordController {
       verify: VerifyWordUseCase;
       publish: PublishWordUseCase;
       deleteWord: SoftDeleteWordUseCase;
+      bulkWords: BulkWordsActionUseCase;
       takedownWord: TakedownWordUseCase;
       restoreWord: RestoreWordUseCase;
       addPronunciation: AddPronunciationUseCase;
@@ -85,6 +97,9 @@ export class WordController {
       addExample: AddExampleUseCase;
       addMeaning: AddMeaningUseCase;
       importWords: ImportWordsUseCase;
+      saveImportSession: SaveWordImportSessionUseCase;
+      listImportSessions: ListWordImportSessionsUseCase;
+      getImportSession: GetWordImportSessionUseCase;
       uploadPronunciationAudio: UploadPronunciationAudioUseCase;
       deletePronunciationAudio: DeletePronunciationAudioUseCase;
       listWordClasses: () => Promise<WordClassSummary[]>;
@@ -159,6 +174,82 @@ export class WordController {
       requestId,
     });
     return c.json({ success: true as const, data: result }, body.mode === 'commit' ? 201 : 200);
+  }
+
+  async saveImportSession(c: Context, body: SaveImportSessionBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const session = await this.deps.saveImportSession.execute({
+      id: body.id,
+      triggeredBy: actor.user_id,
+      sourceLabel: body.source_label,
+      status: body.status,
+      total: body.total,
+      createdCount: body.created_count,
+      duplicatesCount: body.duplicates_count,
+      meaningsAddedCount: body.meanings_added_count,
+      invalidCount: body.invalid_count,
+      items: body.items,
+    });
+    return c.json({ success: true as const, data: this.toImportSessionData(session) }, 201);
+  }
+
+  async listImportSessions(c: Context, query: ListImportSessionsQuery) {
+    const limit = query.limit ?? 20;
+    const page = await this.deps.listImportSessions.execute({
+      limit,
+      cursor: query.cursor,
+    });
+    return c.json({
+      success: true as const,
+      data: page.items.map((session) => this.toImportSessionData(session)),
+      meta: {
+        limit,
+        next_cursor: page.nextCursor,
+        has_more: page.hasMore,
+      },
+    });
+  }
+
+  async getImportSession(c: Context, id: string) {
+    const session = await this.deps.getImportSession.execute(id);
+    return c.json({ success: true as const, data: this.toImportSessionData(session) });
+  }
+
+  private toImportSessionData(session: {
+    id: string;
+    triggeredBy: string;
+    triggeredByUsername: string | null;
+    attributedTo: string;
+    attributedToUsername: string | null;
+    sourceLabel: string | null;
+    status: 'completed' | 'cancelled' | 'failed';
+    total: number;
+    createdCount: number;
+    duplicatesCount: number;
+    meaningsAddedCount: number;
+    invalidCount: number;
+    items: { lemma: string; outcome: 'created' | 'meanings_added' | 'skipped' | 'invalid'; meanings_added: number; message?: string }[];
+    createdAt: Date;
+    finishedAt: Date | null;
+  }) {
+    return {
+      id: session.id,
+      triggered_by: session.triggeredBy,
+      triggered_by_username: session.triggeredByUsername,
+      attributed_to: session.attributedTo,
+      attributed_to_username: session.attributedToUsername,
+      source_label: session.sourceLabel,
+      status: session.status,
+      total: session.total,
+      created_count: session.createdCount,
+      duplicates_count: session.duplicatesCount,
+      meanings_added_count: session.meaningsAddedCount,
+      invalid_count: session.invalidCount,
+      items: session.items,
+      created_at: session.createdAt.toISOString(),
+      finished_at: session.finishedAt?.toISOString() ?? null,
+    };
   }
 
   async detail(c: Context, id: string) {
@@ -541,6 +632,8 @@ export class WordController {
           meanings_count: item.meaningsCount,
           suggested_parts: item.suggestedParts,
           meaning_preview: item.meaningPreview,
+          copied_translation: item.copiedTranslation,
+          copied_definition: item.copiedDefinition,
         })),
         translations: result.translations.map((item) => ({
           meaning_translation_id: item.meaningTranslationId,
@@ -569,6 +662,17 @@ export class WordController {
             kind: 'lemma',
             wordId: body.word_id,
             parts: body.parts,
+            meaningOverrides: body.meaning_overrides?.map((item) =>
+              item.mode === 'copy'
+                ? { mode: 'copy' as const }
+                : {
+                    mode: 'replace' as const,
+                    translationText: item.translation_text,
+                    definition: item.definition?.trim() ? item.definition.trim() : null,
+                    wordClassId: item.word_class_id ?? null,
+                    meaningSource: item.meaning_source,
+                  },
+            ),
             actorId: actor.user_id,
             requestId,
           })
@@ -915,6 +1019,31 @@ export class WordController {
       logger.info({ request_id: actor.requestId, word_id: id }, 'word soft-deleted');
 
       return c.json({ success: true as const, data: null });
+    });
+  }
+
+  /** Mass-action kata - POST /api/v1/admin/words/bulk (delete | publish | unpublish) */
+  async bulkWords(c: Context, body: BulkWordsBody) {
+    return this.withActor(c, async (actor) => {
+      const data = await this.deps.bulkWords.execute({
+        action: body.action,
+        ids: body.ids,
+        actorId: actor.userId,
+        actorRole: actor.role,
+        requestId: actor.requestId,
+      });
+
+      logger.info(
+        {
+          request_id: actor.requestId,
+          action: data.action,
+          succeeded: data.succeeded,
+          failed: data.failed,
+        },
+        'words bulk action',
+      );
+
+      return c.json({ success: true as const, data });
     });
   }
 

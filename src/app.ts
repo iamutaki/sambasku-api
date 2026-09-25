@@ -72,11 +72,18 @@ import { MarkCommaLiteralUseCase } from '@/modules/word/application/use-cases/ma
 import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-word.use-case';
 import { PublishWordUseCase } from '@/modules/word/application/use-cases/publish-word.use-case';
 import { SoftDeleteWordUseCase } from '@/modules/word/application/use-cases/soft-delete-word.use-case';
+import { BulkWordsActionUseCase } from '@/modules/word/application/use-cases/bulk-words-action.use-case';
 import { TakedownWordUseCase } from '@/modules/word/application/use-cases/takedown-word.use-case';
 import { RestoreWordUseCase } from '@/modules/word/application/use-cases/restore-word.use-case';
 import { AddPronunciationUseCase } from '@/modules/word/application/use-cases/add-pronunciation.use-case';
 import { AddMeaningUseCase } from '@/modules/word/application/use-cases/add-meaning.use-case';
 import { ImportWordsUseCase } from '@/modules/word/application/use-cases/import-words.use-case';
+import {
+  GetWordImportSessionUseCase,
+  ListWordImportSessionsUseCase,
+  SaveWordImportSessionUseCase,
+} from '@/modules/word/application/use-cases/word-import-session.use-cases';
+import { WordImportSessionRepositoryImpl } from '@/modules/word/infrastructure/word-import-session.repository.impl';
 import { AddWordImageUseCase } from '@/modules/word/application/use-cases/add-word-image.use-case';
 import { AddExampleUseCase } from '@/modules/word/application/use-cases/add-example.use-case';
 import { UploadPronunciationAudioUseCase } from '@/modules/word/application/use-cases/upload-pronunciation-audio.use-case';
@@ -382,6 +389,7 @@ const optionalAuthenticate = createOptionalAuthenticateMiddleware((token) =>
 
 // ---- Modul word (+ language & category sebagai data referensi form admin) ----
 const wordRepo = new WordRepositoryImpl(db);
+const wordImportSessionRepo = new WordImportSessionRepositoryImpl(db);
 const wordReportRepo = new WordReportRepositoryImpl(db);
 const takedownWord = new TakedownWordUseCase(wordRepo, auditRepo, wordReportRepo, recordInbox);
 const restoreWord = new RestoreWordUseCase(wordRepo, auditRepo);
@@ -394,6 +402,8 @@ const publicImageStorage = createPublicImageStorage();
 // dari SearchWordsUseCase lewat interface modul search-miss (Section 4)
 const searchMissRepo = new SearchMissRepositoryImpl(db);
 const languageRepo = new LanguageRepositoryImpl(db);
+const publishWord = new PublishWordUseCase(wordRepo, auditRepo);
+const softDeleteWord = new SoftDeleteWordUseCase(wordRepo, auditRepo);
 const wordController = new WordController({
   create: new CreateWordUseCase(wordRepo, auditRepo, searchMissRepo),
   update: new UpdateWordUseCase(wordRepo, auditRepo),
@@ -410,15 +420,19 @@ const wordController = new WordController({
   applyCommaSplit: new ApplyCommaSplitUseCase(wordRepo, auditRepo),
   markCommaLiteral: new MarkCommaLiteralUseCase(wordRepo, auditRepo),
   verify: new VerifyWordUseCase(wordRepo, auditRepo),
-  publish: new PublishWordUseCase(wordRepo, auditRepo),
-  deleteWord: new SoftDeleteWordUseCase(wordRepo, auditRepo),
+  publish: publishWord,
+  deleteWord: softDeleteWord,
+  bulkWords: new BulkWordsActionUseCase(softDeleteWord, publishWord),
   takedownWord,
   restoreWord,
   addPronunciation: new AddPronunciationUseCase(wordRepo, auditRepo),
   addWordImage: new AddWordImageUseCase(wordRepo, auditRepo, publicImageStorage.providerName),
   addExample: new AddExampleUseCase(wordRepo, auditRepo),
   addMeaning: new AddMeaningUseCase(wordRepo, auditRepo),
-  importWords: new ImportWordsUseCase(wordRepo, languageRepo, auditRepo),
+  importWords: new ImportWordsUseCase(wordRepo, languageRepo),
+  saveImportSession: new SaveWordImportSessionUseCase(wordImportSessionRepo),
+  listImportSessions: new ListWordImportSessionsUseCase(wordImportSessionRepo),
+  getImportSession: new GetWordImportSessionUseCase(wordImportSessionRepo),
   uploadPronunciationAudio: new UploadPronunciationAudioUseCase(
     wordRepo,
     pronunciationStorage,
@@ -546,7 +560,7 @@ const deviceController = new DeviceController({
 });
 
 // ---- Modul word-suggestions (usul perubahan kata) ----
-const suggestionRepo = new WordSuggestionRepositoryImpl();
+const suggestionRepo = new WordSuggestionRepositoryImpl(publicImageStorage, imageStorage);
 const suggestionController = new WordSuggestionController({
   repository: suggestionRepo,
   inbox: recordInbox,

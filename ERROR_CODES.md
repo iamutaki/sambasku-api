@@ -46,6 +46,8 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `BLOCKLIST_WORD_NOT_FOUND` | 404 | Entry blocklist tidak ditemukan |
 | `BLOCKLIST_BULK_EMPTY` | 400 | Batch blocklist tidak berisi kata |
 | `BLOCKLIST_BULK_TOO_LARGE` | 400 | Batch blocklist lebih dari 2000 kata |
+| `WORDS_BULK_EMPTY` | 400 | Mass-action kata tanpa id |
+| `WORDS_BULK_TOO_LARGE` | 400 | Mass-action kata lebih dari 50 id |
 | `EMAIL_ALREADY_EXISTS` | 409 | Registrasi dengan email yang sudah dipakai |
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan nama (username) yang sudah dipakai |
 | `PHONE_ALREADY_EXISTS` | 409 | Registrasi / pengajuan verifikator / buat user admin dengan nomor HP yang sudah dipakai user lain |

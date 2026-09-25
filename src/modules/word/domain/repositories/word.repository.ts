@@ -123,6 +123,42 @@ export interface CommaSplitLemmaCandidate {
   meaningsCount: number;
   suggestedParts: string[];
   meaningPreview: string[];
+  /** Padanan pertama, untuk pratinjau field yang masih bisa diganti. */
+  copiedTranslation: string;
+  /** Definisi pertama yang bukan placeholder, kosong bila tidak ada. */
+  copiedDefinition: string;
+}
+
+/** Satu bagian tambahan saat pecah lemma: salin makna, atau ganti. */
+export type LemmaSplitMeaningOverride =
+  | { mode: 'copy' }
+  | {
+      mode: 'replace';
+      translationText: string;
+      definition: string | null;
+      wordClassId: string | null;
+      meaningSource: 'manual' | 'kbbi';
+    };
+
+export interface LemmaSplitMeaningSnapshot {
+  translationTexts: string[];
+  definition: string | null;
+}
+
+export interface LemmaSplitCreatedWord {
+  wordId: string;
+  lemma: string;
+  mode: 'copy' | 'replace';
+  translationText: string;
+  meaningSource: 'copied' | 'manual' | 'kbbi';
+}
+
+export interface LemmaSplitResult {
+  wordId: string;
+  keptLemma: string;
+  oldLemma: string;
+  meanings: LemmaSplitMeaningSnapshot[];
+  created: LemmaSplitCreatedWord[];
 }
 
 /** Kandidat pecah padanan berkoma → beberapa makna. */
@@ -344,14 +380,17 @@ export interface WordRepository {
   listCommaSplitCandidates(): Promise<CommaSplitCandidates>;
 
   /**
-   * Pecah lemma: rename asli → parts[0], buat kata baru untuk sisanya
-   * (salin makna). parts harus ≥2.
+   * Pecah lemma: rename asli → parts[0], buat kata baru untuk sisanya.
+   * Tanpa override (atau mode copy) makna disalin. mode replace menulis
+   * satu makna baru dan tidak menyalin contoh/catatan/label.
+   * parts harus ≥2. overrides, bila ada, panjangnya parts.length - 1.
    */
   applyCommaSplitLemma(
     wordId: string,
     parts: string[],
+    overrides: LemmaSplitMeaningOverride[] | undefined,
     actorId: string,
-  ): Promise<{ wordId: string; createdWordIds: string[] }>;
+  ): Promise<LemmaSplitResult>;
 
   /**
    * Pecah padanan → N makna: update padanan sumber → parts[0],
@@ -434,6 +473,9 @@ export interface WordRepository {
     contentWarnings: ImageContentWarning[],
   ): Promise<WordImageMedia | null>;
 
+  /** Gambar hidup pada kata (untuk validasi keputusan review). */
+  listWordImages(wordId: string): Promise<WordImageMedia[]>;
+
   /** Gambar ImageKit belum diverifikasi pada kata (untuk promote saat approve). */
   listStagingWordImages(wordId: string): Promise<WordImageMedia[]>;
 
@@ -444,6 +486,12 @@ export interface WordRepository {
     id: string,
     data: { url: string; provider: string; providerFileId: string; sha: string },
   ): Promise<void>;
+
+  /**
+   * Soft-delete foto (moderasi: jangan tayangkan / tolak).
+   * Jika salah satu is_primary, primary dibersihkan (tidak auto-pilih pengganti).
+   */
+  softDeleteWordImages(ids: string[]): Promise<void>;
 
   /**
    * Insert audio pelafalan (multi) pada kata / contoh + contributions.

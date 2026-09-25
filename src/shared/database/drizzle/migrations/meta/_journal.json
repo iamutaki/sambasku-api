@@ -127,6 +127,20 @@
       "when": 1791700000000,
       "tag": "0017_word-report-image-id",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1791800000000,
+      "tag": "0018_refresh-token-rotated-at",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1791900000000,
+      "tag": "0019_word-import-sessions",
+      "breakpoints": true
     }
   ]
 }

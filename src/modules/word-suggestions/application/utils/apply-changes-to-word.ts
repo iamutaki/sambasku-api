@@ -311,20 +311,25 @@ export async function applyChangesToWord(
             .set({ isPrimary: false })
             .where(and(eq(wordImages.wordId, word.id), isNull(wordImages.deletedAt)));
         }
+        const provider = resolveWordImageProvider(img.provider, 'github');
+        // apply_pending: ImageKit tetap staging (belum diverifikasi).
+        // approve / correct: provider sudah github setelah promote, atau stock.
+        const isVerified = provider !== 'imagekit';
         await db
           .insert(wordImages)
           .values({
             wordId: word.id,
             url: img.url,
-            provider: resolveWordImageProvider(img.provider, 'github'),
+            provider,
             providerFileId: img.providerFileId,
             altText: img.altText ?? null,
             isPrimary: img.isPrimary ?? false,
             createdBy: reviewerId,
             status: 'published',
+            isVerified,
           })
           .onConflictDoNothing();
-        imageAudit.added.push({ url: img.url, is_primary: img.isPrimary ?? false });
+        imageAudit.added.push({ url: img.url, is_primary: img.isPrimary ?? false, provider });
         changesApplied++;
       } else if (img.action === 'remove' && img.imageId) {
         await db

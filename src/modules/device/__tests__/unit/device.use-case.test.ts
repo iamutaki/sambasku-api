@@ -64,6 +64,25 @@ describe('NotifyUserUseCase', () => {
     expect(push.send).not.toHaveBeenCalled();
   });
 
+  it('skip jika actorId sama dengan penerima (self-notify)', async () => {
+    const repo = makeDeviceRepo();
+    const push: PushSenderPort = {
+      isConfigured: true,
+      send: vi.fn(),
+      sendToTopic: vi.fn(),
+    };
+    const useCase = new NotifyUserUseCase(repo, push);
+    const selfId = '01USERULID0000000000000000';
+    await useCase.execute({
+      userId: selfId,
+      actorId: selfId,
+      title: 't',
+      body: 'b',
+    });
+    expect(repo.listActiveFcmTokensByUserId).not.toHaveBeenCalled();
+    expect(push.send).not.toHaveBeenCalled();
+  });
+
   it('fan-out ke semua token aktif', async () => {
     const repo = makeDeviceRepo();
     const push: PushSenderPort = {

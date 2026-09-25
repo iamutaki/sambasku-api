@@ -59,7 +59,7 @@ const imageChangeSchema = z
     action: z.enum(['add', 'remove', 'set_primary']),
     image_id: ulid.optional(),
     url: z.string().url().optional(),
-    provider: z.enum([...STOCK_WORD_IMAGE_PROVIDERS, 'github']).optional(),
+    provider: z.enum([...STOCK_WORD_IMAGE_PROVIDERS, 'github', 'imagekit']).optional(),
     provider_file_id: z.string().trim().min(1).max(255).optional(),
     alt_text: z.string().trim().max(500).optional(),
     is_primary: z.boolean().optional(),
@@ -380,7 +380,14 @@ export const suggestionDetailResponseSchema = z.object({
         removed: z.array(z.object({ form: z.string(), variant_type: z.string() })),
       }),
       images: z.object({
-        added: z.array(z.object({ url: z.string(), is_primary: z.boolean() })),
+        added: z.array(
+          z.object({
+            url: z.string(),
+            is_primary: z.boolean(),
+            provider: z.string().nullable().optional(),
+            provider_file_id: z.string().nullable().optional(),
+          }),
+        ),
         removed: z.array(z.object({ image_id: z.string().length(26) })),
         set_primary: z.array(z.object({ image_id: z.string().length(26) })),
       }),
@@ -463,6 +470,17 @@ export const adminListSuggestionsQuerySchema = z.object({
 
 export const approveSuggestionBodySchema = z.object({
   comment: z.string().max(500).optional(),
+  /** Keputusan foto ImageKit yang ditambahkan di usulan (opsional). */
+  image_decisions: z
+    .array(
+      z.object({
+        /** Indeks di proposed_changes.images (hanya action=add), atau provider_file_id */
+        key: z.string().trim().min(1).max(255),
+        decision: z.enum(['approve', 'reject']),
+      }),
+    )
+    .max(10)
+    .optional(),
 });
 
 export const rejectSuggestionBodySchema = z.object({

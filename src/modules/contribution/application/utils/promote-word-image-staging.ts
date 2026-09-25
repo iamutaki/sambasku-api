@@ -18,6 +18,12 @@ export interface PromotedWordImage {
   sha: string;
 }
 
+export interface PromoteWordImageOptions {
+  /** Bytes hasil sensor admin; kosong = unduh dari URL staging. */
+  bytes?: Uint8Array;
+  mimeType?: string | null;
+}
+
 async function fetchImageBytes(url: string): Promise<{ bytes: Uint8Array; mimeType: string | null }> {
   const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) {
@@ -36,9 +42,20 @@ async function fetchImageBytes(url: string): Promise<{ bytes: Uint8Array; mimeTy
 export async function promoteWordImageFromStaging(
   staging: StagingWordImage,
   publicImageStorage: PublicImageStoragePort,
+  opts?: PromoteWordImageOptions,
 ): Promise<PromotedWordImage> {
-  const fetched = await fetchImageBytes(staging.url);
-  const file = validateImageFile({ bytes: fetched.bytes, mimeType: fetched.mimeType });
+  let bytes: Uint8Array;
+  let mimeHint: string | null;
+  if (opts?.bytes && opts.bytes.byteLength > 0) {
+    bytes = opts.bytes;
+    mimeHint = opts.mimeType ?? null;
+  } else {
+    const fetched = await fetchImageBytes(staging.url);
+    bytes = fetched.bytes;
+    mimeHint = fetched.mimeType;
+  }
+
+  const file = validateImageFile({ bytes, mimeType: mimeHint });
   const path = buildWordImagePath(file.mimeType);
   const uploaded = await publicImageStorage.upload({
     path,

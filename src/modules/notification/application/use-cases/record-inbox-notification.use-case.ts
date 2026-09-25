@@ -12,6 +12,8 @@ export interface RecordInboxNotificationCommand {
   body?: string;
   /** Takedown ulang pada kata yang sama: tulis ulang dan tandai belum dibaca. */
   refreshOnConflict?: boolean;
+  /** Pelaku aksi; jika sama dengan userId, notifikasi diri sendiri dilewati. */
+  actorId?: string;
 }
 
 function logError(obj: Record<string, unknown>, msg: string) {
@@ -26,6 +28,8 @@ export class RecordInboxNotificationUseCase {
 
   async execute(cmd: RecordInboxNotificationCommand): Promise<void> {
     if (!cmd.userId || cmd.userId === ANONIM_USER_ID) return;
+    // Aksi sendiri → tidak perlu notifikasi (mis. verifikator menyetujui kontribusi sendiri)
+    if (cmd.actorId && cmd.actorId === cmd.userId) return;
 
     const copy = inboxCopyFor(cmd.type);
     const input = {

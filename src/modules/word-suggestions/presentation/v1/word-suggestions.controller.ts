@@ -2,8 +2,8 @@ import type { Context } from 'hono';
 import type { WordSuggestionRepositoryImpl } from '../../infrastructure/word-suggestion.repository.impl';
 import type { RecordInboxNotificationUseCase } from '@/modules/notification/application/use-cases/record-inbox-notification.use-case';
 import type { CreateSuggestionRequest } from './validators/suggestion.validator';
-import { assertCanContribute } from '@/modules/word/application/utils/assert-can-contribute';
 import {
+  approveSuggestionBodySchema,
   mapProposedChanges,
   resolveReasonFields,
   createSuggestionResponseSchema,
@@ -13,6 +13,79 @@ import {
   rejectResponseSchema,
   changeHistoryResponseSchema,
 } from './validators/suggestion.validator';
+import { assertCanContribute } from '@/modules/word/application/utils/assert-can-contribute';
+import { ValidationError } from '@/shared/errors/app-error';
+
+type ApproveSuggestionBody = {
+  comment?: string;
+  image_decisions?: { key: string; decision: 'approve' | 'reject' }[];
+};
+
+type CensoredSuggestionFile = { bytes: Uint8Array; mimeType: string | null };
+
+/**
+ * JSON atau multipart: comment, image_decisions (JSON string),
+ * file_<key> = bytes sensor (indeks add atau provider_file_id).
+ */
+async function parseApproveSuggestionPayload(c: Context): Promise<{
+  body: ApproveSuggestionBody;
+  censoredFiles: Record<string, CensoredSuggestionFile>;
+}> {
+  const contentType = c.req.header('content-type') ?? '';
+  if (!contentType.includes('multipart/form-data')) {
+    const raw = await c.req.json().catch(() => ({}));
+    const parsed = approveSuggestionBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new ValidationError(
+        parsed.error.issues.map((i) => ({
+          field: i.path.join('.') || 'body',
+          message: i.message,
+        })),
+      );
+    }
+    return { body: parsed.data, censoredFiles: {} };
+  }
+
+  const form = await c.req.parseBody({ all: true });
+  const commentRaw = form['comment'];
+  const decisionsRaw = form['image_decisions'];
+  let imageDecisions: unknown;
+  if (typeof decisionsRaw === 'string' && decisionsRaw.trim()) {
+    try {
+      imageDecisions = JSON.parse(decisionsRaw) as unknown;
+    } catch {
+      throw new ValidationError([
+        { field: 'image_decisions', message: 'Format keputusan foto tidak valid' },
+      ]);
+    }
+  }
+  const rawBody = {
+    comment: typeof commentRaw === 'string' ? commentRaw : undefined,
+    image_decisions: imageDecisions,
+  };
+  const parsed = approveSuggestionBodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    throw new ValidationError(
+      parsed.error.issues.map((i) => ({
+        field: i.path.join('.') || 'body',
+        message: i.message,
+      })),
+    );
+  }
+
+  const censoredFiles: Record<string, CensoredSuggestionFile> = {};
+  for (const [key, part] of Object.entries(form)) {
+    if (!key.startsWith('file_') || typeof part === 'string') continue;
+    const fileKey = key.slice('file_'.length);
+    if (!fileKey || fileKey.length > 255) continue;
+    const file = part as File;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes.byteLength === 0) continue;
+    censoredFiles[fileKey] = { bytes, mimeType: file.type || null };
+  }
+
+  return { body: parsed.data, censoredFiles };
+}
 
 export interface WordSuggestionControllerDeps {
   repository: WordSuggestionRepositoryImpl;
@@ -180,6 +253,8 @@ export class WordSuggestionController {
               added: detail.diff.images.added.map((i) => ({
                 url: i.url,
                 is_primary: i.isPrimary,
+                provider: i.provider ?? null,
+                provider_file_id: i.providerFileId ?? null,
               })),
               removed: detail.diff.images.removed.map((i) => ({ image_id: i.imageId })),
               set_primary: detail.diff.images.setPrimary.map((i) => ({ image_id: i.imageId })),
@@ -190,20 +265,20 @@ export class WordSuggestionController {
     );
   }
 
-  async approveSuggestion(
-    c: Context,
-    id: string,
-    userId: string,
-    comment?: string,
-  ): Promise<Response> {
+  async approveSuggestion(c: Context, id: string, userId: string): Promise<Response> {
+    const { body, censoredFiles } = await parseApproveSuggestionPayload(c);
     const existing = await this.deps.repository.findById(id);
-    const result = await this.deps.repository.approveSuggestion(id, userId, comment);
+    const result = await this.deps.repository.approveSuggestion(id, userId, body.comment, {
+      decisions: body.image_decisions,
+      censoredFiles: Object.keys(censoredFiles).length > 0 ? censoredFiles : undefined,
+    });
     if (existing) {
       await this.deps.inbox?.execute({
         userId: existing.userId,
         type: 'suggestion_approved',
         targetKind: 'suggestion',
         targetId: id,
+        actorId: userId,
       });
     }
     return c.json(
@@ -235,6 +310,7 @@ export class WordSuggestionController {
         type: 'suggestion_rejected',
         targetKind: 'suggestion',
         targetId: id,
+        actorId: userId,
       });
     }
     return c.json(
@@ -268,6 +344,7 @@ export class WordSuggestionController {
         type: 'suggestion_corrected',
         targetKind: 'suggestion',
         targetId: id,
+        actorId: userId,
       });
     }
     return c.json({

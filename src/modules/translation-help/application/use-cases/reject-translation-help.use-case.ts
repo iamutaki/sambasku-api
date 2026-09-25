@@ -71,6 +71,7 @@ export class RejectTranslationHelpUseCase {
       targetKind: 'translation_help',
       targetId: updated.id,
       body: note,
+      actorId: cmd.actorId,
     });
 
     return updated;

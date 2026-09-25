@@ -15,23 +15,47 @@ import type {
   CommaSplitCandidates,
   CommaSplitLemmaCandidate,
   CommaSplitTranslationCandidate,
+  LemmaSplitMeaningOverride,
+  LemmaSplitResult,
 } from '../domain/repositories/word.repository';
 import type { WordStatus, WordType } from '../domain/entities/word.entity';
 
+function alignLemmaOverrides(
+  partCount: number,
+  overrides: LemmaSplitMeaningOverride[] | undefined,
+): LemmaSplitMeaningOverride[] {
+  const needed = partCount - 1;
+  if (!overrides) {
+    return Array.from({ length: needed }, () => ({ mode: 'copy' }));
+  }
+  if (overrides.length !== needed) {
+    throw new Error('OVERRIDE_COUNT_MISMATCH');
+  }
+  return overrides;
+}
+
 /**
  * Pecah lemma berkoma: entri asli rename ke parts[0], buat kata baru
- * untuk parts[1..] dengan salinan makna (definisi, padanan, contoh).
+ * untuk parts[1..]. Default menyalin makna. Override replace menulis
+ * satu makna baru tanpa contoh, catatan, atau label sumber.
  */
 export async function applyCommaSplitLemmaInTx(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx: any,
   wordId: string,
   parts: string[],
+  overrides: LemmaSplitMeaningOverride[] | undefined,
   actorId: string,
-): Promise<{ wordId: string; createdWordIds: string[] }> {
+): Promise<LemmaSplitResult> {
   const cleaned = normalizeSplitParts(parts);
   if (cleaned.length < 2) {
     throw new Error('PARTS_TOO_FEW');
+  }
+  const aligned = alignLemmaOverrides(cleaned.length, overrides);
+  for (const ov of aligned) {
+    if (ov.mode === 'replace' && ov.translationText.trim().length === 0) {
+      throw new Error('REPLACE_TRANSLATION_REQUIRED');
+    }
   }
 
   const [source] = await tx
@@ -60,18 +84,70 @@ export async function applyCommaSplitLemmaInTx(
     .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)))
     .orderBy(asc(meanings.orderIndex));
 
-  const createdWordIds: string[] = [];
+  const translationsByMeaning = new Map<string, (typeof meaningTranslations.$inferSelect)[]>();
+  const examplesByMeaning = new Map<string, (typeof examples.$inferSelect)[]>();
+  let inheritedLanguageId: string | null = null;
+  const meaningSnapshots: LemmaSplitResult['meanings'] = [];
 
-  for (const lemma of cleaned.slice(1)) {
+  for (const m of sourceMeanings) {
+    const translations = await tx
+      .select()
+      .from(meaningTranslations)
+      .where(and(eq(meaningTranslations.meaningId, m.id), isNull(meaningTranslations.deletedAt)));
+    translationsByMeaning.set(m.id, translations);
+    if (!inheritedLanguageId && translations[0]) {
+      inheritedLanguageId = translations[0].languageId;
+    }
+
+    const exRows = await tx
+      .select()
+      .from(examples)
+      .where(and(eq(examples.meaningId, m.id), isNull(examples.deletedAt)));
+    examplesByMeaning.set(m.id, exRows);
+
+    const definition =
+      m.isHaveDefinition && m.definition && m.definition !== '-' ? m.definition : null;
+    meaningSnapshots.push({
+      translationTexts: translations.map(
+        (t: typeof meaningTranslations.$inferSelect) => t.translationText,
+      ),
+      definition,
+    });
+  }
+
+  const needsReplace = aligned.some((ov) => ov.mode === 'replace');
+  let targetLanguageId = inheritedLanguageId;
+  if (needsReplace && !targetLanguageId) {
+    const [indonesian] = await tx
+      .select({ id: languages.id })
+      .from(languages)
+      .where(eq(languages.code, 'id'))
+      .limit(1);
+    if (!indonesian) {
+      throw new Error('INDONESIAN_LANGUAGE_NOT_FOUND');
+    }
+    targetLanguageId = indonesian.id;
+  }
+
+  const copiedGloss = meaningSnapshots
+    .flatMap((m) => m.translationTexts)
+    .join(' · ');
+  const created: LemmaSplitResult['created'] = [];
+  const firstMeaning = sourceMeanings[0];
+
+  for (let i = 0; i < aligned.length; i++) {
+    const lemma = cleaned[i + 1]!;
+    const override = aligned[i]!;
+    const replacing = override.mode === 'replace';
     const newWordId = generateId();
     await tx.insert(words).values({
       id: newWordId,
       languageId: source.languageId,
       lemma,
       lemmaAllowsComma: false,
-      notes: source.notes,
+      notes: replacing ? null : source.notes,
       wordType: source.wordType,
-      usageLabels: source.usageLabels ?? [],
+      usageLabels: replacing ? [] : (source.usageLabels ?? []),
       status: source.status,
       isVerified: source.isVerified,
       verifiedBy: source.verifiedBy,
@@ -81,7 +157,43 @@ export async function applyCommaSplitLemmaInTx(
       updatedBy: actorId,
       updatedAt: now,
     });
-    createdWordIds.push(newWordId);
+
+    if (replacing) {
+      const definitionText = override.definition?.trim() || '-';
+      const hasDefinition = definitionText !== '-';
+      const newMeaningId = generateId();
+      await tx.insert(meanings).values({
+        id: newMeaningId,
+        wordId: newWordId,
+        wordClassId: override.wordClassId,
+        inheritedFromMeaningId: null,
+        definition: definitionText,
+        isHaveDefinition: hasDefinition,
+        isHaveTranslation: true,
+        orderIndex: 0,
+        notes: null,
+        status: firstMeaning?.status ?? source.status,
+        isVerified: firstMeaning?.isVerified ?? source.isVerified,
+        isCorrected: false,
+        createdBy: actorId,
+      });
+      await tx.insert(meaningTranslations).values({
+        meaningId: newMeaningId,
+        languageId: targetLanguageId,
+        translationText: override.translationText.trim(),
+        translationType: 'direct',
+        translationAllowsComma: false,
+        createdBy: actorId,
+      });
+      created.push({
+        wordId: newWordId,
+        lemma,
+        mode: 'replace',
+        translationText: override.translationText.trim(),
+        meaningSource: override.meaningSource,
+      });
+      continue;
+    }
 
     for (const m of sourceMeanings) {
       const newMeaningId = generateId();
@@ -101,14 +213,10 @@ export async function applyCommaSplitLemmaInTx(
         createdBy: actorId,
       });
 
-      const translations = await tx
-        .select()
-        .from(meaningTranslations)
-        .where(and(eq(meaningTranslations.meaningId, m.id), isNull(meaningTranslations.deletedAt)));
-
+      const translations = translationsByMeaning.get(m.id) ?? [];
       if (translations.length > 0) {
         await tx.insert(meaningTranslations).values(
-          translations.map((t: typeof meaningTranslations.$inferSelect) => ({
+          translations.map((t) => ({
             meaningId: newMeaningId,
             languageId: t.languageId,
             translationText: t.translationText,
@@ -120,14 +228,10 @@ export async function applyCommaSplitLemmaInTx(
         );
       }
 
-      const exRows = await tx
-        .select()
-        .from(examples)
-        .where(and(eq(examples.meaningId, m.id), isNull(examples.deletedAt)));
-
+      const exRows = examplesByMeaning.get(m.id) ?? [];
       if (exRows.length > 0) {
         await tx.insert(examples).values(
-          exRows.map((e: typeof examples.$inferSelect) => ({
+          exRows.map((e) => ({
             meaningId: newMeaningId,
             sourceLanguageId: e.sourceLanguageId,
             sourceSentence: e.sourceSentence,
@@ -144,13 +248,27 @@ export async function applyCommaSplitLemmaInTx(
         );
       }
     }
+
+    created.push({
+      wordId: newWordId,
+      lemma,
+      mode: 'copy',
+      translationText: copiedGloss,
+      meaningSource: 'copied',
+    });
   }
 
-  return { wordId, createdWordIds };
+  return {
+    wordId,
+    keptLemma: cleaned[0]!,
+    oldLemma: source.lemma,
+    meanings: meaningSnapshots,
+    created,
+  };
 }
 
 /**
- * Pecah padanan berkoma jadi beberapa makna: padanan sumber → parts[0],
+ * Pecah terjemahan berkoma jadi beberapa makna: terjemahan sumber → parts[0],
  * makna baru (salin definisi/kelas) untuk parts[1..].
  */
 export async function applyCommaSplitTranslationInTx(
@@ -213,7 +331,7 @@ export async function applyCommaSplitTranslationInTx(
     .where(and(eq(meanings.wordId, meaning.wordId), isNull(meanings.deletedAt)));
   let nextOrder = Number(maxRow?.max ?? -1) + 1;
 
-  for (const padanan of cleaned.slice(1)) {
+  for (const translation of cleaned.slice(1)) {
     const newMeaningId = generateId();
     await tx.insert(meanings).values({
       id: newMeaningId,
@@ -234,7 +352,7 @@ export async function applyCommaSplitTranslationInTx(
     await tx.insert(meaningTranslations).values({
       meaningId: newMeaningId,
       languageId: tr.languageId,
-      translationText: padanan,
+      translationText: translation,
       translationType: tr.translationType,
       translationAllowsComma: false,
       createdBy: actorId,
@@ -270,6 +388,8 @@ export async function listCommaSplitCandidatesInDb(
   const lemmaWordIds = lemmaRows.map((r: { wordId: string }) => r.wordId);
   const meaningPreviewByWord = new Map<string, string[]>();
   const meaningsCountByWord = new Map<string, number>();
+  const copiedTranslationByWord = new Map<string, string>();
+  const copiedDefinitionByWord = new Map<string, string>();
 
   if (lemmaWordIds.length > 0) {
     const mRows = await db
@@ -313,6 +433,17 @@ export async function listCommaSplitCandidatesInDb(
 
     for (const m of mRows) {
       const glosses = trByMeaning.get(m.meaningId) ?? [];
+      if (!copiedTranslationByWord.has(m.wordId) && glosses[0]) {
+        copiedTranslationByWord.set(m.wordId, glosses[0]);
+      }
+      if (
+        !copiedDefinitionByWord.has(m.wordId) &&
+        m.isHaveDefinition &&
+        m.definition &&
+        m.definition !== '-'
+      ) {
+        copiedDefinitionByWord.set(m.wordId, m.definition);
+      }
       const preview =
         glosses.length > 0
           ? glosses
@@ -343,6 +474,8 @@ export async function listCommaSplitCandidatesInDb(
       meaningsCount: meaningsCountByWord.get(r.wordId) ?? 0,
       suggestedParts,
       meaningPreview: meaningPreviewByWord.get(r.wordId) ?? [],
+      copiedTranslation: copiedTranslationByWord.get(r.wordId) ?? '',
+      copiedDefinition: copiedDefinitionByWord.get(r.wordId) ?? '',
     });
   }
 

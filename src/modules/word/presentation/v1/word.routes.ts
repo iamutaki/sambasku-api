@@ -35,6 +35,13 @@ import {
 } from './validators/update-word.validator';
 import { takedownWordBodySchema } from '@/modules/word-report/presentation/v1/validators/word-report.validator';
 import { importWordsBodySchema, importWordsResponseSchema } from './validators/import-words.validator';
+import {
+  importSessionResponseSchema,
+  listImportSessionsQuerySchema,
+  saveImportSessionBodySchema,
+} from './validators/import-session.validator';
+import { bulkWordsBodySchema, bulkWordsResponseSchema } from './validators/bulk-words.validator';
+import { opaqueId } from '@/shared/validation/id';
 
 const json = <T extends z.ZodType>(schema: T) => ({
   'application/json': { schema },
@@ -124,6 +131,113 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
   });
   routes.openapi(importWordsRoute, (c) => deps.controller.importWords(c, c.req.valid('json')) as never);
 
+  routes.use(
+    '/import-sessions',
+    deps.authenticate,
+    authorizeRole('admin', 'editor', 'root', 'reviewer'),
+    rateLimit({
+      points: 60,
+      duration: 60,
+      keyFn: (c) => {
+        const user = (c.get('user') as AuthUser | undefined) ?? null;
+        return `word-import-sessions:${user?.user_id ?? 'unknown'}`;
+      },
+    }),
+  );
+  routes.use(
+    '/import-sessions/:id',
+    deps.authenticate,
+    authorizeRole('admin', 'editor', 'root', 'reviewer'),
+    rateLimit({ points: 60, duration: 60 }),
+  );
+
+  const saveImportSessionRoute = createRoute({
+    method: 'post',
+    path: '/import-sessions',
+    tags: ['Words', 'Admin'],
+    summary: 'Simpan ringkasan sesi impor massal',
+    request: { body: { content: json(saveImportSessionBodySchema) } },
+    responses: {
+      201: { description: 'Sesi tersimpan', content: json(importSessionResponseSchema) },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+    },
+  });
+  const listImportSessionsRoute = createRoute({
+    method: 'get',
+    path: '/import-sessions',
+    tags: ['Words', 'Admin'],
+    summary: 'Daftar riwayat impor massal',
+    request: { query: listImportSessionsQuerySchema },
+    responses: {
+      200: {
+        description: 'Daftar sesi',
+        content: json(
+          z.object({
+            success: z.literal(true),
+            data: z.array(importSessionResponseSchema.shape.data),
+            meta: z.object({
+              limit: z.number(),
+              next_cursor: z.string().nullable(),
+              has_more: z.boolean(),
+            }),
+          }),
+        ),
+      },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+    },
+  });
+  const getImportSessionRoute = createRoute({
+    method: 'get',
+    path: '/import-sessions/{id}',
+    tags: ['Words', 'Admin'],
+    summary: 'Detail sesi impor massal',
+    request: { params: z.object({ id: opaqueId }) },
+    responses: {
+      200: { description: 'Detail sesi', content: json(importSessionResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+      404: { description: 'Tidak ditemukan', content: json(errorResponseSchema) },
+    },
+  });
+  routes.openapi(saveImportSessionRoute, (c) => deps.controller.saveImportSession(c, c.req.valid('json')) as never);
+  routes.openapi(listImportSessionsRoute, (c) => deps.controller.listImportSessions(c, c.req.valid('query')) as never);
+  routes.openapi(getImportSessionRoute, (c) => deps.controller.getImportSession(c, c.req.param('id')) as never);
+
+  // Mass-action (checkbox panel Kata) - literal SEBELUM /:id
+  routes.use(
+    '/bulk',
+    deps.authenticate,
+    authorizeRole('admin', 'editor', 'root', 'reviewer'),
+    rateLimit({
+      points: 30,
+      duration: 60,
+      keyFn: (c) => {
+        const user = (c.get('user') as AuthUser | undefined) ?? null;
+        return `word-bulk:${user?.user_id ?? 'unknown'}`;
+      },
+    }),
+  );
+
+  const bulkWordsRoute = createRoute({
+    method: 'post',
+    path: '/bulk',
+    tags: ['Words', 'Admin'],
+    summary:
+      'Mass-action kata (delete | publish | unpublish). Partial success per-id; publish mengikuti merge lemma twin.',
+    request: { body: { content: json(bulkWordsBodySchema) } },
+    responses: {
+      200: { description: 'Hasil per-id', content: json(bulkWordsResponseSchema) },
+      400: { description: 'Body tidak valid / batch kosong / terlalu besar', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan (publish/unpublish butuh verifikator)', content: json(errorResponseSchema) },
+    },
+  });
+
+  routes.openapi(bulkWordsRoute, (c) => deps.controller.bulkWords(c, c.req.valid('json')) as never);
+
   // Tab Duplikasi - literal SEBELUM /:id
   routes.use(
     '/duplicates',
@@ -196,7 +310,7 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
     tags: ['Words', 'Admin'],
     summary: 'Kandidat pecah koma (tab Pemisahan)',
     responses: {
-      200: { description: 'Kandidat lemma & padanan berkoma', content: json(commaSplitCandidatesResponseSchema) },
+      200: { description: 'Kandidat lemma & terjemahan berkoma', content: json(commaSplitCandidatesResponseSchema) },
       401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
       403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
     },
@@ -206,7 +320,7 @@ export function createAdminWordRoutes(deps: WordRoutesDeps) {
     method: 'post',
     path: '/comma-splits/apply',
     tags: ['Words', 'Admin'],
-    summary: 'Pisahkan lemma jadi beberapa kata, atau padanan jadi beberapa makna',
+    summary: 'Pisahkan lemma jadi beberapa kata, atau terjemahan jadi beberapa makna',
     request: { body: { content: json(applyCommaSplitBodySchema) } },
     responses: {
       200: { description: 'Pemisahan berhasil', content: json(applyCommaSplitResponseSchema) },

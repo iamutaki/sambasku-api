@@ -70,10 +70,12 @@ export function createContributionRoutes(deps: ContributionRoutesDeps) {
     method: 'post',
     path: '/:id/approve',
     tags: ['Contributions', 'Admin'],
-    summary: 'Setujui kontribusi - entity published + is_verified true',
+    summary:
+      'Setujui kontribusi - entity published + is_verified true. JSON atau multipart (file_<imageId> sensor opsional)',
     request: {
       params: z.object({ id: z.string().length(26) }),
-      body: { content: json(approveContributionSchema) },
+      // Body JSON didokumentasikan; multipart diparse manual di controller.
+      body: { content: json(approveContributionSchema), required: false },
     },
     responses: {
       200: { description: 'Kontribusi disetujui', content: json(reviewDecisionResponseSchema) },
@@ -124,7 +126,7 @@ export function createContributionRoutes(deps: ContributionRoutesDeps) {
 
   routes.openapi(listRoute, (c) => deps.controller.list(c, c.req.valid('query')) as never);
   routes.openapi(detailRoute, (c) => deps.controller.detail(c, c.req.param('id')) as never);
-  routes.openapi(approveRoute, (c) => deps.controller.approve(c, c.req.param('id'), c.req.valid('json')) as never);
+  routes.openapi(approveRoute, (c) => deps.controller.approve(c, c.req.param('id')) as never);
   routes.openapi(rejectRoute, (c) => deps.controller.reject(c, c.req.param('id'), c.req.valid('json')) as never);
   routes.openapi(correctRoute, (c) => deps.controller.correct(c, c.req.param('id'), c.req.valid('json')) as never);
 

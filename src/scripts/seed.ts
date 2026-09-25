@@ -11,6 +11,11 @@ import {
 import { Pbkdf2PasswordService } from '@/modules/auth/infrastructure/pbkdf2-password.service';
 import { logger } from '@/shared/logging/logger';
 import { ANONIM_EMAIL, ANONIM_USER_ID, ANONIM_USERNAME } from '@/shared/constants/anonim';
+import {
+  CSV_IMPORTER_EMAIL,
+  CSV_IMPORTER_USER_ID,
+  CSV_IMPORTER_USERNAME,
+} from '@/shared/constants/csv-importer';
 
 // Seeder: user admin & root + data referensi form admin - jalankan: pnpm seed
 // (butuh database sudah up + sudah dimigrate; idempoten, aman dijalankan berulang)
@@ -118,6 +123,29 @@ async function main() {
       set: { role: 'contributor', updatedAt: new Date() },
     });
   logger.info(`Seeded user sistem ${ANONIM_EMAIL} (penampung kontribusi anonim)`);
+
+  // User sistem Importir Data CSV - atribusi created_by untuk impor massal
+  await db
+    .insert(users)
+    .values({
+      id: CSV_IMPORTER_USER_ID,
+      username: CSV_IMPORTER_USERNAME,
+      displayName: CSV_IMPORTER_USERNAME,
+      email: CSV_IMPORTER_EMAIL,
+      passwordHash: await hasher.hash(crypto.randomUUID()),
+      role: 'contributor',
+      emailVerified: true,
+    })
+    .onConflictDoUpdate({
+      target: users.id,
+      set: {
+        username: CSV_IMPORTER_USERNAME,
+        displayName: CSV_IMPORTER_USERNAME,
+        role: 'contributor',
+        updatedAt: new Date(),
+      },
+    });
+  logger.info(`Seeded user sistem ${CSV_IMPORTER_EMAIL} (atribusi impor massal)`);
 
   // Data referensi - upsert by key unik
   for (const lang of SEED_LANGUAGES) {

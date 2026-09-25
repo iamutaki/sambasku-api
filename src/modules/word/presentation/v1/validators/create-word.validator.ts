@@ -756,6 +756,8 @@ export const commaSplitCandidatesResponseSchema = z.object({
         meanings_count: z.number().int(),
         suggested_parts: z.array(z.string()),
         meaning_preview: z.array(z.string()),
+        copied_translation: z.string(),
+        copied_definition: z.string(),
       }),
     ),
     translations: z.array(
@@ -775,12 +777,37 @@ export const commaSplitCandidatesResponseSchema = z.object({
   }),
 });
 
-export const applyCommaSplitBodySchema = z.discriminatedUnion('kind', [
+const lemmaSplitMeaningOverrideSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('copy') }),
   z.object({
+    mode: z.literal('replace'),
+    translation_text: z.string().trim().min(1, 'Terjemahan wajib diisi'),
+    definition: z.string().trim().optional(),
+    word_class_id: choiceId('Kelas kata').nullable().optional(),
+    meaning_source: z.enum(['manual', 'kbbi']),
+  }),
+]);
+
+const applyLemmaSplitBodySchema = z
+  .object({
     kind: z.literal('lemma'),
     word_id: opaqueId,
     parts: z.array(z.string().trim().min(1)).min(2, 'Minimal dua bagian'),
-  }),
+    meaning_overrides: z.array(lemmaSplitMeaningOverrideSchema).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (!val.meaning_overrides) return;
+    if (val.meaning_overrides.length !== val.parts.length - 1) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['meaning_overrides'],
+        message: 'Jumlah makna harus sama dengan jumlah kata baru',
+      });
+    }
+  });
+
+export const applyCommaSplitBodySchema = z.discriminatedUnion('kind', [
+  applyLemmaSplitBodySchema,
   z.object({
     kind: z.literal('translation'),
     meaning_translation_id: opaqueId,

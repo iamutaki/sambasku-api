@@ -48,10 +48,21 @@ describe('ApplyCommaSplitUseCase', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('menerapkan pecah lemma dan catat audit', async () => {
+  it('tanpa override menyalin makna dan menulis audit lama', async () => {
     const applyCommaSplitLemma = vi.fn().mockResolvedValue({
       wordId: 'w1',
-      createdWordIds: ['w2'],
+      keptLemma: 'Pangkeng',
+      oldLemma: 'Pangkeng, Rasbang',
+      meanings: [{ translationTexts: ['kasur'], definition: null }],
+      created: [
+        {
+          wordId: 'w2',
+          lemma: 'Rasbang',
+          mode: 'copy',
+          translationText: 'kasur',
+          meaningSource: 'copied',
+        },
+      ],
     });
     const record = vi.fn();
     const useCase = new ApplyCommaSplitUseCase(
@@ -69,11 +80,118 @@ describe('ApplyCommaSplitUseCase', () => {
       wordId: 'w1',
       createdWordIds: ['w2'],
     });
-    expect(applyCommaSplitLemma).toHaveBeenCalledWith('w1', ['Pangkeng', 'Rasbang'], 'u1');
-    expect(record).toHaveBeenCalled();
+    expect(applyCommaSplitLemma).toHaveBeenCalledWith(
+      'w1',
+      ['Pangkeng', 'Rasbang'],
+      undefined,
+      'u1',
+    );
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'comma_split',
+        entityId: 'w1',
+        oldData: {
+          lemma: 'Pangkeng, Rasbang',
+          meanings: [{ translation_texts: ['kasur'], definition: null }],
+        },
+        newData: expect.objectContaining({
+          kept_lemma: 'Pangkeng',
+          created: [expect.objectContaining({ mode: 'copy', meaning_source: 'copied' })],
+        }),
+      }),
+    );
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'comma_split',
+        entityId: 'w2',
+        newData: expect.objectContaining({ split_from_word_id: 'w1', mode: 'copy' }),
+      }),
+    );
   });
 
-  it('menerapkan pecah padanan ke makna', async () => {
+  it('replace menolak terjemahan kosong sebelum menulis', async () => {
+    const applyCommaSplitLemma = vi.fn();
+    const useCase = new ApplyCommaSplitUseCase(
+      { applyCommaSplitLemma } as never,
+      { record: vi.fn() } as never,
+    );
+    await expect(
+      useCase.execute({
+        kind: 'lemma',
+        wordId: 'w1',
+        parts: ['Pangkeng', 'Rasbang'],
+        meaningOverrides: [
+          {
+            mode: 'replace',
+            translationText: '  ',
+            definition: null,
+            wordClassId: null,
+            meaningSource: 'manual',
+          },
+        ],
+        actorId: 'u1',
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(applyCommaSplitLemma).not.toHaveBeenCalled();
+  });
+
+  it('replace mencatat mode ganti pada kata baru', async () => {
+    const applyCommaSplitLemma = vi.fn().mockResolvedValue({
+      wordId: 'w1',
+      keptLemma: 'Pangkeng',
+      oldLemma: 'Pangkeng, Rasbang',
+      meanings: [{ translationTexts: ['kasur'], definition: 'tempat tidur' }],
+      created: [
+        {
+          wordId: 'w2',
+          lemma: 'Rasbang',
+          mode: 'replace',
+          translationText: 'bantal',
+          meaningSource: 'kbbi',
+        },
+      ],
+    });
+    const record = vi.fn();
+    const useCase = new ApplyCommaSplitUseCase(
+      { applyCommaSplitLemma } as never,
+      { record } as never,
+    );
+    await useCase.execute({
+      kind: 'lemma',
+      wordId: 'w1',
+      parts: ['Pangkeng', 'Rasbang'],
+      meaningOverrides: [
+        {
+          mode: 'replace',
+          translationText: 'bantal',
+          definition: 'alas kepala',
+          wordClassId: null,
+          meaningSource: 'kbbi',
+        },
+      ],
+      actorId: 'u1',
+    });
+    expect(applyCommaSplitLemma).toHaveBeenCalledWith(
+      'w1',
+      ['Pangkeng', 'Rasbang'],
+      [
+        expect.objectContaining({
+          mode: 'replace',
+          translationText: 'bantal',
+          meaningSource: 'kbbi',
+        }),
+      ],
+      'u1',
+    );
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityId: 'w2',
+        newData: expect.objectContaining({ mode: 'replace', meaning_source: 'kbbi' }),
+      }),
+    );
+  });
+
+  it('menerapkan pecah terjemahan ke makna', async () => {
     const applyCommaSplitTranslation = vi.fn().mockResolvedValue({
       wordId: 'w1',
       meaningIds: ['m1', 'm2'],

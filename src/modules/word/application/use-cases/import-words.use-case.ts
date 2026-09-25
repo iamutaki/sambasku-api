@@ -1,5 +1,5 @@
 import { BadRequestError } from '@/shared/errors/app-error';
-import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
+import { CSV_IMPORTER_USER_ID } from '@/shared/constants/csv-importer';
 import type { LanguageRepository } from '@/modules/language/domain/repositories/language.repository';
 import type { WordRepository } from '../../domain/repositories/word.repository';
 import type { Actor } from './create-word.use-case';
@@ -20,7 +20,6 @@ export class ImportWordsUseCase {
   constructor(
     private readonly wordRepo: WordRepository,
     private readonly languageRepo: LanguageRepository,
-    private readonly auditRepo: AuditLogRepository,
   ) {}
 
   async execute(
@@ -31,23 +30,11 @@ export class ImportWordsUseCase {
       throw new BadRequestError('IMPORT_TOO_LARGE', 'Maksimal 5 kata per permintaan');
     }
     const refs = await this.resolveRefs();
+    // Atribusi data ke user sistem; role login tetap untuk aturan tayang/verifikasi.
+    const writeActorId = CSV_IMPORTER_USER_ID;
     const items: ImportWordResult[] = [];
     for (const item of input.items) {
-      items.push(await this.one(item, actor, refs, input.mode));
-    }
-    if (input.mode === 'commit') {
-      const created = items.filter((i) => i.outcome === 'created').length;
-      const added = items.reduce((n, i) => n + i.meanings_added, 0);
-      const skipped = items.filter((i) => i.outcome === 'skipped').length;
-      const invalid = items.filter((i) => i.outcome === 'invalid').length;
-      await this.auditRepo.record({
-        userId: actor.userId,
-        action: 'create',
-        entityType: 'word_import',
-        entityId: actor.requestId ?? 'word-import',
-        newData: { created, meanings_added: added, skipped, invalid },
-        requestId: actor.requestId ?? null,
-      });
+      items.push(await this.one(item, actor, writeActorId, refs, input.mode));
     }
     return { items };
   }
@@ -79,6 +66,7 @@ export class ImportWordsUseCase {
   private async one(
     item: ImportWordInput,
     actor: Actor,
+    writeActorId: string,
     refs: { languageId: string; translationLanguageId: string; dialectId?: string; wordClassId: string },
     mode: 'validate' | 'commit',
   ): Promise<ImportWordResult> {
@@ -152,7 +140,7 @@ export class ImportWordsUseCase {
           status: publication.status,
           isVerified: publication.isVerified,
         },
-        actor.userId,
+        writeActorId,
       );
       return {
         lemma: word.lemma,
@@ -182,7 +170,7 @@ export class ImportWordsUseCase {
         outcome: 'skipped',
         meanings_added: 0,
         meanings_skipped: skipped,
-        message: 'Makna ini sudah ada pada kata tersebut',
+        message: 'Duplikat: makna ini sudah ada pada kata tersebut',
       };
     }
     if (mode === 'validate') {
@@ -210,7 +198,7 @@ export class ImportWordsUseCase {
           status: publication.status,
           isVerified: publication.isVerified,
         },
-        actor.userId,
+        writeActorId,
       );
       if (meaning.example) {
         await this.wordRepo.addExample(
@@ -222,7 +210,7 @@ export class ImportWordsUseCase {
             status: publication.status === 'draft' ? 'pending_review' : 'published',
             isVerified: publication.isVerified,
           },
-          actor.userId,
+          writeActorId,
         );
       }
     }

@@ -14,6 +14,10 @@ export const refreshTokens = sqliteTable(
     deviceInfo: text('device_info'),
     ipAddress: text('ip_address'),
     isRevoked: integer('is_revoked', { mode: 'boolean' }).notNull().default(false),
+    // Diisi hanya saat rotasi refresh. Logout / cabut semua perangkat
+    // mengosongkannya lagi supaya jendela grace tidak menyelamatkan token
+    // yang memang sengaja dicabut.
+    rotatedAt: integer('rotated_at', { mode: 'timestamp' }),
     expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   },

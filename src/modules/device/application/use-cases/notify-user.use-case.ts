@@ -6,6 +6,8 @@ export interface NotifyUserCommand {
   title: string;
   body: string;
   data?: Record<string, string>;
+  /** Pelaku aksi; jika sama dengan userId, push ke diri sendiri dilewati. */
+  actorId?: string;
 }
 
 function log(level: 'info' | 'warn' | 'error', msg: string, obj: Record<string, unknown> = {}) {
@@ -25,6 +27,13 @@ export class NotifyUserUseCase {
 
   async execute(cmd: NotifyUserCommand): Promise<void> {
     try {
+      if (cmd.actorId && cmd.actorId === cmd.userId) {
+        log('info', 'push skipped: actor adalah penerima (self-notify)', {
+          user_id: cmd.userId,
+        });
+        return;
+      }
+
       if (!this.pushSender.isConfigured) {
         log('warn', 'push skipped: FIREBASE_* belum dikonfigurasi (NoopPushSender)', {
           user_id: cmd.userId,

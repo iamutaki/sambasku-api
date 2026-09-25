@@ -78,6 +78,7 @@ export class TakedownWordUseCase {
         targetId: cmd.wordId,
         body: `Entri "${existing.lemma}" ditarik dari kamus.`,
         refreshOnConflict: true,
+        actorId: cmd.actorId,
       });
     }
   }

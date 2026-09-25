@@ -80,6 +80,11 @@ export interface ReviewCommand {
    * yang sama. reviewWord skip re-publish penuh; tetap cek twin merge.
    */
   wordAlreadyLive?: boolean;
+  /**
+   * Foto pada usulan kata yang tidak boleh tayang. Setelah publish anak,
+   * baris ini dikunci kembali ke rejected. Abaikan saat decision bukan approve.
+   */
+  rejectedImageIds?: string[];
 }
 
 // Koreksi entity anak TANPA publish (publish=false pada endpoint correct):

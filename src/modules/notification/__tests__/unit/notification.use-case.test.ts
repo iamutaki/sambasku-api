@@ -50,6 +50,33 @@ describe('RecordInboxNotificationUseCase', () => {
     expect(notificationRepo.create).not.toHaveBeenCalled();
   });
 
+  it('skip jika actorId sama dengan penerima (self-notify)', async () => {
+    const notificationRepo = repo();
+    const useCase = new RecordInboxNotificationUseCase(notificationRepo);
+    const selfId = '01CONTRIBUTORULID0000000000';
+    await useCase.execute({
+      userId: selfId,
+      actorId: selfId,
+      type: 'contribution_approved',
+      targetKind: 'contribution',
+      targetId: '01CONTRIBULID0000000000000',
+    });
+    expect(notificationRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('tetap tulis jika actor berbeda dari penerima', async () => {
+    const notificationRepo = repo();
+    const useCase = new RecordInboxNotificationUseCase(notificationRepo);
+    await useCase.execute({
+      userId: '01CONTRIBUTORULID0000000000',
+      actorId: '01ADMINULID00000000000000',
+      type: 'contribution_approved',
+      targetKind: 'contribution',
+      targetId: '01CONTRIBULID0000000000000',
+    });
+    expect(notificationRepo.create).toHaveBeenCalled();
+  });
+
   it('gagal insert tidak throw', async () => {
     const notificationRepo = repo({
       create: vi.fn().mockRejectedValue(new Error('db down')),

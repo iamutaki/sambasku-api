@@ -27,6 +27,16 @@ import type {
 import { NotFoundError, ForbiddenError, BadRequestError, ConflictError } from '@/shared/errors/app-error';
 import { verifyProposedChanges } from '../application/utils/verify-proposed-changes';
 import { applyChangesToWord } from '../application/utils/apply-changes-to-word';
+import {
+  deleteProposedStagingImages,
+  prepareProposedImagesForApprove,
+} from '../application/utils/suggestion-image-moderation';
+import {
+  deleteStagingWordImage,
+  promoteWordImageFromStaging,
+} from '@/modules/contribution/application/utils/promote-word-image-staging';
+import type { ImageStoragePort } from '@/modules/image/application/ports/image-storage.port';
+import type { PublicImageStoragePort } from '@/modules/public-image/application/ports/public-image-storage.port';
 
 async function getUsername(userId: string): Promise<string | null> {
   const [u] = await db
@@ -293,7 +303,12 @@ function buildDiff(proposed: ProposedChanges, current: CurrentWordSnapshot): Dif
     images: {
       added: (proposed.images ?? [])
         .filter((i) => i.action === 'add' && i.url)
-        .map((i) => ({ url: i.url!, isPrimary: i.isPrimary ?? false })),
+        .map((i) => ({
+          url: i.url!,
+          isPrimary: i.isPrimary ?? false,
+          provider: i.provider ?? null,
+          providerFileId: i.providerFileId ?? null,
+        })),
       removed: (proposed.images ?? [])
         .filter((i) => i.action === 'remove' && i.imageId)
         .map((i) => ({ imageId: i.imageId! })),
@@ -309,6 +324,11 @@ function asProposed(raw: unknown): ProposedChanges {
 }
 
 export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
+  constructor(
+    private readonly publicImageStorage: PublicImageStoragePort,
+    private readonly imageStorage: ImageStoragePort,
+  ) {}
+
   async createSuggestion(
     userId: string,
     wordId: string,
@@ -620,12 +640,17 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
     id: string,
     reviewerId: string,
     comment?: string,
+    imageOpts?: {
+      decisions?: { key: string; decision: 'approve' | 'reject' }[];
+      censoredFiles?: Record<string, { bytes: Uint8Array; mimeType: string | null }>;
+    },
   ): Promise<{ applied: boolean; changesApplied: number; wordLemma: string; wordId: string }> {
     const [row] = await db
       .select({
         wordId: wordEditSuggestions.wordId,
         status: wordEditSuggestions.status,
         baselineSnapshot: wordEditSuggestions.baselineSnapshot,
+        proposedChanges: wordEditSuggestions.proposedChanges,
       })
       .from(wordEditSuggestions)
       .where(and(eq(wordEditSuggestions.id, id), isNull(wordEditSuggestions.deletedAt)))
@@ -635,6 +660,11 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
       throw new ConflictError('SUGGESTION_ALREADY_REVIEWED', 'Usulan sudah pernah diverifikasi');
     }
     if (row.baselineSnapshot) {
+      await this.moderateAppliedStagingImages(
+        row.wordId,
+        asProposed(row.proposedChanges),
+        imageOpts,
+      );
       const [word] = await db
         .select({ lemma: words.lemma })
         .from(words)
@@ -666,7 +696,14 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
         wordId: row.wordId,
       };
     }
-    return applyChangesToWord(id, reviewerId, 'approve', comment);
+
+    const prepared = await prepareProposedImagesForApprove(asProposed(row.proposedChanges), {
+      publicImageStorage: this.publicImageStorage,
+      imageStorage: this.imageStorage,
+      decisions: imageOpts?.decisions,
+      censoredFiles: imageOpts?.censoredFiles,
+    });
+    return applyChangesToWord(id, reviewerId, 'approve', comment, prepared);
   }
 
   async rejectSuggestion(id: string, reviewerId: string, comment: string): Promise<boolean> {
@@ -679,6 +716,7 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
       .select({
         wordId: wordEditSuggestions.wordId,
         baselineSnapshot: wordEditSuggestions.baselineSnapshot,
+        proposedChanges: wordEditSuggestions.proposedChanges,
       })
       .from(wordEditSuggestions)
       .where(
@@ -689,9 +727,19 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
         ),
       )
       .limit(1);
-    if (current?.baselineSnapshot) {
-      await restoreBaseline(current.wordId, current.baselineSnapshot);
+    if (!current) {
+      const existing = await this.findById(id);
+      if (!existing) throw new NotFoundError('SUGGESTION_NOT_FOUND', 'Usulan tidak ditemukan');
+      throw new BadRequestError('SUGGESTION_ALREADY_REVIEWED', 'Usulan sudah pernah diverifikasi');
     }
+
+    const proposed = asProposed(current.proposedChanges);
+    await deleteProposedStagingImages(proposed, this.imageStorage);
+    if (current.baselineSnapshot) {
+      await restoreBaseline(current.wordId, current.baselineSnapshot);
+      await this.softDeleteAppliedStagingImages(current.wordId, proposed);
+    }
+
     const [updated] = await db
       .update(wordEditSuggestions)
       .set({
@@ -710,8 +758,6 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
       )
       .returning();
     if (!updated) {
-      const existing = await this.findById(id);
-      if (!existing) throw new NotFoundError('SUGGESTION_NOT_FOUND', 'Usulan tidak ditemukan');
       throw new BadRequestError('SUGGESTION_ALREADY_REVIEWED', 'Usulan sudah pernah diverifikasi');
     }
 
@@ -735,6 +781,10 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
     correctedChanges: ProposedChanges,
     publish: boolean,
     comment?: string,
+    imageOpts?: {
+      decisions?: { key: string; decision: 'approve' | 'reject' }[];
+      censoredFiles?: Record<string, { bytes: Uint8Array; mimeType: string | null }>;
+    },
   ): Promise<{
     applied: boolean;
     changesApplied: number;
@@ -751,12 +801,18 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
     }
 
     if (publish) {
+      const prepared = await prepareProposedImagesForApprove(correctedChanges, {
+        publicImageStorage: this.publicImageStorage,
+        imageStorage: this.imageStorage,
+        decisions: imageOpts?.decisions,
+        censoredFiles: imageOpts?.censoredFiles,
+      });
       const result = await applyChangesToWord(
         id,
         reviewerId,
         'correct_and_publish',
         comment,
-        correctedChanges,
+        prepared,
       );
       return {
         applied: result.applied,
@@ -791,6 +847,117 @@ export class WordSuggestionRepositoryImpl implements WordSuggestionRepository {
       status: 'pending',
       wordLemma: word?.lemma ?? '',
     };
+  }
+
+  /**
+   * Usulan sudah apply_pending: foto ImageKit ada di word_images (isVerified=false).
+   * Promote yang ditayangkan; soft-delete + hapus staging yang ditolak.
+   */
+  private async moderateAppliedStagingImages(
+    wordId: string,
+    changes: ProposedChanges,
+    imageOpts?: {
+      decisions?: { key: string; decision: 'approve' | 'reject' }[];
+      censoredFiles?: Record<string, { bytes: Uint8Array; mimeType: string | null }>;
+    },
+  ): Promise<void> {
+    const decisionByKey = new Map(
+      (imageOpts?.decisions ?? []).map((d) => [d.key, d.decision] as const),
+    );
+    let addIndex = 0;
+
+    for (const img of changes.images ?? []) {
+      if (img.action !== 'add' || img.provider !== 'imagekit' || !img.providerFileId || !img.url) {
+        if (img.action === 'add') addIndex += 1;
+        continue;
+      }
+
+      const indexKey = String(addIndex);
+      const fileKey = img.providerFileId;
+      addIndex += 1;
+
+      const decision =
+        decisionByKey.get(indexKey) ??
+        decisionByKey.get(fileKey) ??
+        'approve';
+
+      const [row] = await db
+        .select({
+          id: wordImages.id,
+          url: wordImages.url,
+          provider: wordImages.provider,
+          providerFileId: wordImages.providerFileId,
+        })
+        .from(wordImages)
+        .where(
+          and(
+            eq(wordImages.wordId, wordId),
+            eq(wordImages.providerFileId, img.providerFileId),
+            eq(wordImages.provider, 'imagekit'),
+            isNull(wordImages.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!row) continue;
+
+      const staging = {
+        id: row.id,
+        url: row.url,
+        provider: row.provider,
+        providerFileId: row.providerFileId,
+      };
+
+      if (decision === 'reject') {
+        await deleteStagingWordImage(staging, this.imageStorage);
+        await db
+          .update(wordImages)
+          .set({ deletedAt: new Date(), isPrimary: false, isVerified: false })
+          .where(eq(wordImages.id, row.id));
+        continue;
+      }
+
+      const censored =
+        imageOpts?.censoredFiles?.[indexKey] ?? imageOpts?.censoredFiles?.[fileKey];
+      const promoted = await promoteWordImageFromStaging(staging, this.publicImageStorage, {
+        bytes: censored?.bytes,
+        mimeType: censored?.mimeType,
+      });
+      await db
+        .update(wordImages)
+        .set({
+          url: promoted.url,
+          provider: promoted.provider,
+          providerFileId: promoted.providerFileId,
+          sha: promoted.sha,
+          isVerified: true,
+          status: 'published',
+        })
+        .where(eq(wordImages.id, row.id));
+      await deleteStagingWordImage(staging, this.imageStorage);
+    }
+  }
+
+  /** Soft-delete baris staging ImageKit yang sudah terpasang lewat apply_pending. */
+  private async softDeleteAppliedStagingImages(
+    wordId: string,
+    changes: ProposedChanges,
+  ): Promise<void> {
+    const fileIds = (changes.images ?? [])
+      .filter((i) => i.action === 'add' && i.provider === 'imagekit' && i.providerFileId)
+      .map((i) => i.providerFileId!);
+    if (fileIds.length === 0) return;
+
+    await db
+      .update(wordImages)
+      .set({ deletedAt: new Date(), isPrimary: false, isVerified: false })
+      .where(
+        and(
+          eq(wordImages.wordId, wordId),
+          eq(wordImages.provider, 'imagekit'),
+          inArray(wordImages.providerFileId, fileIds),
+          isNull(wordImages.deletedAt),
+        ),
+      );
   }
 
   async getChangeHistory(

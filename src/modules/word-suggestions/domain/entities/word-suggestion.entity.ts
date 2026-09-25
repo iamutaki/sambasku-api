@@ -172,7 +172,12 @@ export interface DiffResult {
     removed: { form: string; variantType: string }[];
   };
   images: {
-    added: { url: string; isPrimary: boolean }[];
+    added: {
+      url: string;
+      isPrimary: boolean;
+      provider?: string | null;
+      providerFileId?: string | null;
+    }[];
     removed: { imageId: string }[];
     setPrimary: { imageId: string }[];
   };

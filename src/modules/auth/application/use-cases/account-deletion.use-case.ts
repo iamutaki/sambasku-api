@@ -3,6 +3,7 @@ import type { ImageStoragePort } from '@/modules/image/application/ports/image-s
 import type { PublicImageStoragePort } from '@/modules/public-image/application/ports/public-image-storage.port';
 import { ANONIM_USER_ID } from '@/shared/constants/anonim';
 import { ForbiddenError, UnauthorizedError, ValidationError } from '@/shared/errors/app-error';
+import { Email } from '../../domain/value-objects/email.vo';
 import type { AccountDeletionTokenRepository } from '../../domain/repositories/account-deletion-token.repository';
 import type { AccountErasureRepository } from '../../domain/repositories/account-erasure.repository';
 import type { UserRepository } from '../../domain/repositories/user.repository';
@@ -56,8 +57,17 @@ export class AccountDeletionUseCase {
   }
 
   /** Selalu sukses di mata pemanggil — email yang tidak terdaftar tidak dibedakan. */
-  async requestByEmail(email: string): Promise<void> {
-    const user = await this.userRepo.findByEmail(email);
+  async requestByEmail(emailRaw: string): Promise<void> {
+    // Sama pola resend-otp: simpan email lowercase; lookup tanpa normalize
+    // = silent miss (UI tetap "kode dikirim") meski akun ada.
+    let email: Email;
+    try {
+      email = Email.create(emailRaw);
+    } catch {
+      return;
+    }
+
+    const user = await this.userRepo.findByEmail(email.value);
     if (!user || user.deletedAt || user.id === ANONIM_USER_ID) return;
 
     await this.deletionTokens.invalidateUnusedForUser(user.id);
@@ -76,7 +86,13 @@ export class AccountDeletionUseCase {
   ): Promise<void> {
     this.assertConfirmation(input.confirmation);
     const digits = normalizeOtpCode(input.code);
-    const user = digits ? await this.userRepo.findByEmail(input.email) : null;
+    let email: Email | null = null;
+    try {
+      email = Email.create(input.email);
+    } catch {
+      email = null;
+    }
+    const user = digits && email ? await this.userRepo.findByEmail(email.value) : null;
     if (!digits || !user || user.deletedAt || user.id === ANONIM_USER_ID) {
       throw new UnauthorizedError('DELETION_CODE_INVALID', INVALID_CODE);
     }

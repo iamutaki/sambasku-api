@@ -126,6 +126,46 @@ describe.skipIf(!hasTestDb)('ContributionRepositoryImpl', () => {
     expect(reviewRow).toMatchObject({ contributionId: cid, reviewerId: REVIEWER, status: 'approved' });
   });
 
+  it('review approve menahan foto yang verifikator tolak tayang', async () => {
+    const [keep] = await db
+      .insert(wordImages)
+      .values({
+        wordId,
+        provider: 'imagekit',
+        providerFileId: 'keep-file',
+        url: 'https://ik.imagekit.io/keep.jpg',
+        status: 'published',
+        isVerified: false,
+      })
+      .returning();
+    const [drop] = await db
+      .insert(wordImages)
+      .values({
+        wordId,
+        provider: 'pexels',
+        providerFileId: 'pexels-1',
+        url: 'https://images.pexels.com/photos/1/a.jpg',
+        status: 'published',
+        isVerified: true,
+      })
+      .returning();
+
+    const cid = await contributionIdOf(wordId);
+    await repo.review({
+      contributionId: cid,
+      decision: 'approve',
+      reviewerId: REVIEWER,
+      comment: null,
+      rejectedImageIds: [drop.id],
+    });
+
+    const [keepRow] = await db.select().from(wordImages).where(eq(wordImages.id, keep.id));
+    const [dropRow] = await db.select().from(wordImages).where(eq(wordImages.id, drop.id));
+    expect(keepRow).toMatchObject({ status: 'published', isVerified: true });
+    expect(dropRow?.deletedAt).not.toBeNull();
+    expect(dropRow).toMatchObject({ isVerified: false, isPrimary: false });
+  });
+
   it('review reject (word): kata rejected + comment tersimpan; anak ikut rejected', async () => {
     const cid = await contributionIdOf(wordId);
     await repo.review({ contributionId: cid, decision: 'reject', reviewerId: REVIEWER, comment: 'bukan kosakata Sambas' });
