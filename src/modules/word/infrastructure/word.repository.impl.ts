@@ -23,16 +23,25 @@ import {
 import type { AppDatabase, AppTransaction } from '@/shared/database/drizzle/client';
 import { publicAccountName } from '@/shared/constants/deleted-account';
 import { ConflictError, ValidationError } from '@/shared/errors/app-error';
+import { wordImageIsAutoVerified } from '../domain/word-image-provider';
 import { publishOrMergeMeaningsInTx } from './publish-or-merge-meanings';
 import { mergeDuplicateWordsInTx } from './merge-duplicate-words';
+import {
+  applyCommaSplitLemmaInTx,
+  applyCommaSplitTranslationInTx,
+  listCommaSplitCandidatesInDb,
+} from './split-comma-words';
 import type { ChildStatus, LatestWordSummary, Word, WordDetail, WordStatus, WordSummary } from '../domain/entities/word.entity';
 import type { MeaningMedia } from '../domain/entities/meaning.entity';
 import type {
+  CommaSplitCandidates,
   CursorPage,
   DuplicateWordGroup,
   DuplicateWordItem,
   ExampleMedia,
   InlineCreatedWordSummary,
+  LemmaSplitMeaningOverride,
+  LemmaSplitResult,
   ListAtoZParams,
   ListLatestParams,
   MissingReferences,
@@ -51,11 +60,33 @@ import { encodeLatestCursor, encodeListCursor } from '../domain/repositories/wor
 import type { CreateWordRelatedDto } from '../application/dto/create-word.dto';
 import { generateId } from '@/shared/utils/ulid';
 import type { UsageLabel } from '@/shared/constants/usage-labels';
-import { USAGE_LABEL_SET } from '@/shared/constants/usage-labels';
+import {
+  FEED_EXCLUDED_USAGE_LABELS,
+  USAGE_LABEL_SET,
+} from '@/shared/constants/usage-labels';
+import type { ImageContentWarning } from '@/shared/constants/image-content-warnings';
+import { IMAGE_CONTENT_WARNING_SET } from '@/shared/constants/image-content-warnings';
 
 function toUsageLabels(raw: unknown): UsageLabel[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((x): x is UsageLabel => typeof x === 'string' && USAGE_LABEL_SET.has(x));
+}
+
+function toContentWarnings(raw: unknown): ImageContentWarning[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (x): x is ImageContentWarning =>
+      typeof x === 'string' && IMAGE_CONTENT_WARNING_SET.has(x),
+  );
+}
+
+/** SQL: sembunyikan kata dengan label feed-excluded (LIKE pada JSON text). */
+function feedSafeUsageLabelsSql() {
+  return and(
+    ...FEED_EXCLUDED_USAGE_LABELS.map(
+      (label) => sql`${words.usageLabels} NOT LIKE ${`%"${label}"%`}`,
+    ),
+  );
 }
 
 function verificationCols(isVerified: boolean, actorId: string, at = new Date()) {
@@ -72,6 +103,7 @@ function toWord(row: typeof words.$inferSelect): Word {
     id: row.id,
     languageId: row.languageId,
     lemma: row.lemma,
+    lemmaAllowsComma: row.lemmaAllowsComma ?? false,
     notes: row.notes,
     wordType: row.wordType as Word['wordType'],
     usageLabels: toUsageLabels(row.usageLabels),
@@ -119,6 +151,7 @@ function toWordImage(row: typeof wordImages.$inferSelect): WordImageMedia {
     url: row.url,
     altText: row.altText,
     isPrimary: row.isPrimary,
+    contentWarnings: toContentWarnings(row.contentWarnings),
     status: row.status as ChildStatus,
     isVerified: row.isVerified,
     isCorrected: row.isCorrected,
@@ -205,6 +238,7 @@ export class WordRepositoryImpl implements WordRepository {
           .values({
             languageId: word.languageId,
             lemma: word.lemma.trim(),
+            lemmaAllowsComma: word.lemmaAllowsComma ?? false,
             notes: word.notes ?? null,
             wordType: word.wordType,
             usageLabels: word.usageLabels ?? [],
@@ -271,6 +305,7 @@ export class WordRepositoryImpl implements WordRepository {
           .values({
             languageId: word.languageId,
             lemma: word.lemma.trim(),
+            lemmaAllowsComma: word.lemmaAllowsComma ?? false,
             notes: word.notes ?? null,
             wordType: word.wordType,
             usageLabels: word.usageLabels ?? [],
@@ -719,6 +754,7 @@ export class WordRepositoryImpl implements WordRepository {
             languageId: t.languageId,
             translationText: t.translationText,
             translationType: t.translationType,
+            translationAllowsComma: t.translationAllowsComma ?? false,
           })),
         examples: exampleRows
           .filter((e) => e.meaningId === m.id)
@@ -777,14 +813,17 @@ export class WordRepositoryImpl implements WordRepository {
       images: imageRows.map((i) => ({
         id: i.id,
         url: i.url,
+        provider: i.provider,
         // Untuk round-trip PUT edit: provider_file_id WAJIB dikirim ulang
         // di images[] (full-replace) - tanpa ini gambar terhapus senyap
         providerFileId: i.providerFileId,
         sha: i.sha ?? null,
         altText: i.altText,
         isPrimary: i.isPrimary,
+        contentWarnings: toContentWarnings(i.contentWarnings),
+        isVerified: i.isVerified,
         ...(includeAll
-          ? { status: i.status as ChildStatus, isVerified: i.isVerified, isCorrected: i.isCorrected }
+          ? { status: i.status as ChildStatus, isCorrected: i.isCorrected }
           : {}),
       })),
       audios: (() => {
@@ -832,7 +871,14 @@ export class WordRepositoryImpl implements WordRepository {
     const rows = await this.db
       .select({ id: words.id })
       .from(words)
-      .where(and(eq(words.status, 'published'), eq(words.isVerified, true), isNull(words.deletedAt)));
+      .where(
+        and(
+          eq(words.status, 'published'),
+          eq(words.isVerified, true),
+          isNull(words.deletedAt),
+          feedSafeUsageLabelsSql(),
+        ),
+      );
     if (rows.length === 0) return null;
 
     const encoder = new TextEncoder();
@@ -1115,6 +1161,7 @@ export class WordRepositoryImpl implements WordRepository {
     const where = and(
       isNull(words.deletedAt),
       eq(words.status, 'published'),
+      feedSafeUsageLabelsSql(),
       params.cursor
         ? sql`(${approvedAtExpr}, ${words.id}) < (${cursorEpoch}, ${params.cursor.id})`
         : undefined,
@@ -1587,6 +1634,65 @@ export class WordRepositoryImpl implements WordRepository {
     );
   }
 
+  async listCommaSplitCandidates(): Promise<CommaSplitCandidates> {
+    return listCommaSplitCandidatesInDb(this.db);
+  }
+
+  async applyCommaSplitLemma(
+    wordId: string,
+    parts: string[],
+    overrides: LemmaSplitMeaningOverride[] | undefined,
+    actorId: string,
+  ): Promise<LemmaSplitResult> {
+    return this.db.transaction((tx) =>
+      applyCommaSplitLemmaInTx(tx, wordId, parts, overrides, actorId),
+    );
+  }
+
+  async applyCommaSplitTranslation(
+    meaningTranslationId: string,
+    parts: string[],
+    actorId: string,
+  ): Promise<{ wordId: string; meaningIds: string[] }> {
+    return this.db.transaction((tx) =>
+      applyCommaSplitTranslationInTx(tx, meaningTranslationId, parts, actorId),
+    );
+  }
+
+  async markLemmaAllowsComma(wordId: string, actorId: string): Promise<boolean> {
+    const updated = await this.db
+      .update(words)
+      .set({
+        lemmaAllowsComma: true,
+        updatedBy: actorId,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(words.id, wordId), isNull(words.deletedAt)))
+      .returning({ id: words.id });
+    return updated.length > 0;
+  }
+
+  async markTranslationAllowsComma(
+    meaningTranslationId: string,
+    actorId: string,
+  ): Promise<boolean> {
+    const updated = await this.db
+      .update(meaningTranslations)
+      .set({
+        translationAllowsComma: true,
+        updatedBy: actorId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(meaningTranslations.id, meaningTranslationId),
+          isNull(meaningTranslations.deletedAt),
+        ),
+      )
+      .returning({ id: meaningTranslations.id });
+    return updated.length > 0;
+  }
+
   async findMeaningById(meaningId: string): Promise<{ id: string; wordId: string } | null> {
     const [row] = await this.db
       .select({ id: meanings.id, wordId: meanings.wordId })
@@ -1651,6 +1757,7 @@ export class WordRepositoryImpl implements WordRepository {
       sha?: string | null;
       altText?: string | null;
       isPrimary: boolean;
+      contentWarnings?: ImageContentWarning[];
       status: ChildStatus;
       isVerified: boolean;
     },
@@ -1668,6 +1775,7 @@ export class WordRepositoryImpl implements WordRepository {
             url: data.url,
             altText: data.altText ?? null,
             isPrimary: data.isPrimary,
+            contentWarnings: data.contentWarnings ?? [],
             status: data.status,
             isVerified: data.isVerified,
             createdBy: actorId,
@@ -1686,6 +1794,74 @@ export class WordRepositoryImpl implements WordRepository {
       mapMediaViolation(err, 'provider_file_id');
       throw err;
     }
+  }
+
+  async setWordImageContentWarnings(
+    id: string,
+    contentWarnings: ImageContentWarning[],
+  ): Promise<WordImageMedia | null> {
+    const [row] = await this.db
+      .update(wordImages)
+      .set({ contentWarnings })
+      .where(and(eq(wordImages.id, id), isNull(wordImages.deletedAt)))
+      .returning();
+    return row ? toWordImage(row) : null;
+  }
+
+  async listWordImages(wordId: string): Promise<WordImageMedia[]> {
+    const rows = await this.db
+      .select()
+      .from(wordImages)
+      .where(and(eq(wordImages.wordId, wordId), isNull(wordImages.deletedAt)));
+    return rows.map(toWordImage);
+  }
+
+  async listStagingWordImages(wordId: string): Promise<WordImageMedia[]> {
+    const rows = await this.db
+      .select()
+      .from(wordImages)
+      .where(
+        and(
+          eq(wordImages.wordId, wordId),
+          eq(wordImages.provider, 'imagekit'),
+          eq(wordImages.isVerified, false),
+          isNull(wordImages.deletedAt),
+        ),
+      );
+    return rows.map(toWordImage);
+  }
+
+  async findWordImageById(id: string): Promise<WordImageMedia | null> {
+    const [row] = await this.db
+      .select()
+      .from(wordImages)
+      .where(and(eq(wordImages.id, id), isNull(wordImages.deletedAt)))
+      .limit(1);
+    return row ? toWordImage(row) : null;
+  }
+
+  async applyPromotedWordImage(
+    id: string,
+    data: { url: string; provider: string; providerFileId: string; sha: string },
+  ): Promise<void> {
+    await this.db
+      .update(wordImages)
+      .set({
+        url: data.url,
+        provider: data.provider,
+        providerFileId: data.providerFileId,
+        sha: data.sha,
+      })
+      .where(and(eq(wordImages.id, id), isNull(wordImages.deletedAt)));
+  }
+
+  async softDeleteWordImages(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const now = new Date();
+    await this.db
+      .update(wordImages)
+      .set({ deletedAt: now, isPrimary: false, isVerified: false })
+      .where(and(inArray(wordImages.id, ids), isNull(wordImages.deletedAt)));
   }
 
   async addWordAudio(
@@ -2153,6 +2329,7 @@ export class WordRepositoryImpl implements WordRepository {
           .set({
             languageId: word.languageId,
             lemma: word.lemma.trim(),
+            lemmaAllowsComma: word.lemmaAllowsComma ?? false,
             notes: word.notes ?? null,
             wordType: word.wordType,
             usageLabels: word.usageLabels ?? [],
@@ -2413,6 +2590,7 @@ export class WordRepositoryImpl implements WordRepository {
           languageId: t.languageId,
           translationText: t.translationText,
           translationType: t.translationType,
+          translationAllowsComma: t.translationAllowsComma ?? false,
           createdBy: actorId,
         })),
       );
@@ -2491,8 +2669,10 @@ export class WordRepositoryImpl implements WordRepository {
           url: img.url,
           altText: img.altText ?? null,
           isPrimary: img.isPrimary ?? false,
+          contentWarnings: img.contentWarnings ?? [],
           status: childStatusOf(word.status),
-          isVerified: word.isVerified,
+          // Stock/github auto-verified; ImageKit staging menunggu tinjauan
+          isVerified: wordImageIsAutoVerified(img.provider) || word.isVerified,
           createdBy: actorId,
         })),
       );

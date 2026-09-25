@@ -122,6 +122,7 @@ export class ApproveTranslationHelpUseCase {
       type: 'translation_help_approved',
       targetKind: 'translation_help',
       targetId: updated.id,
+      actorId: cmd.actorId,
     });
 
     return updated;

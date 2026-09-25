@@ -16,6 +16,7 @@ export function toCreateWordDto(body: CreateWordBody, imageProviderName: string)
     languageId: body.language_id,
     dialectId: body.dialect_id,
     lemma: body.lemma,
+    lemmaAllowsComma: body.lemma_allows_comma ?? false,
     notes: body.notes,
     wordType: body.word_type,
     usageLabels: body.usage_labels,
@@ -29,6 +30,7 @@ export function toCreateWordDto(body: CreateWordBody, imageProviderName: string)
         languageId: t.language_id,
         translationText: t.translation_text,
         translationType: t.translation_type,
+        translationAllowsComma: t.translation_allows_comma ?? false,
       })),
       examples: m.examples?.map((e) => ({
         sourceLanguageId: e.source_language_id,
@@ -61,6 +63,7 @@ export function toCreateWordDto(body: CreateWordBody, imageProviderName: string)
       sha: img.sha ?? null,
       altText: img.alt_text,
       isPrimary: img.is_primary,
+      contentWarnings: img.content_warnings ?? [],
     })),
     status: body.status,
     ...(body.search_miss_id ? { searchMissId: body.search_miss_id } : {}),
@@ -119,6 +122,7 @@ function toInlineWordDto(w: InlineWordBody, imageProviderName: string): InlineWo
         languageId: t.language_id,
         translationText: t.translation_text,
         translationType: t.translation_type,
+        translationAllowsComma: t.translation_allows_comma ?? false,
       })),
       examples: m.examples?.map((e) => ({
         sourceLanguageId: e.source_language_id,
@@ -144,6 +148,7 @@ function toInlineWordDto(w: InlineWordBody, imageProviderName: string): InlineWo
       sha: img.sha ?? null,
       altText: img.alt_text,
       isPrimary: img.is_primary,
+      contentWarnings: img.content_warnings ?? [],
     })),
     status: w.status,
   };

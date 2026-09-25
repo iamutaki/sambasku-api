@@ -1,12 +1,27 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { config } from 'dotenv';
 import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
+import { REFRESH_ROTATION_GRACE_MS } from '../../application/use-cases/refresh-token.use-case';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import -
 // .env dev tidak boleh pernah tersentuh dari test (api-base-stack.md Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
 const hasTestDb = !!parsed?.DATABASE_URL;
 if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL;
+
+/** Geser jam proses melewati jendela grace rotasi, lalu kembalikan. */
+async function refreshAfterGrace(
+  run: () => Promise<{ status: number }>,
+): Promise<{ status: number }> {
+  const later = Date.now() + REFRESH_ROTATION_GRACE_MS + 1_000;
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(later);
+  try {
+    return await run();
+  } finally {
+    vi.useRealTimers();
+  }
+}
 
 describe.skipIf(!hasTestDb)('Auth E2E', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,6 +34,10 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     const appModule = await import('@/app');
     app = appModule.app;
     client = testClient(app as never);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('GET / → 200 info API, bukan 404', async () => {
@@ -178,7 +197,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(body.error_code).toBe('INVALID_CREDENTIALS');
   });
 
-  it('POST /api/v1/auth/refresh → token dirotasi (cookie baru + token lama mati)', async () => {
+  it('POST /api/v1/auth/refresh → token dirotasi (cookie baru, token lama mati setelah grace)', async () => {
     const email = unique();
     await registerAndVerify(email);
     const loginRes = await client.api.v1.auth.login.$post({ json: { email, password: 'Password123' } }, { headers: xff() });
@@ -201,11 +220,19 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     const newToken = (newCookie ?? '').match(/refresh_token=([^;]+)/)?.[1];
     expect(newToken).not.toBe(oldToken);
 
-    // Token lama sudah revoked → tidak bisa dipakai lagi (cegah replay)
+    // Dalam 60 detik, token lama masih diterima (retry timeout / dua tab)
     const res2 = await client.api.v1.auth.refresh.$post(undefined, {
       headers: { cookie: `refresh_token=${oldToken}` },
     });
-    expect(res2.status).toBe(401);
+    expect(res2.status).toBe(200);
+
+    // Lewat jendela grace, replay ditolak
+    const replay = await refreshAfterGrace(() =>
+      client.api.v1.auth.refresh.$post(undefined, {
+        headers: { cookie: `refresh_token=${oldToken}` },
+      }),
+    );
+    expect(replay.status).toBe(401);
   });
 
   it('MOBILE: login client_type mobile → refresh_token di body (tanpa cookie)', async () => {
@@ -222,7 +249,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(res.headers.getSetCookie().length).toBe(0);
   });
 
-  it('MOBILE: refresh via body → token rotasi di body, token lama mati', async () => {
+  it('MOBILE: refresh via body → token rotasi di body, token lama mati setelah grace', async () => {
     const email = unique();
     await registerAndVerify(email);
     const loginRes = await client.api.v1.auth.login.$post(
@@ -242,9 +269,14 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(body1.data.refresh_token).toBeDefined();
     expect(body1.data.refresh_token).not.toBe(oldToken);
 
-    // token lama sudah revoked (replay ditolak)
+    // Dalam 60 detik, token lama masih diterima
     const res2 = await client.api.v1.auth.refresh.$post({ json: { refresh_token: oldToken } });
-    expect(res2.status).toBe(401);
+    expect(res2.status).toBe(200);
+
+    const replay = await refreshAfterGrace(() =>
+      client.api.v1.auth.refresh.$post({ json: { refresh_token: oldToken } }),
+    );
+    expect(replay.status).toBe(401);
   });
 
   // ---- POST /api/v1/auth/change-password (10-api-ubah-password.md) ----

@@ -42,8 +42,9 @@ openssl pkey -in jwt_private.pem -pubout -out jwt_public.pem
 # 3. Apply migration → membuat/mengisi local.db
 pnpm db:migrate
 
-# 4. Seed user awal (admin / root / contributor / reviewer — password: pass1234)
+# 4. Seed (lokal): akun default + referensi/user sistem
 pnpm seed
+#    Atau terpisah: pnpm seed:accounts | pnpm seed:reference
 
 # 5. Jalankan API (Hono + Node)
 pnpm dev                    # http://localhost:3000 — docs di /docs
@@ -70,7 +71,9 @@ pnpm test
 | `pnpm test`                                            | Semua test (unit + integration + e2e)                  |
 | `pnpm test:unit` / `test:integration` / `test:e2e`   | Test per lapisan                                       |
 | `pnpm typecheck`                                       | `tsc --noEmit`                                         |
-| `pnpm seed`                                            | Seeder user + referensi (idempoten)                    |
+| `pnpm seed`                                            | Lokal: accounts + reference                            |
+| `pnpm seed:accounts`                                   | Akun default saja (menimpa password → pass1234)        |
+| `pnpm seed:reference`                                  | Referensi + user sistem (insert-if-missing)            |
 | `pnpm drizzle-kit generate --name=…`                   | Generate migration SQL dari perubahan schema           |
 | `pnpm db:migrate`                                      | Apply migration (libsql; error terlihat di CI)         |
 | `pnpm drizzle-kit studio`                              | GUI browser untuk lihat isi database                   |
@@ -111,8 +114,17 @@ test (file SQLite) → migrate Turso → `wrangler deploy --env staging`.
 | `TURSO_STAGING_AUTH_TOKEN`    | token Turso staging                                |
 
 Secret Worker (JWT, dll.) tidak ikut CI — `wrangler deploy` mempertahankan
-secret yang sudah terpasang. Seed staging manual:
-`gh workflow run seed-staging.yml --ref staging -f confirm=true`.
+secret yang sudah terpasang. Seed manual (staging):
+
+```bash
+# Aman diulang — Anonim, Pengimpor Data CSV, bahasa/dialek/kelas/kategori
+gh workflow run seed-reference-staging.yml --ref staging
+
+# Hanya jika perlu reset password akun default → pass1234
+gh workflow run seed-account-staging.yml --ref staging -f confirm=true
+```
+
+Production: `seed-reference-production.yml` / `seed-account-production.yml` (`--ref main`).
 
 ## Audio pelafalan (GitHub asset repo)
 
@@ -273,7 +285,9 @@ turso db shell sambasku-staging
 src/
 ├── modules/auth/          # fitur auth (domain → application → infrastructure → presentation/v1)
 ├── shared/                # lintas modul: db (libSQL), middlewares, errors, config, logging
-├── scripts/seed.ts        # seeder CLI
+├── scripts/seed.ts            # orkestrasi lokal (accounts + reference)
+├── scripts/seed-accounts.ts   # akun default (reset password)
+├── scripts/seed-reference.ts  # referensi + user sistem (insert-if-missing)
 ├── app.ts                 # composition root (dibagi 2 runtime)
 └── main.ts / worker.ts    # entry Node (@hono/node-server) / Cloudflare Workers
 ```

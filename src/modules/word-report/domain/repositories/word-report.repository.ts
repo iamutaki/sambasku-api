@@ -8,7 +8,11 @@ import type {
 
 export interface WordReportRepository {
   create(input: NewWordReport): Promise<WordReport>;
-  findOpenByUserAndWord(userId: string, wordId: string): Promise<WordReport | null>;
+  findOpenByUserAndWord(
+    userId: string,
+    wordId: string,
+    imageId?: string | null,
+  ): Promise<WordReport | null>;
   findById(id: string): Promise<WordReport | null>;
   list(filter: WordReportListFilter): Promise<CursorPage<WordReport>>;
   /** Tutup satu laporan yang masih open. false jika bukan open. */

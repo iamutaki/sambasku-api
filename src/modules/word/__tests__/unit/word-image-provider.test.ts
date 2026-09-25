@@ -12,10 +12,11 @@ describe('word-image-provider', () => {
     expect(isStockWordImageProvider('github')).toBe(false);
   });
 
-  it('resolve: stock dari client; absen/github → storage aktif', () => {
+  it('resolve: stock/imagekit dari client; absen/github → storage aktif', () => {
     expect(resolveWordImageProvider('pexels', 'github')).toBe('pexels');
     expect(resolveWordImageProvider(undefined, 'github')).toBe('github');
     expect(resolveWordImageProvider('github', 'github')).toBe('github');
+    expect(resolveWordImageProvider('imagekit', 'github')).toBe('imagekit');
   });
 
   it('allowlist URL per provider', () => {

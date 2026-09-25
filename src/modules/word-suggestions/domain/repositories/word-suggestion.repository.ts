@@ -59,7 +59,15 @@ export interface WordSuggestionRepository {
    *  changesApplied = jumlah perubahan yang berhasil diaplikasikan.
    *  WAJIB atomic ( satu transaksi) - rollback jika ada bagian gagal.
    */
-  approveSuggestion(id: string, reviewerId: string, comment?: string): Promise<{ applied: boolean; changesApplied: number; wordLemma: string; wordId: string }>;
+  approveSuggestion(
+    id: string,
+    reviewerId: string,
+    comment?: string,
+    imageOpts?: {
+      decisions?: { key: string; decision: 'approve' | 'reject' }[];
+      censoredFiles?: Record<string, { bytes: Uint8Array; mimeType: string | null }>;
+    },
+  ): Promise<{ applied: boolean; changesApplied: number; wordLemma: string; wordId: string }>;
 
   /** Reject: update status + review comment. Return true kalau berhasil. */
   rejectSuggestion(id: string, reviewerId: string, comment: string): Promise<boolean>;
@@ -74,6 +82,10 @@ export interface WordSuggestionRepository {
     correctedChanges: ProposedChanges,
     publish: boolean,
     comment?: string,
+    imageOpts?: {
+      decisions?: { key: string; decision: 'approve' | 'reject' }[];
+      censoredFiles?: Record<string, { bytes: Uint8Array; mimeType: string | null }>;
+    },
   ): Promise<{ applied: boolean; changesApplied: number; status: SuggestionStatus; wordLemma: string }>;
 
   /** Riwayat perubahan kata: gabung audit_logs + users + suggestion info */

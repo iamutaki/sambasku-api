@@ -66,7 +66,9 @@ export const translationHelpStatusSchema = z.enum([
 
 export const listTranslationHelpsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
-  cursor: opaqueId.optional(),
+  // latest: ULID; popular: base64url compound (upvotes:id)
+  cursor: z.string().min(1).max(200).optional(),
+  sort: z.enum(['latest', 'popular']).default('latest'),
 });
 
 export type ListTranslationHelpsQuery = z.infer<typeof listTranslationHelpsQuerySchema>;
@@ -145,6 +147,8 @@ export const translationHelpReplyPublicSchema = z.object({
   status: z.enum(['published', 'taken_down', 'deleted_by_author']),
   is_verifier: z.boolean(),
   is_pinned: z.boolean(),
+  upvotes: z.number().int(),
+  downvotes: z.number().int(),
   created_at: z.string(),
 });
 
@@ -156,6 +160,7 @@ export const translationHelpPublicItemSchema = z.object({
   images: z.array(publicImageWireSchema),
   status: z.literal('published'),
   pinned_reply_id: z.string().nullable(),
+  upvotes: z.number().int(),
   created_at: z.string(),
 });
 
@@ -169,6 +174,7 @@ export const translationHelpOwnerItemSchema = z.object({
   rejection_note: z.string().nullable(),
   pinned_reply_id: z.string().nullable(),
   reviewed_at: z.string().nullable(),
+  upvotes: z.number().int(),
   created_at: z.string(),
   updated_at: z.string().nullable(),
 });
@@ -184,6 +190,7 @@ export const translationHelpAdminItemSchema = z.object({
   reviewed_by: z.string().nullable(),
   reviewed_at: z.string().nullable(),
   pinned_reply_id: z.string().nullable(),
+  upvotes: z.number().int(),
   created_at: z.string(),
   updated_at: z.string().nullable(),
 });

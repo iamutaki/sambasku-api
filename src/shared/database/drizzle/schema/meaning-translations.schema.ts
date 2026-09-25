@@ -17,6 +17,10 @@ export const meaningTranslations = sqliteTable(
     translationText: text('translation_text').notNull(),
     // direct | descriptive | idiomatic
     translationType: text('translation_type').notNull().default('direct'),
+    // true = koma di padanan memang literal → keluar antrean Pemisahan
+    translationAllowsComma: integer('translation_allows_comma', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     notes: text('notes'),
     createdBy: text('created_by').references(() => users.id),
     updatedBy: text('updated_by').references(() => users.id),

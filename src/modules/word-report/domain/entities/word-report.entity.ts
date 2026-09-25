@@ -1,16 +1,20 @@
-import type { TakedownReasonCode } from '@/modules/word/domain/entities/word.entity';
+import type {
+  TakedownReasonCode,
+  WordReportReasonCode,
+} from '@/modules/word/domain/entities/word.entity';
 
 export type WordReportStatus = 'open' | 'resolved';
-export type WordReportResolution = 'dismissed' | 'taken_down' | 'corrected';
+export type WordReportResolution = 'dismissed' | 'taken_down' | 'corrected' | 'flagged_image';
 
 export interface WordReport {
   id: string;
   wordId: string;
+  imageId: string | null;
   wordLemma: string;
   wordStatus: string;
   userId: string;
   username: string | null;
-  reasonCode: TakedownReasonCode;
+  reasonCode: WordReportReasonCode;
   note: string | null;
   status: WordReportStatus;
   resolution: WordReportResolution | null;
@@ -23,8 +27,9 @@ export interface WordReport {
 
 export interface NewWordReport {
   wordId: string;
+  imageId?: string | null;
   userId: string;
-  reasonCode: TakedownReasonCode;
+  reasonCode: WordReportReasonCode;
   note: string | null;
 }
 
@@ -33,3 +38,6 @@ export interface WordReportListFilter {
   limit: number;
   cursor?: string;
 }
+
+/** Alasan yang boleh dipakai untuk takedown kata (bukan laporan foto). */
+export type { TakedownReasonCode };

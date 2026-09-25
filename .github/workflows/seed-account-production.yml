@@ -1,21 +1,17 @@
-name: Seed Production (manual)
+name: Seed Account Production (manual)
 
-# HANYA dipicu manual (workflow_dispatch) - TIDAK pernah jalan otomatis saat
-# push / deploy. Deploy production hanya migrate + wrangler; seed sengaja
-# dipisah karena menimpa password admin/root/contributor/reviewer jadi
-# `pass1234`.
+# Hanya akun default (admin/root/contributor/reviewer).
+# Menimpa password jadi pass1234. TIDAK otomatis saat push/deploy.
 #
-# CLI: gh workflow run seed-production.yml --ref main -f confirm=true
+# CLI: gh workflow run seed-account-production.yml --ref main -f confirm=true
 #
-# Secrets:
-#   TURSO_PRODUCTION_DATABASE_URL
-#   TURSO_PRODUCTION_AUTH_TOKEN
+# Secrets: TURSO_PRODUCTION_DATABASE_URL, TURSO_PRODUCTION_AUTH_TOKEN
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Centang untuk benar-benar seed DB PRODUCTION (menimpa password admin/root jadi pass1234)'
+        description: 'Centang untuk seed akun PRODUCTION (menimpa password jadi pass1234)'
         type: boolean
         required: true
         default: false
@@ -41,17 +37,17 @@ jobs:
           DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_PRODUCTION_AUTH_TOKEN }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "::error::Secret TURSO_PRODUCTION_DATABASE_URL kosong — set di GitHub → Settings → Secrets"
+            echo "::error::Secret TURSO_PRODUCTION_DATABASE_URL kosong"
             exit 1
           fi
           if [ -z "$DATABASE_AUTH_TOKEN" ]; then
-            echo "::error::Secret TURSO_PRODUCTION_AUTH_TOKEN kosong — set di GitHub → Settings → Secrets"
+            echo "::error::Secret TURSO_PRODUCTION_AUTH_TOKEN kosong"
             exit 1
           fi
-          echo "Turso URL host: $(echo "$DATABASE_URL" | sed -E 's#^[a-z]+://##')"
+          echo "Turso secrets OK"
 
-      - name: Seed database production
-        run: pnpm seed
+      - name: Seed accounts production
+        run: pnpm seed:accounts
         env:
           NODE_ENV: production
           DATABASE_URL: ${{ secrets.TURSO_PRODUCTION_DATABASE_URL }}

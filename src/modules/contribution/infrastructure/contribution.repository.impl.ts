@@ -907,7 +907,26 @@ export class ContributionRepositoryImpl implements ContributionRepository {
     if (cmd.decision === 'approve') {
       const merge = await publishOrMergeMeaningsInTx(tx, wordId, cmd.reviewerId);
       if (!merge) {
-        throw new NotFoundError('WORD_NOT_FOUND', 'Kata kontribusi tidak ditemukan');
+        // Biasanya: kata soft-deleted tanpa twin published (hapus/merge orphan).
+        throw new NotFoundError(
+          'WORD_NOT_FOUND',
+          'Kata kontribusi tidak ditemukan atau sudah dihapus tanpa entri pengganti — tolak antrean ini atau pulihkan kata',
+        );
+      }
+      // publishWordChildren menandai SEMUA foto published. Soft-delete foto
+      // yang verifikator tahan (efek null di publik), kecuali sumber merge.
+      if (!merge.mergedIntoWordId && cmd.rejectedImageIds?.length) {
+        const now = new Date();
+        await tx
+          .update(wordImages)
+          .set({ deletedAt: now, isPrimary: false, isVerified: false })
+          .where(
+            and(
+              inArray(wordImages.id, cmd.rejectedImageIds),
+              eq(wordImages.wordId, wordId),
+              isNull(wordImages.deletedAt),
+            ),
+          );
       }
       return { entityId: merge.wordId, mergedIntoWordId: merge.mergedIntoWordId };
     }
@@ -985,7 +1004,12 @@ export class ContributionRepositoryImpl implements ContributionRepository {
     if (cmd.decision === 'approve') {
       await tx.update(wordImages).set({ status: 'published', isVerified: true }).where(where);
     } else if (cmd.decision === 'reject') {
-      await tx.update(wordImages).set({ status: 'rejected', isVerified: false }).where(where);
+      // Soft-delete = hilang dari kata (null di publik); staging ImageKit
+      // sudah dihapus di ReviewContributionUseCase.handleStagingImages.
+      await tx
+        .update(wordImages)
+        .set({ deletedAt: new Date(), isPrimary: false, isVerified: false, status: 'rejected' })
+        .where(where);
     } else {
       const p = cmd.childPatch?.wordImage;
       if (!p) throw new Error('childPatch.wordImage hilang pada decision correct');

@@ -51,6 +51,8 @@ import { ListAdminUsersUseCase } from '@/modules/auth/application/use-cases/list
 import { UpdateUserRoleUseCase } from '@/modules/auth/application/use-cases/update-user-role.use-case';
 import { AdminUsersController } from '@/modules/auth/presentation/v1/admin-user.controller';
 import { SetCanContributeUseCase } from '@/modules/auth/application/use-cases/set-can-contribute.use-case';
+import { CreateAdminUserUseCase } from '@/modules/auth/application/use-cases/create-admin-user.use-case';
+import { SetUserActiveUseCase } from '@/modules/auth/application/use-cases/set-user-active.use-case';
 import { createAdminUserRoutes, createContributionAccessRoutes } from '@/modules/auth/presentation/v1/admin-user.routes';
 import { WordRepositoryImpl } from '@/modules/word/infrastructure/word.repository.impl';
 import { CreateWordUseCase } from '@/modules/word/application/use-cases/create-word.use-case';
@@ -64,14 +66,24 @@ import { ListWordsUseCase } from '@/modules/word/application/use-cases/list-word
 import { ListLatestWordsUseCase } from '@/modules/word/application/use-cases/list-latest-words.use-case';
 import { ListDuplicateWordsUseCase } from '@/modules/word/application/use-cases/list-duplicate-words.use-case';
 import { MergeDuplicateWordsUseCase } from '@/modules/word/application/use-cases/merge-duplicate-words.use-case';
+import { ListCommaSplitsUseCase } from '@/modules/word/application/use-cases/list-comma-splits.use-case';
+import { ApplyCommaSplitUseCase } from '@/modules/word/application/use-cases/apply-comma-split.use-case';
+import { MarkCommaLiteralUseCase } from '@/modules/word/application/use-cases/mark-comma-literal.use-case';
 import { VerifyWordUseCase } from '@/modules/word/application/use-cases/verify-word.use-case';
 import { PublishWordUseCase } from '@/modules/word/application/use-cases/publish-word.use-case';
 import { SoftDeleteWordUseCase } from '@/modules/word/application/use-cases/soft-delete-word.use-case';
+import { BulkWordsActionUseCase } from '@/modules/word/application/use-cases/bulk-words-action.use-case';
 import { TakedownWordUseCase } from '@/modules/word/application/use-cases/takedown-word.use-case';
 import { RestoreWordUseCase } from '@/modules/word/application/use-cases/restore-word.use-case';
 import { AddPronunciationUseCase } from '@/modules/word/application/use-cases/add-pronunciation.use-case';
 import { AddMeaningUseCase } from '@/modules/word/application/use-cases/add-meaning.use-case';
 import { ImportWordsUseCase } from '@/modules/word/application/use-cases/import-words.use-case';
+import {
+  GetWordImportSessionUseCase,
+  ListWordImportSessionsUseCase,
+  SaveWordImportSessionUseCase,
+} from '@/modules/word/application/use-cases/word-import-session.use-cases';
+import { WordImportSessionRepositoryImpl } from '@/modules/word/infrastructure/word-import-session.repository.impl';
 import { AddWordImageUseCase } from '@/modules/word/application/use-cases/add-word-image.use-case';
 import { AddExampleUseCase } from '@/modules/word/application/use-cases/add-example.use-case';
 import { UploadPronunciationAudioUseCase } from '@/modules/word/application/use-cases/upload-pronunciation-audio.use-case';
@@ -142,7 +154,9 @@ import { ListWordReportsUseCase } from '@/modules/word-report/application/use-ca
 import {
   ResolveWordReportUseCase,
   TakedownWordReportUseCase,
+  FlagViolentImageReportUseCase,
 } from '@/modules/word-report/application/use-cases/resolve-word-report.use-case';
+import { SetWordImageContentWarningsUseCase } from '@/modules/word/application/use-cases/set-word-image-content-warnings.use-case';
 import { WordReportController } from '@/modules/word-report/presentation/v1/word-report.controller';
 import { createWordReportRoutes } from '@/modules/word-report/presentation/v1/word-report.routes';
 import { createAdminWordReportRoutes } from '@/modules/word-report/presentation/v1/admin-word-report.routes';
@@ -178,6 +192,7 @@ import { ToggleVoteUseCase } from '@/modules/vote/application/use-cases/toggle-v
 import { GetVoteCountsUseCase } from '@/modules/vote/application/use-cases/get-vote-counts.use-case';
 import { GetMyVotesUseCase } from '@/modules/vote/application/use-cases/get-my-votes.use-case';
 import { ListMyVoteHistoryUseCase } from '@/modules/vote/application/use-cases/list-my-vote-history.use-case';
+import { GetVoteDeckUseCase } from '@/modules/vote/application/use-cases/get-vote-deck.use-case';
 import { VoteController } from '@/modules/vote/presentation/v1/vote.controller';
 import { createVoteRoutes } from '@/modules/vote/presentation/v1/vote.routes';
 import { AdminVotesController } from '@/modules/vote/presentation/v1/admin-vote.controller';
@@ -375,6 +390,7 @@ const optionalAuthenticate = createOptionalAuthenticateMiddleware((token) =>
 
 // ---- Modul word (+ language & category sebagai data referensi form admin) ----
 const wordRepo = new WordRepositoryImpl(db);
+const wordImportSessionRepo = new WordImportSessionRepositoryImpl(db);
 const wordReportRepo = new WordReportRepositoryImpl(db);
 const takedownWord = new TakedownWordUseCase(wordRepo, auditRepo, wordReportRepo, recordInbox);
 const restoreWord = new RestoreWordUseCase(wordRepo, auditRepo);
@@ -387,6 +403,8 @@ const publicImageStorage = createPublicImageStorage();
 // dari SearchWordsUseCase lewat interface modul search-miss (Section 4)
 const searchMissRepo = new SearchMissRepositoryImpl(db);
 const languageRepo = new LanguageRepositoryImpl(db);
+const publishWord = new PublishWordUseCase(wordRepo, auditRepo);
+const softDeleteWord = new SoftDeleteWordUseCase(wordRepo, auditRepo);
 const wordController = new WordController({
   create: new CreateWordUseCase(wordRepo, auditRepo, searchMissRepo),
   update: new UpdateWordUseCase(wordRepo, auditRepo),
@@ -399,16 +417,23 @@ const wordController = new WordController({
   listLatest: new ListLatestWordsUseCase(wordRepo),
   listDuplicates: new ListDuplicateWordsUseCase(wordRepo),
   mergeDuplicates: new MergeDuplicateWordsUseCase(wordRepo, auditRepo),
+  listCommaSplits: new ListCommaSplitsUseCase(wordRepo),
+  applyCommaSplit: new ApplyCommaSplitUseCase(wordRepo, auditRepo),
+  markCommaLiteral: new MarkCommaLiteralUseCase(wordRepo, auditRepo),
   verify: new VerifyWordUseCase(wordRepo, auditRepo),
-  publish: new PublishWordUseCase(wordRepo, auditRepo),
-  deleteWord: new SoftDeleteWordUseCase(wordRepo, auditRepo),
+  publish: publishWord,
+  deleteWord: softDeleteWord,
+  bulkWords: new BulkWordsActionUseCase(softDeleteWord, publishWord),
   takedownWord,
   restoreWord,
   addPronunciation: new AddPronunciationUseCase(wordRepo, auditRepo),
   addWordImage: new AddWordImageUseCase(wordRepo, auditRepo, publicImageStorage.providerName),
   addExample: new AddExampleUseCase(wordRepo, auditRepo),
   addMeaning: new AddMeaningUseCase(wordRepo, auditRepo),
-  importWords: new ImportWordsUseCase(wordRepo, languageRepo, auditRepo),
+  importWords: new ImportWordsUseCase(wordRepo, languageRepo),
+  saveImportSession: new SaveWordImportSessionUseCase(wordImportSessionRepo),
+  listImportSessions: new ListWordImportSessionsUseCase(wordImportSessionRepo),
+  getImportSession: new GetWordImportSessionUseCase(wordImportSessionRepo),
   uploadPronunciationAudio: new UploadPronunciationAudioUseCase(
     wordRepo,
     pronunciationStorage,
@@ -431,7 +456,15 @@ const contributionRepo = new ContributionRepositoryImpl(db);
 const contributionController = new ContributionController({
   list: new ListContributionsUseCase(contributionRepo),
   getDetail: new GetContributionDetailUseCase(contributionRepo, wordRepo),
-  review: new ReviewContributionUseCase(contributionRepo, auditRepo, notifyUser, recordInbox),
+  review: new ReviewContributionUseCase(
+    contributionRepo,
+    auditRepo,
+    wordRepo,
+    publicImageStorage,
+    imageStorage,
+    notifyUser,
+    recordInbox,
+  ),
   correct: new CorrectContributionUseCase(contributionRepo, wordRepo, auditRepo, recordInbox),
   imageProviderName: publicImageStorage.providerName,
 });
@@ -466,6 +499,7 @@ const voteController = new VoteController({
   counts: new GetVoteCountsUseCase(voteRepo),
   myVotes: new GetMyVotesUseCase(voteRepo),
   history: new ListMyVoteHistoryUseCase(voteRepo),
+  deck: new GetVoteDeckUseCase(voteRepo),
 });
 
 // Panel moderasi vote (hapus vote spam + reset massal anti-brigading) -
@@ -528,7 +562,7 @@ const deviceController = new DeviceController({
 });
 
 // ---- Modul word-suggestions (usul perubahan kata) ----
-const suggestionRepo = new WordSuggestionRepositoryImpl();
+const suggestionRepo = new WordSuggestionRepositoryImpl(publicImageStorage, imageStorage);
 const suggestionController = new WordSuggestionController({
   repository: suggestionRepo,
   inbox: recordInbox,
@@ -656,11 +690,17 @@ app.route('/api/v1/words', createWordMediaRoutes({ controller: wordController, a
 // Komentar per kata (09) - SEBELUM public word routes (pola media routes),
 // supaya /:wordId/comments tidak tertelan routes.use('*') rate limit publik
 app.route('/api/v1/words', createWordCommentRoutes({ controller: commentController, authenticate }));
+const setWordImageContentWarnings = new SetWordImageContentWarningsUseCase(wordRepo, auditRepo);
 const wordReportController = new WordReportController({
   create: new CreateWordReportUseCase(wordReportRepo, wordRepo, auditRepo),
   list: new ListWordReportsUseCase(wordReportRepo),
   resolve: new ResolveWordReportUseCase(wordReportRepo, auditRepo),
   takedown: new TakedownWordReportUseCase(wordReportRepo, takedownWord),
+  flagViolentImage: new FlagViolentImageReportUseCase(
+    wordReportRepo,
+    setWordImageContentWarnings,
+    auditRepo,
+  ),
 });
 app.route('/api/v1/words', createWordReportRoutes({ controller: wordReportController, authenticate }));
 app.route('/api/v1/words', createPublicWordRoutes({ controller: wordController, authenticate }));
@@ -786,9 +826,9 @@ app.route(
 const translationHelpRepo = new TranslationHelpRepositoryImpl(db);
 const translationHelpController = new TranslationHelpController({
   create: new CreateTranslationHelpUseCase(translationHelpRepo, auditRepo),
-  listPublished: new ListPublishedTranslationHelpsUseCase(translationHelpRepo),
+  listPublished: new ListPublishedTranslationHelpsUseCase(translationHelpRepo, voteRepo),
   listMine: new ListMyTranslationHelpsUseCase(translationHelpRepo),
-  getDetail: new GetTranslationHelpDetailUseCase(translationHelpRepo),
+  getDetail: new GetTranslationHelpDetailUseCase(translationHelpRepo, voteRepo),
   listAdmin: new ListAdminTranslationHelpsUseCase(translationHelpRepo),
   approve: new ApproveTranslationHelpUseCase(
     translationHelpRepo,
@@ -843,6 +883,8 @@ const adminUsersController = new AdminUsersController({
   list: new ListAdminUsersUseCase(userRepo),
   updateRole: new UpdateUserRoleUseCase(userRepo, refreshTokenRepo, auditRepo),
   setCanContribute: new SetCanContributeUseCase(userRepo, auditRepo, recordInbox),
+  createUser: new CreateAdminUserUseCase(userRepo, hasher, auditRepo),
+  setActive: new SetUserActiveUseCase(userRepo, refreshTokenRepo, auditRepo),
 });
 app.route('/api/v1/admin/users', createAdminUserRoutes({ controller: adminUsersController, authenticate }));
 app.route(

@@ -144,4 +144,13 @@ describe('AccountDeletionUseCase', () => {
       'https://sambasku.test/hapus-akun',
     );
   });
+
+  it('requestByEmail menormalisasi huruf besar/kecil email', async () => {
+    const { useCase, mailer, userRepo } = makeDeps(makeUser());
+
+    await useCase.requestByEmail('  Tester@Test.COM ');
+
+    expect(userRepo.findByEmail).toHaveBeenCalledWith('tester@test.com');
+    expect(mailer.sendAccountDeletionEmail).toHaveBeenCalled();
+  });
 });

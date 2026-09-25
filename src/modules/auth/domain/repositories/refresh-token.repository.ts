@@ -3,6 +3,8 @@ export interface RefreshTokenRecord {
   userId: string;
   tokenHash: string;
   isRevoked: boolean;
+  /** Waktu rotasi. Null = belum dirotasi, atau sudah dicabut paksa (logout). */
+  rotatedAt: Date | null;
   expiresAt: Date;
 }
 
@@ -17,6 +19,11 @@ export interface NewRefreshToken {
 export interface RefreshTokenRepository {
   create(token: NewRefreshToken): Promise<RefreshTokenRecord>;
   findByHash(tokenHash: string): Promise<RefreshTokenRecord | null>;
+  /**
+   * Tandai token sudah dirotasi (bukan logout). Hanya baris yang masih
+   * aktif. `false` = kalah race: permintaan lain sudah merotasinya.
+   */
+  markRotated(tokenHash: string): Promise<boolean>;
   revokeByHash(tokenHash: string): Promise<void>;
   revokeAllForUser(userId: string): Promise<void>;
 }

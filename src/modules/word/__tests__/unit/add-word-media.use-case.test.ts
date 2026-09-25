@@ -80,23 +80,45 @@ describe('AddPronunciationUseCase', () => {
 });
 
 describe('AddWordImageUseCase', () => {
-  it('contributor → published belum dicek; admin → published + verified', async () => {
+  it('contributor ImageKit → published belum dicek; admin github → published + verified', async () => {
     const { wordRepo, auditRepo } = makeDeps();
     const useCase = new AddWordImageUseCase(wordRepo, auditRepo as unknown as AuditLogRepository, 'github');
     const asContributor = await useCase.execute(
       WORD.id,
-      { url: 'https://ik.imagekit.io/x/a.jpg', providerFileId: 'f1', isPrimary: false },
+      {
+        url: 'https://ik.imagekit.io/x/a.jpg',
+        provider: 'imagekit',
+        providerFileId: 'f1',
+        isPrimary: false,
+      },
       CONTRIBUTOR,
     );
     expect(asContributor.status).toBe('published');
     expect(asContributor.isVerified).toBe(false);
+    expect(wordRepo.addWordImage).toHaveBeenCalledWith(
+      WORD.id,
+      expect.objectContaining({ provider: 'imagekit', isVerified: false }),
+      CONTRIBUTOR.userId,
+    );
     const asAdmin = await useCase.execute(
       WORD.id,
-      { url: 'https://ik.imagekit.io/x/b.jpg', providerFileId: 'f2', isPrimary: true },
+      { url: 'https://cdn.jsdelivr.net/gh/x/b.jpg', providerFileId: 'assets/words/b.jpg', isPrimary: true },
       ADMIN,
     );
     expect(asAdmin.status).toBe('published');
     expect(asAdmin.isVerified).toBe(true);
+  });
+
+  it('contributor kirim github → VALIDATION_ERROR', async () => {
+    const { wordRepo, auditRepo } = makeDeps();
+    const useCase = new AddWordImageUseCase(wordRepo, auditRepo as unknown as AuditLogRepository, 'github');
+    await expect(
+      useCase.execute(
+        WORD.id,
+        { url: 'https://cdn.jsdelivr.net/gh/x/a.jpg', providerFileId: 'assets/words/a.jpg', isPrimary: false },
+        CONTRIBUTOR,
+      ),
+    ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
   });
 });
 

@@ -51,7 +51,7 @@ function toAdminImages(help: TranslationHelp) {
   return toOwnerImages(help);
 }
 
-export function toPublicItem(help: TranslationHelp) {
+export function toPublicItem(help: TranslationHelp & { upvotes?: number }) {
   return {
     id: help.id,
     user_id: help.userId,
@@ -60,11 +60,12 @@ export function toPublicItem(help: TranslationHelp) {
     images: toPublicImages(help),
     status: 'published' as const,
     pinned_reply_id: help.pinnedReplyId,
+    upvotes: help.upvotes ?? 0,
     created_at: help.createdAt.toISOString(),
   };
 }
 
-export function toOwnerItem(help: TranslationHelp) {
+export function toOwnerItem(help: TranslationHelp & { upvotes?: number }) {
   return {
     id: help.id,
     user_id: help.userId,
@@ -75,12 +76,13 @@ export function toOwnerItem(help: TranslationHelp) {
     rejection_note: help.rejectionNote,
     pinned_reply_id: help.pinnedReplyId,
     reviewed_at: help.reviewedAt?.toISOString() ?? null,
+    upvotes: help.upvotes ?? 0,
     created_at: help.createdAt.toISOString(),
     updated_at: help.updatedAt?.toISOString() ?? null,
   };
 }
 
-export function toAdminItem(help: TranslationHelp) {
+export function toAdminItem(help: TranslationHelp & { upvotes?: number }) {
   return {
     id: help.id,
     user_id: help.userId,
@@ -92,12 +94,16 @@ export function toAdminItem(help: TranslationHelp) {
     reviewed_by: help.reviewedBy,
     reviewed_at: help.reviewedAt?.toISOString() ?? null,
     pinned_reply_id: help.pinnedReplyId,
+    upvotes: help.upvotes ?? 0,
     created_at: help.createdAt.toISOString(),
     updated_at: help.updatedAt?.toISOString() ?? null,
   };
 }
 
-function toPublicReply(reply: TranslationHelpReply, pinnedReplyId: string | null) {
+function toPublicReply(
+  reply: TranslationHelpReply & { upvotes?: number; downvotes?: number },
+  pinnedReplyId: string | null,
+) {
   return {
     id: reply.id,
     user_id: reply.userId,
@@ -106,11 +112,16 @@ function toPublicReply(reply: TranslationHelpReply, pinnedReplyId: string | null
     status: reply.status,
     is_verifier: isVerifierRole(reply.userRole),
     is_pinned: pinnedReplyId === reply.id,
+    upvotes: reply.upvotes ?? 0,
+    downvotes: reply.downvotes ?? 0,
     created_at: reply.createdAt.toISOString(),
   };
 }
 
-function toAdminReply(reply: TranslationHelpReply, pinnedReplyId: string | null) {
+function toAdminReply(
+  reply: TranslationHelpReply & { upvotes?: number; downvotes?: number },
+  pinnedReplyId: string | null,
+) {
   return {
     ...toPublicReply(reply, pinnedReplyId),
     body: reply.body,
@@ -214,6 +225,7 @@ export class TranslationHelpController {
     const page = await this.deps.listPublished.execute({
       limit: query.limit,
       cursor: query.cursor,
+      sort: query.sort,
     });
     return c.json({
       success: true as const,

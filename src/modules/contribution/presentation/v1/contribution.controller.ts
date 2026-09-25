@@ -1,15 +1,84 @@
 import type { Context } from 'hono';
-import { UnauthorizedError } from '@/shared/errors/app-error';
+import { UnauthorizedError, ValidationError } from '@/shared/errors/app-error';
 import type { AppVariables } from '@/shared/types';
 import { toCreateWordDto } from '@/modules/word/presentation/v1/map-create-word';
 import type { ListContributionsUseCase } from '../../application/use-cases/list-contributions.use-case';
 import type { GetContributionDetailUseCase } from '../../application/use-cases/get-contribution-detail.use-case';
-import type { ReviewContributionUseCase } from '../../application/use-cases/review-contribution.use-case';
-import type { CorrectContributionUseCase } from '../../application/use-cases/correct-contribution.use-case';
 import type {
-  CorrectContributionBody,
-  ListContributionsQueryBody,
+  CensoredImageFile,
+  ReviewContributionUseCase,
+} from '../../application/use-cases/review-contribution.use-case';
+import type { CorrectContributionUseCase } from '../../application/use-cases/correct-contribution.use-case';
+import {
+  approveContributionSchema,
+  type ApproveContributionBody,
+  type CorrectContributionBody,
+  type ListContributionsQueryBody,
 } from './validators/contribution.validator';
+
+/**
+ * JSON body atau multipart: comment, image_decisions (JSON string),
+ * file_<imageId> = bytes sensor opsional.
+ */
+async function parseApprovePayload(c: Context): Promise<{
+  body: ApproveContributionBody;
+  censoredFiles: Record<string, CensoredImageFile>;
+}> {
+  const contentType = c.req.header('content-type') ?? '';
+  if (!contentType.includes('multipart/form-data')) {
+    const raw = await c.req.json().catch(() => ({}));
+    const parsed = approveContributionSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new ValidationError(
+        parsed.error.issues.map((i) => ({
+          field: i.path.join('.') || 'body',
+          message: i.message,
+        })),
+      );
+    }
+    return { body: parsed.data, censoredFiles: {} };
+  }
+
+  const form = await c.req.parseBody({ all: true });
+  const commentRaw = form['comment'];
+  const decisionsRaw = form['image_decisions'];
+  let imageDecisions: unknown;
+  if (typeof decisionsRaw === 'string' && decisionsRaw.trim()) {
+    try {
+      imageDecisions = JSON.parse(decisionsRaw) as unknown;
+    } catch {
+      throw new ValidationError([
+        { field: 'image_decisions', message: 'Format keputusan foto tidak valid' },
+      ]);
+    }
+  }
+  const rawBody = {
+    comment: typeof commentRaw === 'string' ? commentRaw : undefined,
+    image_decisions: imageDecisions,
+  };
+  const parsed = approveContributionSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    throw new ValidationError(
+      parsed.error.issues.map((i) => ({
+        field: i.path.join('.') || 'body',
+        message: i.message,
+      })),
+    );
+  }
+
+  const censoredFiles: Record<string, CensoredImageFile> = {};
+  for (const [key, part] of Object.entries(form)) {
+    if (!key.startsWith('file_') || typeof part === 'string') continue;
+    const imageId = key.slice('file_'.length);
+    if (!imageId || imageId.length !== 26) continue;
+    const file = part as File;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes.byteLength === 0) continue;
+    censoredFiles[imageId] = { bytes, mimeType: file.type || null };
+  }
+
+  return { body: parsed.data, censoredFiles };
+}
 
 export class ContributionController {
   constructor(
@@ -86,14 +155,20 @@ export class ContributionController {
     });
   }
 
-  async approve(c: Context, id: string, body: { comment?: string }) {
+  async approve(c: Context, id: string) {
     const actor = this.requireActor(c);
+    const { body, censoredFiles } = await parseApprovePayload(c);
     const outcome = await this.deps.review.execute({
       contributionId: id,
       decision: 'approve',
       comment: body.comment ?? null,
       actorId: actor.userId,
       requestId: actor.requestId,
+      imageDecisions: body.image_decisions?.map((item) => ({
+        imageId: item.image_id,
+        decision: item.decision,
+      })),
+      censoredFiles: Object.keys(censoredFiles).length > 0 ? censoredFiles : undefined,
     });
     return decisionResponse(c, outcome);
   }

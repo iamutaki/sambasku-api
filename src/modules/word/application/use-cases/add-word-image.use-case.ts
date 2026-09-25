@@ -1,23 +1,31 @@
+import type { ImageContentWarning } from '@/shared/constants/image-content-warnings';
 import { NotFoundError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
 import type { WordRepository, WordImageMedia } from '../../domain/repositories/word.repository';
-import { resolveWordImageProvider } from '../../domain/word-image-provider';
+import {
+  resolveWordImageProvider,
+} from '../../domain/word-image-provider';
+import {
+  assertContributorWordImageProvider,
+  resolveWordImageVerified,
+} from '../utils/assert-word-image-provider';
 import { resolveChildPublication } from '../utils/resolve-publication';
 import { assertCanContribute } from '../utils/assert-can-contribute';
 import type { Actor } from './create-word.use-case';
 
 export interface AddWordImageDto {
   url: string;
-  /** Stock Media Explorer; absen/github → storage aktif */
+  /** Stock Media Explorer; imagekit staging; absen/github → storage aktif */
   provider?: string;
   providerFileId: string;
   sha?: string | null;
   altText?: string | null;
   isPrimary: boolean;
+  contentWarnings?: ImageContentWarning[];
 }
 
 // Kontribusi gambar contoh pada kata existing (03-api-kontribusi-verifikasi.md).
-// Upload GitHub ATAU referensi URL stock dari Media Explorer.
+// Kontributor: ImageKit staging atau stock. Verifikator: GitHub publik.
 export class AddWordImageUseCase {
   constructor(
     private readonly wordRepo: WordRepository,
@@ -32,11 +40,27 @@ export class AddWordImageUseCase {
       throw new NotFoundError('WORD_NOT_FOUND', 'Kata dengan id tersebut tidak ditemukan');
     }
 
-    const publication = resolveChildPublication(actor.role);
     const provider = resolveWordImageProvider(dto.provider, this.imageProviderName);
+    assertContributorWordImageProvider(provider, actor.role);
+
+    const publication = resolveChildPublication(actor.role);
+    const isVerified = resolveWordImageVerified(provider, publication.isVerified);
+    // Staging ImageKit: published + menunggu tinjauan (slot tampil + placeholder publik)
+    const status = publication.status;
+
     const media = await this.wordRepo.addWordImage(
       wordId,
-      { ...dto, provider, ...publication },
+      {
+        url: dto.url,
+        providerFileId: dto.providerFileId,
+        sha: dto.sha,
+        altText: dto.altText,
+        isPrimary: dto.isPrimary,
+        contentWarnings: dto.contentWarnings ?? [],
+        provider,
+        status,
+        isVerified,
+      },
       actor.userId,
     );
 
@@ -51,6 +75,7 @@ export class AddWordImageUseCase {
         provider_file_id: media.providerFileId,
         status: media.status,
         is_verified: media.isVerified,
+        content_warnings: media.contentWarnings,
       },
       requestId: actor.requestId ?? null,
     });

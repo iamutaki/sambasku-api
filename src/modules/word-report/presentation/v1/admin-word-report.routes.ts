@@ -46,6 +46,7 @@ export function createAdminWordReportRoutes(deps: AdminWordReportRoutesDeps) {
   routes.use('/:id/dismiss', ...admin);
   routes.use('/:id/mark-corrected', ...admin);
   routes.use('/:id/takedown', ...admin);
+  routes.use('/:id/flag-violent-image', ...admin);
 
   const listRoute = createRoute({
     method: 'get',
@@ -129,6 +130,25 @@ export function createAdminWordReportRoutes(deps: AdminWordReportRoutesDeps) {
     },
   });
 
+  const flagViolentImageRoute = createRoute({
+    method: 'post',
+    path: '/:id/flag-violent-image',
+    tags: ['Word Reports', 'Admin'],
+    summary: 'Tandai foto berisi kekerasan (blur) dan tutup laporan. Kata tetap tayang.',
+    request: {
+      params: wordReportIdParamSchema,
+      body: { content: json(resolveWordReportBodySchema) },
+    },
+    responses: {
+      200: { description: 'Foto ditandai kekerasan', content: json(wordReportItemResponseSchema) },
+      400: { description: 'Bukan laporan foto kekerasan', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+      404: { description: 'Laporan atau foto tidak ditemukan', content: json(errorResponseSchema) },
+      409: { description: 'Laporan sudah ditutup', content: json(errorResponseSchema) },
+    },
+  });
+
   routes.openapi(listRoute, (c) => deps.controller.list(c, c.req.valid('query')) as never);
   routes.openapi(getRoute, (c) => deps.controller.get(c, c.req.valid('param').id) as never);
   routes.openapi(
@@ -142,6 +162,11 @@ export function createAdminWordReportRoutes(deps: AdminWordReportRoutesDeps) {
   routes.openapi(
     takedownRoute,
     (c) => deps.controller.takedown(c, c.req.valid('param').id, c.req.valid('json')) as never,
+  );
+  routes.openapi(
+    flagViolentImageRoute,
+    (c) =>
+      deps.controller.flagViolentImage(c, c.req.valid('param').id, c.req.valid('json')) as never,
   );
 
   return routes;

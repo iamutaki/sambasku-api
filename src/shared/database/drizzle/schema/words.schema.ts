@@ -15,6 +15,8 @@ export const words = sqliteTable(
       .notNull()
       .references(() => languages.id),
     lemma: text('lemma').notNull(),
+    // true = koma di lemma memang literal (bukan multi-kata) → keluar antrean Pemisahan
+    lemmaAllowsComma: integer('lemma_allows_comma', { mode: 'boolean' }).notNull().default(false),
     notes: text('notes'),
     // word | idiom | peribahasa | ungkapan - jenis entri, bukan topik
     // (topik = categories). Mengaktifkan relasi has_component & filter search.

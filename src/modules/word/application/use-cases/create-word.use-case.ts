@@ -18,6 +18,7 @@ import type {
 } from '../dto/create-word.dto';
 import { resolvePublication } from '../utils/resolve-publication';
 import { assertCanContribute } from '../utils/assert-can-contribute';
+import { assertContributorWordImageProvider } from '../utils/assert-word-image-provider';
 import {
   DUPLICATE_LEMMA_MERGED_NOW,
   DUPLICATE_LEMMA_PENDING_MERGE,
@@ -56,6 +57,16 @@ export class CreateWordUseCase {
     await assertCanContribute(actor.userId);
     // 0a. Provenance search-miss (12-api) - sebelum insert
     await this.assertSearchMissProvenance(dto);
+
+    for (const img of dto.images ?? []) {
+      assertContributorWordImageProvider(img.provider, actor.role);
+    }
+    for (const rel of dto.relatedWords) {
+      if (!('word' in rel)) continue;
+      for (const img of rel.word.images ?? []) {
+        assertContributorWordImageProvider(img.provider, actor.role);
+      }
+    }
 
     // 0b. Aturan silang: has_component hanya untuk entri frasa (idiom/peribahasa/ungkapan)
     if (

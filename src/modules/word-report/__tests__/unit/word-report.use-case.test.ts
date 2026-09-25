@@ -82,6 +82,7 @@ describe('CreateWordReportUseCase', () => {
     expect(row.status).toBe('open');
     expect(reports.create).toHaveBeenCalledWith({
       wordId: WORD,
+      imageId: null,
       userId: USER,
       reasonCode: 'spam',
       note: null,

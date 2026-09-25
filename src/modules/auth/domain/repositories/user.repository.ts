@@ -11,6 +11,7 @@ export interface UserRepository {
   list(filter: UserListFilter): Promise<UserListResult>;
   updateRole(id: string, role: UserRole): Promise<void>;
   setCanContribute(id: string, canContribute: boolean): Promise<boolean>;
+  setIsActive(id: string, isActive: boolean): Promise<boolean>;
   updatePhone(id: string, phone: string): Promise<void>;
   updateAvatar(
     id: string,

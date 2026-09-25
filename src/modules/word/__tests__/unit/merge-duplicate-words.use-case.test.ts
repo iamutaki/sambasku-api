@@ -12,6 +12,7 @@ function makeWord(overrides: Partial<Word> = {}): Word {
     id: '01WORDKEEP000000000000000',
     languageId: '01LANGLANGUAGESMB0000000',
     lemma: 'lading',
+    lemmaAllowsComma: false,
     notes: null,
     wordType: 'word',
     usageLabels: [],

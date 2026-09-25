@@ -17,12 +17,13 @@ export const importWordsBodySchema = z.object({
       z.object({
         lemma: z.string().trim().min(1, 'Kata tidak boleh kosong').max(255),
         verify: z.boolean().default(false),
+        verified: z.boolean().default(false),
         notes: z.string().trim().max(2000).optional(),
         meanings: z.array(importMeaningSchema).min(1).max(20),
       }),
     )
     .min(1)
-    .max(25),
+    .max(5),
 });
 
 export const importWordsResponseSchema = z.object({

@@ -61,6 +61,8 @@ export interface TranslationHelpListFilter {
   userId?: string;
   limit: number;
   cursor?: string;
+  /** latest = id desc; popular = upvotes desc lalu id desc (hanya published). */
+  sort?: 'latest' | 'popular';
 }
 
 export interface TranslationHelpReplyListFilter {

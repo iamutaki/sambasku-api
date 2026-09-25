@@ -46,6 +46,7 @@ function validBody(overrides: Record<string, unknown> = {}) {
     images: [
       {
         url: 'https://ik.imagekit.io/test/words/makatn.jpg',
+        provider: 'imagekit',
         provider_file_id: `img_${Date.now()}`,
         alt_text: 'Ilustrasi makatn',
         is_primary: true,

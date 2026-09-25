@@ -11,6 +11,7 @@ import type { SearchWordsUseCase } from '../../application/use-cases/search-word
 import type { VerifyWordUseCase } from '../../application/use-cases/verify-word.use-case';
 import type { PublishWordUseCase } from '../../application/use-cases/publish-word.use-case';
 import type { SoftDeleteWordUseCase } from '../../application/use-cases/soft-delete-word.use-case';
+import type { BulkWordsActionUseCase } from '../../application/use-cases/bulk-words-action.use-case';
 import type { TakedownWordUseCase } from '../../application/use-cases/takedown-word.use-case';
 import type { RestoreWordUseCase } from '../../application/use-cases/restore-word.use-case';
 import type { AddPronunciationUseCase } from '../../application/use-cases/add-pronunciation.use-case';
@@ -18,6 +19,11 @@ import type { AddWordImageUseCase } from '../../application/use-cases/add-word-i
 import type { AddExampleUseCase } from '../../application/use-cases/add-example.use-case';
 import type { AddMeaningUseCase } from '../../application/use-cases/add-meaning.use-case';
 import type { ImportWordsUseCase } from '../../application/use-cases/import-words.use-case';
+import type {
+  GetWordImportSessionUseCase,
+  ListWordImportSessionsUseCase,
+  SaveWordImportSessionUseCase,
+} from '../../application/use-cases/word-import-session.use-cases';
 import type { UploadPronunciationAudioUseCase } from '../../application/use-cases/upload-pronunciation-audio.use-case';
 import type { DeletePronunciationAudioUseCase } from '../../application/use-cases/delete-pronunciation-audio.use-case';
 import type {
@@ -28,6 +34,11 @@ import type {
   ListLatestWordsQueryBody,
 } from './validators/create-word.validator';
 import type { ImportWordsBody } from './validators/import-words.validator';
+import type {
+  ListImportSessionsQuery,
+  SaveImportSessionBody,
+} from './validators/import-session.validator';
+import type { BulkWordsBody } from './validators/bulk-words.validator';
 import type { UpdateWordBody } from './validators/update-word.validator';
 import type { TakedownWordBody } from '@/modules/word-report/presentation/v1/validators/word-report.validator';
 import type {
@@ -39,6 +50,7 @@ import type {
 import { toCreateWordDto, toUpdateWordDto } from './map-create-word';
 import { ANONIM_USER_ID } from '@/shared/constants/anonim';
 import type { LatestWordSummary, WordClassSummary, WordDetail } from '../../domain/entities/word.entity';
+import { mapPublicWordImageUrl } from './map-word-image-url';
 import type { ListAdminWordsUseCase } from '../../application/use-cases/list-admin-words.use-case';
 import type { ListWordsUseCase } from '../../application/use-cases/list-words.use-case';
 import type { ListLatestWordsUseCase } from '../../application/use-cases/list-latest-words.use-case';
@@ -47,8 +59,15 @@ import {
   pickDefaultKeepWordId,
 } from '../../application/use-cases/list-duplicate-words.use-case';
 import type { MergeDuplicateWordsUseCase } from '../../application/use-cases/merge-duplicate-words.use-case';
+import type { ListCommaSplitsUseCase } from '../../application/use-cases/list-comma-splits.use-case';
+import type { ApplyCommaSplitUseCase } from '../../application/use-cases/apply-comma-split.use-case';
+import type { MarkCommaLiteralUseCase } from '../../application/use-cases/mark-comma-literal.use-case';
 import { MAX_AUDIO_BYTES } from '../../application/utils/validate-audio-file';
-import type { MergeDuplicateWordsBody } from './validators/create-word.validator';
+import type {
+  ApplyCommaSplitBody,
+  MarkCommaLiteralBody,
+  MergeDuplicateWordsBody,
+} from './validators/create-word.validator';
 
 export class WordController {
   constructor(
@@ -64,9 +83,13 @@ export class WordController {
       listLatest: ListLatestWordsUseCase;
       listDuplicates: ListDuplicateWordsUseCase;
       mergeDuplicates: MergeDuplicateWordsUseCase;
+      listCommaSplits: ListCommaSplitsUseCase;
+      applyCommaSplit: ApplyCommaSplitUseCase;
+      markCommaLiteral: MarkCommaLiteralUseCase;
       verify: VerifyWordUseCase;
       publish: PublishWordUseCase;
       deleteWord: SoftDeleteWordUseCase;
+      bulkWords: BulkWordsActionUseCase;
       takedownWord: TakedownWordUseCase;
       restoreWord: RestoreWordUseCase;
       addPronunciation: AddPronunciationUseCase;
@@ -74,6 +97,9 @@ export class WordController {
       addExample: AddExampleUseCase;
       addMeaning: AddMeaningUseCase;
       importWords: ImportWordsUseCase;
+      saveImportSession: SaveWordImportSessionUseCase;
+      listImportSessions: ListWordImportSessionsUseCase;
+      getImportSession: GetWordImportSessionUseCase;
       uploadPronunciationAudio: UploadPronunciationAudioUseCase;
       deletePronunciationAudio: DeletePronunciationAudioUseCase;
       listWordClasses: () => Promise<WordClassSummary[]>;
@@ -150,15 +176,91 @@ export class WordController {
     return c.json({ success: true as const, data: result }, body.mode === 'commit' ? 201 : 200);
   }
 
+  async saveImportSession(c: Context, body: SaveImportSessionBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const session = await this.deps.saveImportSession.execute({
+      id: body.id,
+      triggeredBy: actor.user_id,
+      sourceLabel: body.source_label,
+      status: body.status,
+      total: body.total,
+      createdCount: body.created_count,
+      duplicatesCount: body.duplicates_count,
+      meaningsAddedCount: body.meanings_added_count,
+      invalidCount: body.invalid_count,
+      items: body.items,
+    });
+    return c.json({ success: true as const, data: this.toImportSessionData(session) }, 201);
+  }
+
+  async listImportSessions(c: Context, query: ListImportSessionsQuery) {
+    const limit = query.limit ?? 20;
+    const page = await this.deps.listImportSessions.execute({
+      limit,
+      cursor: query.cursor,
+    });
+    return c.json({
+      success: true as const,
+      data: page.items.map((session) => this.toImportSessionData(session)),
+      meta: {
+        limit,
+        next_cursor: page.nextCursor,
+        has_more: page.hasMore,
+      },
+    });
+  }
+
+  async getImportSession(c: Context, id: string) {
+    const session = await this.deps.getImportSession.execute(id);
+    return c.json({ success: true as const, data: this.toImportSessionData(session) });
+  }
+
+  private toImportSessionData(session: {
+    id: string;
+    triggeredBy: string;
+    triggeredByUsername: string | null;
+    attributedTo: string;
+    attributedToUsername: string | null;
+    sourceLabel: string | null;
+    status: 'running' | 'completed' | 'cancelled' | 'failed';
+    total: number;
+    createdCount: number;
+    duplicatesCount: number;
+    meaningsAddedCount: number;
+    invalidCount: number;
+    items: { lemma: string; outcome: 'created' | 'meanings_added' | 'skipped' | 'invalid'; meanings_added: number; message?: string }[];
+    createdAt: Date;
+    finishedAt: Date | null;
+  }) {
+    return {
+      id: session.id,
+      triggered_by: session.triggeredBy,
+      triggered_by_username: session.triggeredByUsername,
+      attributed_to: session.attributedTo,
+      attributed_to_username: session.attributedToUsername,
+      source_label: session.sourceLabel,
+      status: session.status,
+      total: session.total,
+      created_count: session.createdCount,
+      duplicates_count: session.duplicatesCount,
+      meanings_added_count: session.meaningsAddedCount,
+      invalid_count: session.invalidCount,
+      items: session.items,
+      created_at: session.createdAt.toISOString(),
+      finished_at: session.finishedAt?.toISOString() ?? null,
+    };
+  }
+
   async detail(c: Context, id: string) {
     const word = await this.deps.getById.execute(id);
-    return c.json({ success: true as const, data: this.toDetailData(word) });
+    return c.json({ success: true as const, data: this.toDetailData(word, { redactStagingImages: true }) });
   }
 
   /** URL publik /words/<lemma> - resolusi homonim di repository. */
   async detailByLemma(c: Context, lemma: string) {
     const word = await this.deps.getByLemma.execute(lemma);
-    return c.json({ success: true as const, data: this.toDetailData(word) });
+    return c.json({ success: true as const, data: this.toDetailData(word, { redactStagingImages: true }) });
   }
 
   /** 28-api-word-of-the-day.md - payload detail + date + is_new_this_week,
@@ -168,7 +270,11 @@ export class WordController {
     return c.json({
       success: true as const,
       data: word
-        ? { ...this.toDetailData(word), date, is_new_this_week: isNewThisWeek }
+        ? {
+            ...this.toDetailData(word, { redactStagingImages: true }),
+            date,
+            is_new_this_week: isNewThisWeek,
+          }
         : null,
     });
   }
@@ -183,7 +289,7 @@ export class WordController {
     return c.json({
       success: true as const,
       data: {
-        ...this.toDetailData(word),
+        ...this.toDetailData(word, { redactStagingImages: false }),
         created_at: word.createdAt.toISOString(),
         updated_at: word.updatedAt ? word.updatedAt.toISOString() : null,
         takedown_reason_code: word.takedownReasonCode,
@@ -225,11 +331,13 @@ export class WordController {
     });
   }
 
-  // Mapping WordDetail → response - dipakai bersama detail publik & admin
-  private toDetailData(word: WordDetail) {
+  // Mapping WordDetail → response - dipakai bersama detail publik & admin.
+  // redactStagingImages: GET publik menyembunyikan URL ImageKit belum diverifikasi.
+  private toDetailData(word: WordDetail, opts: { redactStagingImages: boolean }) {
     return {
       id: word.id,
       lemma: word.lemma,
+      lemma_allows_comma: word.lemmaAllowsComma,
       language_id: word.languageId,
       notes: word.notes,
       word_type: word.wordType,
@@ -265,6 +373,7 @@ export class WordController {
           language_id: t.languageId,
           translation_text: t.translationText,
           translation_type: t.translationType,
+          translation_allows_comma: t.translationAllowsComma ?? false,
         })),
         examples: m.examples.map((e) => ({
           id: e.id,
@@ -291,16 +400,37 @@ export class WordController {
         value: p.value,
         dialect_id: p.dialectId,
       })),
-      images: word.images.map((img) => ({
-        id: img.id,
-        url: img.url,
-        // WAJIB untuk round-trip PUT edit (full-replace): tanpa ini form
-        // edit tidak bisa mengirim ulang images[] → gambar terhapus senyap
-        provider_file_id: img.providerFileId,
-        sha: img.sha,
-        alt_text: img.altText,
-        is_primary: img.isPrimary,
-      })),
+      images: word.images.map((img) => {
+        const mapped = mapPublicWordImageUrl(
+          {
+            url: img.url,
+            provider: img.provider,
+            isVerified: img.isVerified,
+            providerFileId: img.providerFileId,
+          },
+          { redactStaging: opts.redactStagingImages },
+        );
+        return {
+          id: img.id,
+          url: mapped.url,
+          // WAJIB untuk round-trip PUT edit (full-replace): tanpa ini form
+          // edit tidak bisa mengirim ulang images[] → gambar terhapus senyap
+          provider_file_id: mapped.providerFileId,
+          sha: opts.redactStagingImages && img.provider === 'imagekit' && img.isVerified !== true
+            ? null
+            : img.sha,
+          alt_text: img.altText,
+          is_primary: img.isPrimary,
+          content_warnings: img.contentWarnings ?? [],
+          // Publik juga butuh is_verified agar klien blur/pending tanpa tebak placehold.co
+          is_verified: img.isVerified ?? false,
+          ...(opts.redactStagingImages
+            ? {}
+            : {
+                provider: img.provider,
+              }),
+        };
+      }),
       audios: word.audios.map((a) => ({
         id: a.id,
         url: a.url,
@@ -482,6 +612,118 @@ export class WordController {
     });
   }
 
+  async listCommaSplits(c: Context) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+
+    const result = await this.deps.listCommaSplits.execute();
+    return c.json({
+      success: true as const,
+      data: {
+        total: result.total,
+        lemmas: result.lemmas.map((item) => ({
+          word_id: item.wordId,
+          lemma: item.lemma,
+          language_id: item.languageId,
+          language_code: item.languageCode,
+          word_type: item.wordType,
+          status: item.status,
+          is_verified: item.isVerified,
+          meanings_count: item.meaningsCount,
+          suggested_parts: item.suggestedParts,
+          meaning_preview: item.meaningPreview,
+          copied_translation: item.copiedTranslation,
+          copied_definition: item.copiedDefinition,
+        })),
+        translations: result.translations.map((item) => ({
+          meaning_translation_id: item.meaningTranslationId,
+          meaning_id: item.meaningId,
+          word_id: item.wordId,
+          lemma: item.lemma,
+          translation_text: item.translationText,
+          language_id: item.languageId,
+          language_code: item.languageCode,
+          suggested_parts: item.suggestedParts,
+          definition: item.definition,
+          word_class_id: item.wordClassId,
+        })),
+      },
+    });
+  }
+
+  async applyCommaSplit(c: Context, body: ApplyCommaSplitBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+
+    const result =
+      body.kind === 'lemma'
+        ? await this.deps.applyCommaSplit.execute({
+            kind: 'lemma',
+            wordId: body.word_id,
+            parts: body.parts,
+            meaningOverrides: body.meaning_overrides?.map((item) =>
+              item.mode === 'copy'
+                ? { mode: 'copy' as const }
+                : {
+                    mode: 'replace' as const,
+                    translationText: item.translation_text,
+                    definition: item.definition?.trim() ? item.definition.trim() : null,
+                    wordClassId: item.word_class_id ?? null,
+                    meaningSource: item.meaning_source,
+                  },
+            ),
+            actorId: actor.user_id,
+            requestId,
+          })
+        : await this.deps.applyCommaSplit.execute({
+            kind: 'translation',
+            meaningTranslationId: body.meaning_translation_id,
+            parts: body.parts,
+            actorId: actor.user_id,
+            requestId,
+          });
+
+    return c.json({
+      success: true as const,
+      data: {
+        kind: result.kind,
+        word_id: result.wordId,
+        ...(result.createdWordIds ? { created_word_ids: result.createdWordIds } : {}),
+        ...(result.meaningIds ? { meaning_ids: result.meaningIds } : {}),
+      },
+    });
+  }
+
+  async markCommaLiteral(c: Context, body: MarkCommaLiteralBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+
+    const result =
+      body.kind === 'lemma'
+        ? await this.deps.markCommaLiteral.execute({
+            kind: 'lemma',
+            wordId: body.word_id,
+            actorId: actor.user_id,
+            requestId,
+          })
+        : await this.deps.markCommaLiteral.execute({
+            kind: 'translation',
+            meaningTranslationId: body.meaning_translation_id,
+            actorId: actor.user_id,
+            requestId,
+          });
+
+    return c.json({
+      success: true as const,
+      data: {
+        kind: result.kind,
+        id: result.id,
+      },
+    });
+  }
+
   /**
    * Submit kata via endpoint publik /api/v1/contributions/words.
    * - Tanpa Bearer → user sistem Anonim (legacy anonim).
@@ -583,6 +825,7 @@ export class WordController {
           sha: body.sha ?? null,
           altText: body.alt_text,
           isPrimary: body.is_primary,
+          contentWarnings: body.content_warnings ?? [],
         },
         actor,
       ),
@@ -597,6 +840,7 @@ export class WordController {
           provider_file_id: media.providerFileId,
           alt_text: media.altText,
           is_primary: media.isPrimary,
+          content_warnings: media.contentWarnings,
           status: media.status,
           is_verified: media.isVerified,
           is_corrected: media.isCorrected,
@@ -775,6 +1019,31 @@ export class WordController {
       logger.info({ request_id: actor.requestId, word_id: id }, 'word soft-deleted');
 
       return c.json({ success: true as const, data: null });
+    });
+  }
+
+  /** Mass-action kata - POST /api/v1/admin/words/bulk (delete | publish | unpublish) */
+  async bulkWords(c: Context, body: BulkWordsBody) {
+    return this.withActor(c, async (actor) => {
+      const data = await this.deps.bulkWords.execute({
+        action: body.action,
+        ids: body.ids,
+        actorId: actor.userId,
+        actorRole: actor.role,
+        requestId: actor.requestId,
+      });
+
+      logger.info(
+        {
+          request_id: actor.requestId,
+          action: data.action,
+          succeeded: data.succeeded,
+          failed: data.failed,
+        },
+        'words bulk action',
+      );
+
+      return c.json({ success: true as const, data });
     });
   }
 

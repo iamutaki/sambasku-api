@@ -2,28 +2,45 @@ import { describe, expect, it } from 'vitest';
 import { decideImportPublication, meaningFingerprint } from '../../application/import-words';
 
 describe('decideImportPublication', () => {
-  it('verifikator yang mencentang membuat kata tayang', () => {
-    expect(decideImportPublication({ verify: true, role: 'admin', parentStatus: null })).toEqual({
+  it('centang tayang saja menayangkan tanpa verifikasi', () => {
+    expect(decideImportPublication({ verify: true, verified: false, role: 'admin', parentStatus: null })).toEqual({
+      status: 'published',
+      isVerified: false,
+      forcedDraft: false,
+    });
+  });
+
+  it('tayang dan terverifikasi menandai kata terverifikasi', () => {
+    expect(decideImportPublication({ verify: true, verified: true, role: 'reviewer', parentStatus: null })).toEqual({
       status: 'published',
       isVerified: true,
       forcedDraft: false,
     });
   });
 
-  it('tanpa centang tetap draf', () => {
-    expect(decideImportPublication({ verify: false, role: 'reviewer', parentStatus: null }).status).toBe('draft');
+  it('tanpa centang tayang tetap draf meski terverifikasi dicentang', () => {
+    const result = decideImportPublication({ verify: false, verified: true, role: 'reviewer', parentStatus: null });
+    expect(result.status).toBe('draft');
+    expect(result.isVerified).toBe(false);
   });
 
-  it('editor tidak bisa memverifikasi', () => {
-    expect(decideImportPublication({ verify: true, role: 'editor', parentStatus: null }).isVerified).toBe(false);
+  it('editor tidak bisa menayangkan atau memverifikasi', () => {
+    expect(decideImportPublication({ verify: true, verified: true, role: 'editor', parentStatus: null })).toEqual({
+      status: 'draft',
+      isVerified: false,
+      forcedDraft: false,
+    });
   });
 
   it('induk belum tayang memaksa makna baru jadi draf', () => {
-    expect(decideImportPublication({ verify: true, role: 'admin', parentStatus: 'draft' })).toMatchObject({
+    expect(decideImportPublication({ verify: true, verified: true, role: 'admin', parentStatus: 'draft' })).toMatchObject({
       status: 'draft',
+      isVerified: false,
       forcedDraft: true,
     });
-    expect(decideImportPublication({ verify: true, role: 'admin', parentStatus: 'taken_down' }).forcedDraft).toBe(true);
+    expect(
+      decideImportPublication({ verify: true, verified: true, role: 'admin', parentStatus: 'taken_down' }).forcedDraft,
+    ).toBe(true);
   });
 });
 

@@ -43,6 +43,7 @@ export class ApproveVerifierApplicationUseCase {
       userId: updated.userId,
       title: 'Pengajuan verifikator disetujui',
       body: 'Pengajuan Anda disetujui. Masuk ulang agar peran baru aktif.',
+      actorId: cmd.actorId,
       data: {
         type: 'verifier_application_approved',
         target_kind: 'verifier_application',

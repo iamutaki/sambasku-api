@@ -1,4 +1,5 @@
 import type { UsageLabel } from '@/shared/constants/usage-labels';
+import type { ImageContentWarning } from '@/shared/constants/image-content-warnings';
 
 // Entitas domain - murni TypeScript, tidak tahu Drizzle/HTTP
 // Section 22 (approval gate): pending_review/rejected hanya di-set sistem
@@ -14,6 +15,13 @@ export const TAKEDOWN_REASON_CODES = [
   'other',
 ] as const;
 export type TakedownReasonCode = (typeof TAKEDOWN_REASON_CODES)[number];
+
+/** Alasan laporan: takedown + laporan foto kekerasan. */
+export const WORD_REPORT_REASON_CODES = [
+  ...TAKEDOWN_REASON_CODES,
+  'violent_image',
+] as const;
+export type WordReportReasonCode = (typeof WORD_REPORT_REASON_CODES)[number];
 export type WordType = 'word' | 'idiom' | 'peribahasa' | 'ungkapan';
 /** Status publikasi konten anak (pronunciations/images/examples) - tanpa draft */
 export type ChildStatus = 'pending_review' | 'published' | 'rejected';
@@ -22,6 +30,8 @@ export interface Word {
   id: string;
   languageId: string;
   lemma: string;
+  /** true = koma di lemma literal, bukan multi-kata (tab Pemisahan). */
+  lemmaAllowsComma: boolean;
   notes: string | null;
   wordType: WordType;
   usageLabels: UsageLabel[];
@@ -103,13 +113,18 @@ export interface WordDetail extends Word {
   images: {
     id: string;
     url: string;
+    /** Provider storage / stock (imagekit staging, github, pexels, …) */
+    provider: string;
     /** wajib dibawa form edit untuk round-trip PUT (full-replace images[]) */
     providerFileId: string;
     sha?: string | null;
     altText: string | null;
     isPrimary: boolean;
+    /** Peringatan visual per foto (closed enum). */
+    contentWarnings: ImageContentWarning[];
     status?: ChildStatus;
-    isVerified?: boolean;
+    /** selalu diisi agar mapper publik bisa redact staging ImageKit */
+    isVerified: boolean;
     isCorrected?: boolean;
   }[];
   /** Audio pelafalan lemma (example_id IS NULL). Multi-take. */

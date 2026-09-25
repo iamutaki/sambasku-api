@@ -4,7 +4,16 @@ import { opaqueId } from '@/shared/validation/id';
 
 const ulid = opaqueId;
 
-export const voteTargetTypeEnum = z.enum(['word', 'meaning', 'example', 'pronunciation', 'word_image', 'comment']);
+export const voteTargetTypeEnum = z.enum([
+  'word',
+  'meaning',
+  'example',
+  'pronunciation',
+  'word_image',
+  'comment',
+  'translation_help_reply',
+  'translation_help',
+]);
 
 export const toggleVoteSchema = z.object({
   target_type: voteTargetTypeEnum,
@@ -19,7 +28,8 @@ export type ToggleVoteBody = z.infer<typeof toggleVoteSchema>;
 // adalah cek eksistensi di use case (404). Alfabet sengaja longgar
 // ([0-9A-Za-z], bukan Crockford ketat) karena fixture ULID handmade di
 // repo memakai huruf bebas (mis. 01U2E... mengandung U).
-const TARGET_PATTERN = /^(word|meaning|example|pronunciation|word_image|comment):[0-9A-Za-z]{26}$/;
+const TARGET_PATTERN =
+  /^(word|meaning|example|pronunciation|word_image|comment|translation_help_reply|translation_help):[0-9A-Za-z]{26}$/;
 export const MAX_VOTE_TARGETS = 50;
 
 // "word:01X,meaning:01Y" → array target tervalidasi (trim, dedupe, maks 50)
@@ -112,4 +122,36 @@ export const myVotesResponseSchema = z.object({
       value: z.union([z.literal(1), z.literal(-1)]),
     }),
   ),
+});
+
+/** GET /api/v1/votes/deck — antrean kata belum di-vote (34-api-vote-deck.md). */
+export const voteDeckQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(20).default(10),
+  cursor: z.string().min(1).optional(),
+});
+
+export type VoteDeckQuery = z.infer<typeof voteDeckQuerySchema>;
+
+export const voteDeckResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(
+    z.object({
+      id: z.string(),
+      lemma: z.string(),
+      language_id: z.string(),
+      language_code: z.string(),
+      word_type: z.string(),
+      status: z.string(),
+      is_verified: z.boolean(),
+      approved_at: z.string(),
+      sense: z.string().nullable(),
+      upvotes: z.number().int(),
+      downvotes: z.number().int(),
+    }),
+  ),
+  meta: z.object({
+    limit: z.number().int(),
+    next_cursor: z.string().nullable(),
+    has_more: z.boolean(),
+  }),
 });

@@ -1,5 +1,6 @@
 import type { WordDetail } from '../../domain/entities/word.entity';
 import type { WordRepository } from '../../domain/repositories/word.repository';
+import { hasFeedExcludedUsageLabels } from '@/shared/constants/usage-labels';
 
 export interface WordOfDayResult {
   /** 'YYYY-MM-DD' WIB yang dipakai seed pemilihan kata */
@@ -23,6 +24,9 @@ export function wibDateString(now: Date): string {
  * (repo ORDER BY md5(id || ':' || date)). Hasil di-cache in-memory per
  * tanggal - invalid otomatis saat tanggal berganti; per-isolate di Workers
  * aman karena pemilihan deterministik, cache hanya performa.
+ *
+ * Re-validasi label feed-excluded pada hit cache: admin bisa mengubah
+ * usage_labels mid-day tanpa restart isolate.
  */
 export class GetWordOfDayUseCase {
   private cache: { date: string; result: WordOfDayResult } | null = null;
@@ -31,12 +35,21 @@ export class GetWordOfDayUseCase {
 
   async execute(now: Date = new Date()): Promise<WordOfDayResult> {
     const date = wibDateString(now);
-    if (this.cache?.date === date) return this.cache.result;
+    if (this.cache?.date === date) {
+      const cached = this.cache.result;
+      if (!cached.word || !hasFeedExcludedUsageLabels(cached.word.usageLabels)) {
+        return cached;
+      }
+      this.cache = null;
+    }
 
     const id = await this.wordRepo.findWordOfDayId(date);
     // Race jarang: kata ter-unpublish di antara dua query → detail null →
     // hari itu dianggap kosong. Diterima (kata terganti besok).
-    const word = id ? await this.wordRepo.findDetailById(id) : null;
+    let word = id ? await this.wordRepo.findDetailById(id) : null;
+    if (word && hasFeedExcludedUsageLabels(word.usageLabels)) {
+      word = null;
+    }
     const isNewThisWeek = Boolean(
       word?.verifiedAt && now.getTime() - word.verifiedAt.getTime() <= SEVEN_DAYS_MS,
     );

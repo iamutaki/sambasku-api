@@ -1,7 +1,7 @@
 /**
  * Provider gambar kata: upload storage aktif (github/imagekit) ATAU stock
- * Media Explorer (pexels/…). Client boleh kirim provider stock; absen/github
- * → diisi dari storage aktif di presentation layer.
+ * Media Explorer (pexels/…). Client boleh kirim provider stock atau imagekit
+ * (staging kontributor); absen/github → diisi dari storage aktif di presentation.
  */
 
 export const STOCK_WORD_IMAGE_PROVIDERS = [
@@ -46,7 +46,7 @@ export function isAllowedStockImageUrl(provider: StockWordImageProvider, url: st
 
 /**
  * Resolve provider yang disimpan di DB.
- * Stock dari client dipertahankan; selain itu pakai storage aktif.
+ * Stock / imagekit staging dari client dipertahankan; selain itu pakai storage aktif.
  */
 export function resolveWordImageProvider(
   clientProvider: string | undefined,
@@ -55,5 +55,13 @@ export function resolveWordImageProvider(
   if (clientProvider && isStockWordImageProvider(clientProvider)) {
     return clientProvider;
   }
+  if (clientProvider === 'imagekit') {
+    return 'imagekit';
+  }
   return activeStorageProvider;
+}
+
+/** Gambar stock / sudah di GitHub publik dianggap aman tanpa gate staging. */
+export function wordImageIsAutoVerified(provider: string): boolean {
+  return isStockWordImageProvider(provider) || provider === 'github';
 }

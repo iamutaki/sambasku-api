@@ -20,6 +20,11 @@ export const wordImages = sqliteTable(
     url: text('url').notNull(),
     altText: text('alt_text'),
     isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(false),
+    /** Peringatan visual per foto (JSON array closed enum), bukan usage_labels kata. */
+    contentWarnings: text('content_warnings', { mode: 'json' })
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     // Approval gate (Section 22) - kontribusi mandiri: pending sampai
     // disetujui verifikator; identitas reviewer ada di contribution_reviews
     status: text('status').notNull().default('published'),

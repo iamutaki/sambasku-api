@@ -10,6 +10,9 @@ export type PublishOrMergeResult = {
  * Tayangkan kata, atau merge meanings ke published twin (lemma+bahasa sama)
  * lalu soft-delete sumber (12-api §8). Dipakai WordRepository + review approve.
  *
+ * Soft-deleted source: tetap dilayani bila ada twin published (antrean pending
+ * orphan setelah merge-duplikat / hapus kata tanpa menutup kontribusi).
+ *
  * @param opts.skipPublishIfNoTwin - true kalau kata sudah published+verified
  *   (mis. correct publish lewat updateWithRelations). Tanpa twin: return cepat
  *   tanpa UPDATE words / publishWordChildren. Dengan twin: tetap merge.
@@ -23,11 +26,8 @@ export async function publishOrMergeMeaningsInTx(
   opts?: { skipPublishIfNoTwin?: boolean },
 ): Promise<PublishOrMergeResult | null> {
   const now = new Date();
-  const [word] = await tx
-    .select()
-    .from(words)
-    .where(and(eq(words.id, wordId), isNull(words.deletedAt)))
-    .limit(1);
+  // Sertakan soft-deleted: orphan pending bisa menunjuk kata yang sudah digabung.
+  const [word] = await tx.select().from(words).where(eq(words.id, wordId)).limit(1);
   if (!word) return null;
 
   const [twin] = await tx
@@ -44,6 +44,12 @@ export async function publishOrMergeMeaningsInTx(
     )
     .orderBy(asc(words.createdAt))
     .limit(1);
+
+  if (word.deletedAt != null) {
+    if (!twin) return null;
+    await moveMeaningsToTwin(tx, wordId, twin.id, actorId, now);
+    return { wordId: twin.id, mergedIntoWordId: twin.id };
+  }
 
   if (!twin) {
     if (opts?.skipPublishIfNoTwin) {
@@ -66,40 +72,7 @@ export async function publishOrMergeMeaningsInTx(
     return { wordId, mergedIntoWordId: null };
   }
 
-  const [maxRow] = await tx
-    .select({ max: sql<number>`coalesce(max(${meanings.orderIndex}), -1)` })
-    .from(meanings)
-    .where(and(eq(meanings.wordId, twin.id), isNull(meanings.deletedAt)));
-  let nextOrder = Number(maxRow?.max ?? -1) + 1;
-
-  const sourceMeanings = await tx
-    .select({ id: meanings.id })
-    .from(meanings)
-    .where(and(eq(meanings.wordId, wordId), isNull(meanings.deletedAt)))
-    .orderBy(asc(meanings.orderIndex));
-
-  for (const m of sourceMeanings) {
-    await tx
-      .update(meanings)
-      .set({
-        wordId: twin.id,
-        orderIndex: nextOrder++,
-        status: 'published',
-        isVerified: true,
-        updatedBy: actorId,
-        updatedAt: now,
-      })
-      .where(eq(meanings.id, m.id));
-    await tx
-      .update(examples)
-      .set({
-        status: 'published',
-        isVerified: true,
-        updatedBy: actorId,
-        updatedAt: now,
-      })
-      .where(and(eq(examples.meaningId, m.id), isNull(examples.deletedAt)));
-  }
+  await moveMeaningsToTwin(tx, wordId, twin.id, actorId, now);
 
   await tx
     .update(words)
@@ -127,6 +100,51 @@ export async function publishOrMergeMeaningsInTx(
     .where(and(eq(wordAudios.wordId, wordId), isNull(wordAudios.deletedAt)));
 
   return { wordId: twin.id, mergedIntoWordId: twin.id };
+}
+
+/** Pindahkan makna (+ contoh) sumber ke twin published; no-op kalau kosong. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function moveMeaningsToTwin(
+  tx: any,
+  sourceWordId: string,
+  twinWordId: string,
+  actorId: string,
+  now: Date,
+): Promise<void> {
+  const [maxRow] = await tx
+    .select({ max: sql<number>`coalesce(max(${meanings.orderIndex}), -1)` })
+    .from(meanings)
+    .where(and(eq(meanings.wordId, twinWordId), isNull(meanings.deletedAt)));
+  let nextOrder = Number(maxRow?.max ?? -1) + 1;
+
+  const sourceMeanings = await tx
+    .select({ id: meanings.id })
+    .from(meanings)
+    .where(and(eq(meanings.wordId, sourceWordId), isNull(meanings.deletedAt)))
+    .orderBy(asc(meanings.orderIndex));
+
+  for (const m of sourceMeanings) {
+    await tx
+      .update(meanings)
+      .set({
+        wordId: twinWordId,
+        orderIndex: nextOrder++,
+        status: 'published',
+        isVerified: true,
+        updatedBy: actorId,
+        updatedAt: now,
+      })
+      .where(eq(meanings.id, m.id));
+    await tx
+      .update(examples)
+      .set({
+        status: 'published',
+        isVerified: true,
+        updatedBy: actorId,
+        updatedAt: now,
+      })
+      .where(and(eq(examples.meaningId, m.id), isNull(examples.deletedAt)));
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

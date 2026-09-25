@@ -48,6 +48,7 @@ export class TakedownTranslationHelpUseCase {
       type: 'translation_help_taken_down',
       targetKind: 'translation_help',
       targetId: updated.id,
+      actorId: cmd.actorId,
     });
 
     return updated;

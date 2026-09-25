@@ -10,6 +10,7 @@ import type {
 } from '../entities/word.entity';
 import type { CreateWordDto, RelationType } from '../../application/dto/create-word.dto';
 import type { MeaningMedia } from '../entities/meaning.entity';
+import type { ImageContentWarning } from '@/shared/constants/image-content-warnings';
 
 // status & isVerified & isCorrected di-override use case
 // (Section 22 - approval gate; resolvePublication)
@@ -108,6 +109,75 @@ export interface DuplicateWordGroup {
   languageId: string;
   languageCode: string;
   items: DuplicateWordItem[];
+}
+
+/** Kandidat pecah lemma berkoma (tab Pemisahan). */
+export interface CommaSplitLemmaCandidate {
+  wordId: string;
+  lemma: string;
+  languageId: string;
+  languageCode: string;
+  wordType: WordType;
+  status: WordStatus;
+  isVerified: boolean;
+  meaningsCount: number;
+  suggestedParts: string[];
+  meaningPreview: string[];
+  /** Padanan pertama, untuk pratinjau field yang masih bisa diganti. */
+  copiedTranslation: string;
+  /** Definisi pertama yang bukan placeholder, kosong bila tidak ada. */
+  copiedDefinition: string;
+}
+
+/** Satu bagian tambahan saat pecah lemma: salin makna, atau ganti. */
+export type LemmaSplitMeaningOverride =
+  | { mode: 'copy' }
+  | {
+      mode: 'replace';
+      translationText: string;
+      definition: string | null;
+      wordClassId: string | null;
+      meaningSource: 'manual' | 'kbbi';
+    };
+
+export interface LemmaSplitMeaningSnapshot {
+  translationTexts: string[];
+  definition: string | null;
+}
+
+export interface LemmaSplitCreatedWord {
+  wordId: string;
+  lemma: string;
+  mode: 'copy' | 'replace';
+  translationText: string;
+  meaningSource: 'copied' | 'manual' | 'kbbi';
+}
+
+export interface LemmaSplitResult {
+  wordId: string;
+  keptLemma: string;
+  oldLemma: string;
+  meanings: LemmaSplitMeaningSnapshot[];
+  created: LemmaSplitCreatedWord[];
+}
+
+/** Kandidat pecah padanan berkoma → beberapa makna. */
+export interface CommaSplitTranslationCandidate {
+  meaningTranslationId: string;
+  meaningId: string;
+  wordId: string;
+  lemma: string;
+  translationText: string;
+  languageId: string;
+  languageCode: string;
+  suggestedParts: string[];
+  definition: string;
+  wordClassId: string | null;
+}
+
+export interface CommaSplitCandidates {
+  lemmas: CommaSplitLemmaCandidate[];
+  translations: CommaSplitTranslationCandidate[];
 }
 
 // Pagination cursor-based (base-stack.md Section 13): cursor = ULID id
@@ -306,6 +376,35 @@ export interface WordRepository {
     actorId: string,
   ): Promise<{ keepWordId: string; mergedWordIds: string[] }>;
 
+  /** Antrean tab Pemisahan: lemma/padanan mengandung koma dan belum di-flag literal. */
+  listCommaSplitCandidates(): Promise<CommaSplitCandidates>;
+
+  /**
+   * Pecah lemma: rename asli → parts[0], buat kata baru untuk sisanya.
+   * Tanpa override (atau mode copy) makna disalin. mode replace menulis
+   * satu makna baru dan tidak menyalin contoh/catatan/label.
+   * parts harus ≥2. overrides, bila ada, panjangnya parts.length - 1.
+   */
+  applyCommaSplitLemma(
+    wordId: string,
+    parts: string[],
+    overrides: LemmaSplitMeaningOverride[] | undefined,
+    actorId: string,
+  ): Promise<LemmaSplitResult>;
+
+  /**
+   * Pecah padanan → N makna: update padanan sumber → parts[0],
+   * buat makna baru untuk sisanya.
+   */
+  applyCommaSplitTranslation(
+    meaningTranslationId: string,
+    parts: string[],
+    actorId: string,
+  ): Promise<{ wordId: string; meaningIds: string[] }>;
+
+  markLemmaAllowsComma(wordId: string, actorId: string): Promise<boolean>;
+  markTranslationAllowsComma(meaningTranslationId: string, actorId: string): Promise<boolean>;
+
   /**
    * Soft-delete kata (07-api-delete-kata.md): set deleted_at + deleted_by,
    * baris & children tetap utuh untuk audit/recovery. Semua query publik &
@@ -361,11 +460,38 @@ export interface WordRepository {
       sha?: string | null;
       altText?: string | null;
       isPrimary: boolean;
+      contentWarnings?: ImageContentWarning[];
       status: ChildStatus;
       isVerified: boolean;
     },
     actorId: string,
   ): Promise<WordImageMedia>;
+
+  /** Set/clear peringatan visual foto (admin/verifikator atau resolve laporan). */
+  setWordImageContentWarnings(
+    id: string,
+    contentWarnings: ImageContentWarning[],
+  ): Promise<WordImageMedia | null>;
+
+  /** Gambar hidup pada kata (untuk validasi keputusan review). */
+  listWordImages(wordId: string): Promise<WordImageMedia[]>;
+
+  /** Gambar ImageKit belum diverifikasi pada kata (untuk promote saat approve). */
+  listStagingWordImages(wordId: string): Promise<WordImageMedia[]>;
+
+  findWordImageById(id: string): Promise<WordImageMedia | null>;
+
+  /** Setelah promote staging → GitHub. */
+  applyPromotedWordImage(
+    id: string,
+    data: { url: string; provider: string; providerFileId: string; sha: string },
+  ): Promise<void>;
+
+  /**
+   * Soft-delete foto (moderasi: jangan tayangkan / tolak).
+   * Jika salah satu is_primary, primary dibersihkan (tidak auto-pilih pengganti).
+   */
+  softDeleteWordImages(ids: string[]): Promise<void>;
 
   /**
    * Insert audio pelafalan (multi) pada kata / contoh + contributions.
@@ -503,6 +629,7 @@ export interface WordImageMedia {
   url: string;
   altText: string | null;
   isPrimary: boolean;
+  contentWarnings: ImageContentWarning[];
   status: ChildStatus;
   isVerified: boolean;
   isCorrected: boolean;

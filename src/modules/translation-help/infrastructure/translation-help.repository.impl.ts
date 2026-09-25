@@ -1,6 +1,11 @@
-import { and, asc, desc, eq, lt } from 'drizzle-orm';
+import { and, asc, desc, eq, lt, sql } from 'drizzle-orm';
 import { publicAccountName } from '@/shared/constants/deleted-account';
-import { translationHelpReplies, translationHelps, users } from '@/shared/database/drizzle/schema';
+import {
+  translationHelpReplies,
+  translationHelps,
+  users,
+  votes,
+} from '@/shared/database/drizzle/schema';
 import type { AppDatabase } from '@/shared/database/drizzle/client';
 import type { TranslationHelpImageRow } from '@/shared/database/drizzle/schema/translation-helps.schema';
 import type { CursorPage } from '@/modules/word/domain/repositories/word.repository';
@@ -18,6 +23,22 @@ import type { TranslationHelpRepository } from '../domain/repositories/translati
 
 type HelpRow = typeof translationHelps.$inferSelect;
 type ReplyRow = typeof translationHelpReplies.$inferSelect;
+
+/** Cursor sort popular: base64url("upvotes:id"). */
+export function encodePopularHelpCursor(upvotes: number, id: string): string {
+  return Buffer.from(`${upvotes}:${id}`).toString('base64url');
+}
+
+export function decodePopularHelpCursor(raw: string): { upvotes: number; id: string } {
+  const decoded = Buffer.from(raw, 'base64url').toString('utf8');
+  const [upRaw, id] = decoded.split(':');
+  const upvotes = Number(upRaw);
+  if (!id || !Number.isFinite(upvotes) || upvotes < 0) {
+    throw new Error('INVALID_POPULAR_CURSOR');
+  }
+  return { upvotes, id };
+}
+
 
 function asImages(value: unknown): TranslationHelpImage[] {
   if (!Array.isArray(value)) return [];
@@ -106,6 +127,10 @@ export class TranslationHelpRepositoryImpl implements TranslationHelpRepository 
   }
 
   async list(filter: TranslationHelpListFilter): Promise<CursorPage<TranslationHelp>> {
+    if (filter.sort === 'popular' && filter.status === 'published' && !filter.userId) {
+      return this.listPublishedPopular(filter.limit, filter.cursor);
+    }
+
     const rows = await this.db
       .select({
         help: translationHelps,
@@ -134,6 +159,65 @@ export class TranslationHelpRepositoryImpl implements TranslationHelpRepository 
       nextCursor: hasMore && items.length > 0 ? items[items.length - 1].id : null,
       hasMore,
     };
+  }
+
+  private async listPublishedPopular(
+    limit: number,
+    cursor?: string,
+  ): Promise<CursorPage<TranslationHelp>> {
+    const upvoteExpr = sql<number>`coalesce(sum(case when ${votes.value} = 1 then 1 else 0 end), 0)`;
+
+    let cursorUp: number | null = null;
+    let cursorId: string | null = null;
+    if (cursor) {
+      try {
+        const decoded = decodePopularHelpCursor(cursor);
+        cursorUp = decoded.upvotes;
+        cursorId = decoded.id;
+      } catch {
+        cursorUp = null;
+        cursorId = null;
+      }
+    }
+
+    // Agregat tidak boleh di WHERE — cursor popular memakai HAVING.
+    const havingClause =
+      cursorUp != null && cursorId != null
+        ? sql`(${upvoteExpr} < ${cursorUp} or (${upvoteExpr} = ${cursorUp} and ${translationHelps.id} < ${cursorId}))`
+        : undefined;
+
+    const rows = await this.db
+      .select({
+        help: translationHelps,
+        username: users.username,
+        authorDeletedAt: users.deletedAt,
+        upvotes: upvoteExpr,
+      })
+      .from(translationHelps)
+      .leftJoin(users, eq(users.id, translationHelps.userId))
+      .leftJoin(
+        votes,
+        and(eq(votes.entityType, 'translation_help'), eq(votes.entityId, translationHelps.id)),
+      )
+      .where(eq(translationHelps.status, 'published'))
+      .groupBy(translationHelps.id)
+      .having(havingClause)
+      .orderBy(desc(upvoteExpr), desc(translationHelps.id))
+      .limit(limit + 1);
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const items = page.map((r) =>
+      toHelp(r.help, publicAccountName(r.username, r.authorDeletedAt)),
+    );
+
+    const last = page[page.length - 1];
+    const nextCursor =
+      hasMore && last
+        ? encodePopularHelpCursor(Number(last.upvotes) || 0, last.help.id)
+        : null;
+
+    return { items, nextCursor, hasMore };
   }
 
   async updateStatus(input: {

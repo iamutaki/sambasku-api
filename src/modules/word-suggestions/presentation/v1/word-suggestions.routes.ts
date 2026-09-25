@@ -169,9 +169,11 @@ export function createAdminSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
     method: 'post',
     path: '/word-suggestions/:id/approve',
     tags: ['Admin', 'Suggestions'],
-    summary: 'Setujui usulan dan terapkan perubahan ke kata',
+    summary:
+      'Setujui usulan dan terapkan perubahan ke kata. JSON atau multipart (file_<key> sensor opsional)',
     request: {
       params: z.object({ id: z.string().length(26) }),
+      // Body JSON didokumentasikan; multipart diparse manual di controller.
       body: { content: json(approveSuggestionBodySchema) },
     },
     responses: {
@@ -183,9 +185,8 @@ export function createAdminSuggestionRoutes(deps: WordSuggestionRoutesDeps) {
 
   routes.openapi(approveRoute, ((c: any) => {
     const { id } = c.req.param();
-    const body = c.req.valid('json');
     const user = c.get('user') as AuthUser;
-    return deps.controller.approveSuggestion(c, id, user.user_id, body.comment);
+    return deps.controller.approveSuggestion(c, id, user.user_id);
   }) as never);
 
   const rejectRoute = createRoute({

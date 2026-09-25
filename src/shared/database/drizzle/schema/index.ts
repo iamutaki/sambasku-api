@@ -39,3 +39,4 @@ export * from './bug-reports.schema';
 export * from './word-reports.schema';
 export * from './translation-helps.schema';
 export * from './word-audios.schema';
+export * from './word-import-sessions.schema';

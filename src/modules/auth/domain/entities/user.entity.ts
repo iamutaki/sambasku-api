@@ -28,6 +28,10 @@ export interface User {
 
 export type NewUser = Pick<User, 'username' | 'email' | 'passwordHash' | 'phone'> & {
   emailVerified?: boolean;
+  /** Default DB `contributor` bila diabaikan (registrasi publik). */
+  role?: UserRole;
+  /** Default DB aktif bila diabaikan. */
+  isActive?: boolean;
   /** Default = username bila diabaikan saat save. */
   displayName?: string;
   bio?: string | null;

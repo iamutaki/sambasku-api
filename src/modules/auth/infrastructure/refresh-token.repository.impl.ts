@@ -12,13 +12,7 @@ export class RefreshTokenRepositoryImpl implements RefreshTokenRepository {
 
   async create(token: NewRefreshToken): Promise<RefreshTokenRecord> {
     const [row] = await this.db.insert(refreshTokens).values(token).returning();
-    return {
-      id: row.id,
-      userId: row.userId,
-      tokenHash: row.tokenHash,
-      isRevoked: row.isRevoked,
-      expiresAt: row.expiresAt,
-    };
+    return mapRow(row);
   }
 
   async findByHash(tokenHash: string): Promise<RefreshTokenRecord | null> {
@@ -27,28 +21,48 @@ export class RefreshTokenRepositoryImpl implements RefreshTokenRepository {
       .from(refreshTokens)
       .where(eq(refreshTokens.tokenHash, tokenHash))
       .limit(1);
-    return row
-      ? {
-          id: row.id,
-          userId: row.userId,
-          tokenHash: row.tokenHash,
-          isRevoked: row.isRevoked,
-          expiresAt: row.expiresAt,
-        }
-      : null;
+    return row ? mapRow(row) : null;
+  }
+
+  async markRotated(tokenHash: string): Promise<boolean> {
+    const updated = await this.db
+      .update(refreshTokens)
+      .set({ isRevoked: true, rotatedAt: new Date() })
+      .where(and(eq(refreshTokens.tokenHash, tokenHash), eq(refreshTokens.isRevoked, false)))
+      .returning({ id: refreshTokens.id });
+    return updated.length > 0;
   }
 
   async revokeByHash(tokenHash: string): Promise<void> {
+    // rotatedAt dikosongkan: cabut paksa, bukan rotasi. Grace tidak berlaku.
     await this.db
       .update(refreshTokens)
-      .set({ isRevoked: true })
-      .where(and(eq(refreshTokens.tokenHash, tokenHash), eq(refreshTokens.isRevoked, false)));
+      .set({ isRevoked: true, rotatedAt: null })
+      .where(eq(refreshTokens.tokenHash, tokenHash));
   }
 
   async revokeAllForUser(userId: string): Promise<void> {
     await this.db
       .update(refreshTokens)
-      .set({ isRevoked: true })
-      .where(and(eq(refreshTokens.userId, userId), eq(refreshTokens.isRevoked, false)));
+      .set({ isRevoked: true, rotatedAt: null })
+      .where(eq(refreshTokens.userId, userId));
   }
+}
+
+function mapRow(row: {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  isRevoked: boolean;
+  rotatedAt: Date | null;
+  expiresAt: Date;
+}): RefreshTokenRecord {
+  return {
+    id: row.id,
+    userId: row.userId,
+    tokenHash: row.tokenHash,
+    isRevoked: row.isRevoked,
+    rotatedAt: row.rotatedAt,
+    expiresAt: row.expiresAt,
+  };
 }

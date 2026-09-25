@@ -1,4 +1,5 @@
 import { env } from '@/shared/config/env';
+import { BadGatewayError } from '@/shared/errors/app-error';
 import { logger } from '@/shared/logging/logger';
 import type { MailerPort } from '../application/ports/mailer.port';
 import { rememberOtp } from './otp-capture';
@@ -15,7 +16,8 @@ import {
 // Email via API HTTP (Resend) - jalur untuk Cloudflare Workers karena SMTP
 // butuh socket TCP yang tidak tersedia di Workers. Tetap implements
 // MailerPort (Section 8): ganti provider email HTTP lain = satu file ini.
-// Best-effort: kegagalan kirim di-log, TIDAK dilempar.
+// Tanpa API key (dev lokal): log saja. Dengan API key: gagal kirim → error
+// supaya UI hapus-akun/OTP tidak bilang "terkirim" padahal Resend menolak.
 export class ResendMailerService implements MailerPort {
   async sendResetPasswordEmail(to: string, _resetUrl: string, displayCode: string): Promise<void> {
     await this.send({
@@ -88,9 +90,12 @@ export class ResendMailerService implements MailerPort {
       if (!res.ok) {
         const body = await res.text();
         logger.error({ status: res.status, body }, 'Resend kirim email gagal');
+        throw new BadGatewayError('EMAIL_SEND_FAILED', 'Gagal mengirim email. Coba lagi sebentar.');
       }
     } catch (err) {
+      if (err instanceof BadGatewayError) throw err;
       logger.error({ err }, 'Resend kirim email error');
+      throw new BadGatewayError('EMAIL_SEND_FAILED', 'Gagal mengirim email. Coba lagi sebentar.');
     }
   }
 }

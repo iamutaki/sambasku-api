@@ -59,6 +59,7 @@ export class RejectVerifierApplicationUseCase {
       userId: row.userId,
       title: 'Pengajuan verifikator ditolak',
       body: 'Pengajuan ditolak. Buka profil untuk memperbaiki.',
+      actorId: cmd.actorId,
       data: {
         type: 'verifier_application_rejected',
         target_kind: 'verifier_application',

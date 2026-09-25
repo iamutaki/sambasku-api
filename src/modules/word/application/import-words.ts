@@ -8,7 +8,10 @@ export interface ImportMeaningInput {
 
 export interface ImportWordInput {
   lemma: string;
+  /** Tayangkan. Bukan tanda terverifikasi. */
   verify: boolean;
+  /** Hanya berlaku bersama tayang dan role verifikator. */
+  verified: boolean;
   notes?: string;
   meanings: ImportMeaningInput[];
 }
@@ -50,11 +53,13 @@ export function normalizeLemma(lemma: string): string {
 }
 
 /**
- * Kata baru: centang verifikasi + role verifikator → tayang.
+ * Tayangkan + role verifikator → tayang, belum tentu terverifikasi.
+ * Terverifikasi hanya ikut kalau tayang juga dicentang.
  * Selain itu draf. Makna pada induk yang belum tayang selalu draf.
  */
 export function decideImportPublication(input: {
   verify: boolean;
+  verified: boolean;
   role: string;
   parentStatus: WordStatus | null;
 }): { status: 'draft' | 'published'; isVerified: boolean; forcedDraft: boolean } {
@@ -63,7 +68,7 @@ export function decideImportPublication(input: {
   if (parentBlocks || !input.verify || !canVerifyImport(input.role)) {
     return { status: 'draft', isVerified: false, forcedDraft: parentBlocks };
   }
-  return { status: 'published', isVerified: true, forcedDraft: false };
+  return { status: 'published', isVerified: input.verified, forcedDraft: false };
 }
 
 export function preparedMeaning(input: ImportMeaningInput): {

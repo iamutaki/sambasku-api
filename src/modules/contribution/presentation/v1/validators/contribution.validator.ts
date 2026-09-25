@@ -32,7 +32,32 @@ const commentField = z.string().trim().max(2000).optional();
 // false = koreksi saja, entity tetap menunggu review (pending_review)
 const publishField = z.boolean().default(true);
 
-export const approveContributionSchema = z.object({ comment: commentField });
+const imageDecisionSchema = z.object({
+  image_id: opaqueId,
+  decision: z.enum(['approve', 'reject'], { error: 'Pilih tayangkan atau jangan tayangkan' }),
+});
+
+export const approveContributionSchema = z
+  .object({
+    comment: commentField,
+    /** Hanya usulan kata. Foto yang tidak disebut ikut ditayangkan. */
+    image_decisions: z.array(imageDecisionSchema).max(10, 'Maksimal 10 foto').optional(),
+  })
+  .superRefine((data, ctx) => {
+    const seen = new Set<string>();
+    for (const [index, item] of (data.image_decisions ?? []).entries()) {
+      if (seen.has(item.image_id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['image_decisions', index, 'image_id'],
+          message: 'Foto ini sudah ada di daftar keputusan',
+        });
+      }
+      seen.add(item.image_id);
+    }
+  });
+
+export type ApproveContributionBody = z.infer<typeof approveContributionSchema>;
 export const rejectContributionSchema = z.object({
   comment: z.string().trim().min(1, 'Alasan penolakan wajib diisi').max(2000),
 });
