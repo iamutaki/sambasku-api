@@ -10,7 +10,9 @@ const hasTestDb = !!parsed?.DATABASE_URL;
 if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL;
 
 /** Geser jam proses melewati jendela grace rotasi, lalu kembalikan. */
-async function refreshAfterGrace<T>(run: () => Promise<T>): Promise<T> {
+async function refreshAfterGrace(
+  run: () => Promise<{ status: number }>,
+): Promise<{ status: number }> {
   const later = Date.now() + REFRESH_ROTATION_GRACE_MS + 1_000;
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(later);
