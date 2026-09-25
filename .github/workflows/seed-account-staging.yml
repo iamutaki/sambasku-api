@@ -1,19 +1,17 @@
-name: Seed Staging (manual)
+name: Seed Account Staging (manual)
 
-# HANYA dipicu manual (workflow_dispatch) - TIDAK pernah jalan otomatis saat
-# push. Seed menimpa password admin/root jadi `pass1234`.
+# Hanya akun default (admin/root/contributor/reviewer).
+# Menimpa password jadi `pass1234`. TIDAK otomatis saat push.
 #
-# CLI: gh workflow run seed-staging.yml --ref staging -f confirm=true
+# CLI: gh workflow run seed-account-staging.yml --ref staging -f confirm=true
 #
-# Secrets:
-#   TURSO_STAGING_DATABASE_URL
-#   TURSO_STAGING_AUTH_TOKEN
+# Secrets: TURSO_STAGING_DATABASE_URL, TURSO_STAGING_AUTH_TOKEN
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Centang untuk benar-benar seed DB staging (menimpa password admin/root)'
+        description: 'Centang untuk seed akun staging (menimpa password jadi pass1234)'
         type: boolean
         required: true
         default: false
@@ -33,8 +31,8 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
 
-      - name: Seed database staging
-        run: pnpm seed
+      - name: Seed accounts staging
+        run: pnpm seed:accounts
         env:
           NODE_ENV: staging
           DATABASE_URL: ${{ secrets.TURSO_STAGING_DATABASE_URL }}

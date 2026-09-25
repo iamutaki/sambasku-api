@@ -1,0 +1,50 @@
+name: Seed Reference Production (manual)
+
+# Referensi + user sistem (Anonim, Importir Data CSV).
+# Insert-if-missing saja — aman diulang, tidak menimpa password akun login.
+#
+# CLI: gh workflow run seed-reference-production.yml --ref main
+#
+# Secrets: TURSO_PRODUCTION_DATABASE_URL, TURSO_PRODUCTION_AUTH_TOKEN
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      - name: Cek secrets Turso production
+        env:
+          DATABASE_URL: ${{ secrets.TURSO_PRODUCTION_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_PRODUCTION_AUTH_TOKEN }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Secret TURSO_PRODUCTION_DATABASE_URL kosong"
+            exit 1
+          fi
+          if [ -z "$DATABASE_AUTH_TOKEN" ]; then
+            echo "::error::Secret TURSO_PRODUCTION_AUTH_TOKEN kosong"
+            exit 1
+          fi
+          echo "Turso secrets OK"
+
+      - name: Seed reference production
+        run: pnpm seed:reference
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.TURSO_PRODUCTION_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_PRODUCTION_AUTH_TOKEN }}
+          JWT_PRIVATE_KEY: dummy
+          JWT_PUBLIC_KEY: dummy
+          CORS_ALLOWED_ORIGINS: https://sambasku.com,https://console.sambasku.com

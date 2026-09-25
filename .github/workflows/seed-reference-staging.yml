@@ -1,0 +1,35 @@
+name: Seed Reference Staging (manual)
+
+# Referensi + user sistem (Anonim, Importir Data CSV).
+# Insert-if-missing saja — aman diulang, tidak menimpa password akun login.
+#
+# CLI: gh workflow run seed-reference-staging.yml --ref staging
+#
+# Secrets: TURSO_STAGING_DATABASE_URL, TURSO_STAGING_AUTH_TOKEN
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      - name: Seed reference staging
+        run: pnpm seed:reference
+        env:
+          NODE_ENV: staging
+          DATABASE_URL: ${{ secrets.TURSO_STAGING_DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_STAGING_AUTH_TOKEN }}
+          JWT_PRIVATE_KEY: dummy
+          JWT_PUBLIC_KEY: dummy
+          CORS_ALLOWED_ORIGINS: https://console-sambasku-staging.iamutaki.com

@@ -35,7 +35,8 @@ export class SaveWordImportSessionUseCase {
       meaningsAddedCount: input.meaningsAddedCount,
       invalidCount: input.invalidCount,
       items: input.items,
-      finishedAt: new Date(),
+      // Sesi running belum selesai — finishedAt kosong sampai status final.
+      finishedAt: input.status === 'running' ? null : new Date(),
     };
     return this.repo.upsert(payload);
   }

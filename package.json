@@ -16,6 +16,8 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx src/scripts/migrate.ts",
     "seed": "tsx src/scripts/seed.ts",
+    "seed:accounts": "tsx src/scripts/seed-accounts.ts",
+    "seed:reference": "tsx src/scripts/seed-reference.ts",
     "cleanup-tokens": "tsx src/scripts/cleanup-tokens.ts",
     "test": "vitest run",
     "test:unit": "vitest run --dir '**/__tests__/unit'",

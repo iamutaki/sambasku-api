@@ -11,7 +11,7 @@ const importSessionItemSchema = z.object({
 export const saveImportSessionBodySchema = z.object({
   id: opaqueId,
   source_label: z.string().trim().max(500).nullable().optional(),
-  status: z.enum(['completed', 'cancelled', 'failed']),
+  status: z.enum(['running', 'completed', 'cancelled', 'failed']),
   total: z.number().int().min(0),
   created_count: z.number().int().min(0),
   duplicates_count: z.number().int().min(0),
@@ -34,7 +34,7 @@ export const importSessionResponseSchema = z.object({
     attributed_to: z.string(),
     attributed_to_username: z.string().nullable(),
     source_label: z.string().nullable(),
-    status: z.enum(['completed', 'cancelled', 'failed']),
+    status: z.enum(['running', 'completed', 'cancelled', 'failed']),
     total: z.number(),
     created_count: z.number(),
     duplicates_count: z.number(),

@@ -223,7 +223,7 @@ export class WordController {
     attributedTo: string;
     attributedToUsername: string | null;
     sourceLabel: string | null;
-    status: 'completed' | 'cancelled' | 'failed';
+    status: 'running' | 'completed' | 'cancelled' | 'failed';
     total: number;
     createdCount: number;
     duplicatesCount: number;
