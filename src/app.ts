@@ -192,6 +192,7 @@ import { ToggleVoteUseCase } from '@/modules/vote/application/use-cases/toggle-v
 import { GetVoteCountsUseCase } from '@/modules/vote/application/use-cases/get-vote-counts.use-case';
 import { GetMyVotesUseCase } from '@/modules/vote/application/use-cases/get-my-votes.use-case';
 import { ListMyVoteHistoryUseCase } from '@/modules/vote/application/use-cases/list-my-vote-history.use-case';
+import { GetVoteDeckUseCase } from '@/modules/vote/application/use-cases/get-vote-deck.use-case';
 import { VoteController } from '@/modules/vote/presentation/v1/vote.controller';
 import { createVoteRoutes } from '@/modules/vote/presentation/v1/vote.routes';
 import { AdminVotesController } from '@/modules/vote/presentation/v1/admin-vote.controller';
@@ -498,6 +499,7 @@ const voteController = new VoteController({
   counts: new GetVoteCountsUseCase(voteRepo),
   myVotes: new GetMyVotesUseCase(voteRepo),
   history: new ListMyVoteHistoryUseCase(voteRepo),
+  deck: new GetVoteDeckUseCase(voteRepo),
 });
 
 // Panel moderasi vote (hapus vote spam + reset massal anti-brigading) -

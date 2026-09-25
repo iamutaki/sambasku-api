@@ -12,6 +12,8 @@ import {
   toggleVoteResponseSchema,
   toggleVoteSchema,
   voteCountsResponseSchema,
+  voteDeckQuerySchema,
+  voteDeckResponseSchema,
   voteHistoryQuerySchema,
   voteHistoryResponseSchema,
 } from './validators/vote.validator';
@@ -26,7 +28,7 @@ export interface VoteRoutesDeps {
 }
 
 // Vote polymorphic (08-api-upvote-downvote.md): toggle + batch counts +
-// vote milik user. Mount di /api/v1/votes.
+// vote milik user + deck (34). Mount di /api/v1/votes.
 export function createVoteRoutes(deps: VoteRoutesDeps) {
   const routes = createOpenApiApp();
 
@@ -59,6 +61,19 @@ export function createVoteRoutes(deps: VoteRoutesDeps) {
       keyFn: (c) => {
         const user = (c.get('user') as AuthUser | undefined) ?? null;
         return `vote-history:${user?.user_id ?? 'unknown'}`;
+      },
+    }),
+  );
+  // Deck: login + 100/menit per user_id (34-api-vote-deck.md)
+  routes.use(
+    '/deck',
+    deps.authenticate,
+    rateLimit({
+      points: 100,
+      duration: 60,
+      keyFn: (c) => {
+        const user = (c.get('user') as AuthUser | undefined) ?? null;
+        return `vote-deck:${user?.user_id ?? 'unknown'}`;
       },
     }),
   );
@@ -112,6 +127,23 @@ export function createVoteRoutes(deps: VoteRoutesDeps) {
     },
   });
 
+  const deckRoute = createRoute({
+    method: 'get',
+    path: '/deck',
+    tags: ['Votes'],
+    summary:
+      'Antrean kata published yang user belum vote - deck nilai di tab Kontribusi (login)',
+    request: {
+      query: voteDeckQuerySchema,
+    },
+    responses: {
+      200: { description: 'Daftar kartu deck', content: json(voteDeckResponseSchema) },
+      400: { description: 'Query tidak valid', content: json(errorResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      429: { description: 'Terlalu banyak permintaan (100/menit per user)', content: json(errorResponseSchema) },
+    },
+  });
+
   const myRoute = createRoute({
     method: 'get',
     path: '/my',
@@ -130,6 +162,7 @@ export function createVoteRoutes(deps: VoteRoutesDeps) {
   routes.openapi(toggleRoute, (c) => deps.controller.toggle(c, c.req.valid('json')) as never);
   routes.openapi(countsRoute, (c) => deps.controller.counts(c, c.req.valid('query')) as never);
   routes.openapi(historyRoute, (c) => deps.controller.history(c, c.req.valid('query')) as never);
+  routes.openapi(deckRoute, (c) => deps.controller.deck(c, c.req.valid('query')) as never);
   routes.openapi(myRoute, (c) => deps.controller.my(c, c.req.valid('query')) as never);
 
   return routes;

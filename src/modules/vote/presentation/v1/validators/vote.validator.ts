@@ -123,3 +123,35 @@ export const myVotesResponseSchema = z.object({
     }),
   ),
 });
+
+/** GET /api/v1/votes/deck — antrean kata belum di-vote (34-api-vote-deck.md). */
+export const voteDeckQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(20).default(10),
+  cursor: z.string().min(1).optional(),
+});
+
+export type VoteDeckQuery = z.infer<typeof voteDeckQuerySchema>;
+
+export const voteDeckResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(
+    z.object({
+      id: z.string(),
+      lemma: z.string(),
+      language_id: z.string(),
+      language_code: z.string(),
+      word_type: z.string(),
+      status: z.string(),
+      is_verified: z.boolean(),
+      approved_at: z.string(),
+      sense: z.string().nullable(),
+      upvotes: z.number().int(),
+      downvotes: z.number().int(),
+    }),
+  ),
+  meta: z.object({
+    limit: z.number().int(),
+    next_cursor: z.string().nullable(),
+    has_more: z.boolean(),
+  }),
+});

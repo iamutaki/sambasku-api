@@ -6,8 +6,9 @@ import type { ToggleVoteUseCase } from '../../application/use-cases/toggle-vote.
 import type { GetVoteCountsUseCase } from '../../application/use-cases/get-vote-counts.use-case';
 import type { GetMyVotesUseCase } from '../../application/use-cases/get-my-votes.use-case';
 import type { ListMyVoteHistoryUseCase } from '../../application/use-cases/list-my-vote-history.use-case';
+import type { GetVoteDeckUseCase } from '../../application/use-cases/get-vote-deck.use-case';
 import type { VoteTarget } from '../../domain/repositories/vote.repository';
-import type { ToggleVoteBody, VoteHistoryQuery } from './validators/vote.validator';
+import type { ToggleVoteBody, VoteDeckQuery, VoteHistoryQuery } from './validators/vote.validator';
 
 // Semua role boleh vote (08-api-upvote-downvote.md) - tidak ada gate role
 // di controller; 401 sudah ditangani middleware authenticate.
@@ -18,6 +19,7 @@ export class VoteController {
       counts: GetVoteCountsUseCase;
       myVotes: GetMyVotesUseCase;
       history: ListMyVoteHistoryUseCase;
+      deck: GetVoteDeckUseCase;
     },
   ) {}
 
@@ -89,6 +91,32 @@ export class VoteController {
           : null,
       })),
       meta: { limit: query.limit, next_cursor: page.nextCursor, has_more: page.hasMore },
+    });
+  }
+
+  /** GET /api/v1/votes/deck - antrean kata belum di-vote (34-api-vote-deck.md) */
+  async deck(c: Context, query: VoteDeckQuery) {
+    const user = this.requireUser(c);
+    const page = await this.deps.deck.execute(user.user_id, {
+      limit: query.limit,
+      cursor: query.cursor,
+    });
+    return c.json({
+      success: true as const,
+      data: page.items.map((w) => ({
+        id: w.id,
+        lemma: w.lemma,
+        language_id: w.languageId,
+        language_code: w.languageCode,
+        word_type: w.wordType,
+        status: w.status,
+        is_verified: w.isVerified,
+        approved_at: w.approvedAt.toISOString(),
+        sense: w.sense,
+        upvotes: w.upvotes,
+        downvotes: w.downvotes,
+      })),
+      meta: page.meta,
     });
   }
 

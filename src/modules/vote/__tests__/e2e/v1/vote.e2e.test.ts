@@ -359,4 +359,38 @@ describe.skipIf(!hasTestDb)('Vote E2E v1 - toggle + counts + my (08 doc)', () =>
     const popBody = (await popular.json()) as { data: { id: string; upvotes: number }[] };
     expect(popBody.data[0]).toMatchObject({ id: helpId, upvotes: 1 });
   });
+
+  it('GET /votes/deck: 401 tanpa token; login lihat kata; vote → hilang dari deck', async () => {
+    expect((await get('/api/v1/votes/deck')).status).toBe(401);
+
+    // Kata baru — fixture `wordId` sudah di-vote di tes sebelumnya.
+    const create = await post('/api/v1/admin/words', validWordBody('kata deck'), adminToken);
+    expect(create.status).toBe(201);
+    const deckWordId = ((await create.json()) as { data: { word_id: string } }).data.word_id;
+
+    const deck1 = await get('/api/v1/votes/deck?limit=10', contributorToken);
+    expect(deck1.status).toBe(200);
+    const body1 = (await deck1.json()) as {
+      success: boolean;
+      data: { id: string; lemma: string; sense: string | null }[];
+      meta: { limit: number; has_more: boolean; next_cursor: string | null };
+    };
+    expect(body1.success).toBe(true);
+    expect(body1.meta.limit).toBe(10);
+    expect(body1.data.some((w) => w.id === deckWordId)).toBe(true);
+    const card = body1.data.find((w) => w.id === deckWordId);
+    expect(card?.lemma).toBe('kata deck');
+    expect(card?.sense).toBeTruthy();
+
+    await post(
+      '/api/v1/votes',
+      { target_type: 'word', target_id: deckWordId, value: 1 },
+      contributorToken,
+    );
+
+    const deck2 = await get('/api/v1/votes/deck?limit=10', contributorToken);
+    expect(deck2.status).toBe(200);
+    const body2 = (await deck2.json()) as { data: { id: string }[] };
+    expect(body2.data.some((w) => w.id === deckWordId)).toBe(false);
+  });
 });

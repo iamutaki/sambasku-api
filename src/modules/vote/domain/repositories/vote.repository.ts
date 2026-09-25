@@ -133,6 +133,65 @@ export interface VoteHistoryListResult {
   hasMore: boolean;
 }
 
+/** Item antrean deck nilai kata (34-api-vote-deck.md). */
+export interface VoteDeckWord {
+  id: string;
+  lemma: string;
+  languageId: string;
+  languageCode: string;
+  wordType: string;
+  usageLabels: string[];
+  status: string;
+  isVerified: boolean;
+  /** COALESCE(verified_at, created_at) */
+  approvedAt: Date;
+  sense: string | null;
+  upvotes: number;
+  downvotes: number;
+  /** upvotes + downvotes — kunci cursor + sort */
+  totalVotes: number;
+}
+
+export interface VoteDeckCursor {
+  totalVotes: number;
+  approvedAt: Date;
+  id: string;
+}
+
+export interface VoteDeckListOptions {
+  limit: number;
+  cursor?: VoteDeckCursor;
+}
+
+export interface VoteDeckListResult {
+  items: VoteDeckWord[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+const DECK_CURSOR_SEP = ':';
+
+/** Encode keyset (totalVotes, approvedAt, id) → base64url. */
+export function encodeVoteDeckCursor(c: VoteDeckCursor): string {
+  return Buffer.from(
+    `${c.totalVotes}${DECK_CURSOR_SEP}${c.approvedAt.toISOString()}${DECK_CURSOR_SEP}${c.id}`,
+  ).toString('base64url');
+}
+
+/** Decode cursor deck. Lempar Error generik jika rusak (use case → ValidationError). */
+export function decodeVoteDeckCursor(s: string): VoteDeckCursor {
+  const raw = Buffer.from(s, 'base64url').toString();
+  const parts = raw.split(DECK_CURSOR_SEP);
+  if (parts.length < 3) throw new Error('INVALID_CURSOR_FORMAT');
+  const totalVotes = Number(parts[0]);
+  const id = parts[parts.length - 1];
+  const iso = parts.slice(1, -1).join(DECK_CURSOR_SEP);
+  if (!id || !Number.isFinite(totalVotes) || totalVotes < 0) throw new Error('INVALID_CURSOR_FORMAT');
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) throw new Error('INVALID_CURSOR_DATE');
+  return { totalVotes, approvedAt: d, id };
+}
+
 export interface VoteRepository {
   /**
    * Cek target ada & belum soft-deleted (per tabel by PK). TIDAK memfilter
@@ -163,6 +222,12 @@ export interface VoteRepository {
    * lalu resolve kata induk. Baris tetap ada walau kata hilang (`word` null).
    */
   listByUser(userId: string, opts: VoteHistoryListOptions): Promise<VoteHistoryListResult>;
+
+  /**
+   * Antrean kata published yang user belum vote (34-api-vote-deck.md).
+   * Urut total vote Asc, lalu approved_at Asc, id Asc. LIMIT+1 has_more.
+   */
+  listDeckWords(userId: string, opts: VoteDeckListOptions): Promise<VoteDeckListResult>;
 
   /**
    * List vote admin cursor pagination compound (created_at, id) desc.
