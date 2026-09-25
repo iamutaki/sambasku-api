@@ -44,8 +44,8 @@ export class PixabayBackgroundProvider implements ShareBackgroundProviderPort {
     const perPage = String(Math.min(Math.max(limit, 3), 30));
     const url =
       media === 'video'
-        ? buildUrl(PIXABAY_VIDEO_URL, key, query, safePage, perPage, sort, options.orientation)
-        : buildUrl(PIXABAY_PHOTO_URL, key, query, safePage, perPage, sort, options.orientation, true);
+        ? buildPixabayUrl(PIXABAY_VIDEO_URL, key, query, safePage, perPage, sort, options.orientation)
+        : buildPixabayUrl(PIXABAY_PHOTO_URL, key, query, safePage, perPage, sort, options.orientation, true);
 
     let res: Response;
     try {
@@ -86,7 +86,7 @@ export class PixabayBackgroundProvider implements ShareBackgroundProviderPort {
   }
 }
 
-function buildUrl(
+export function buildPixabayUrl(
   base: string,
   key: string,
   query: string,
@@ -103,6 +103,7 @@ function buildUrl(
   url.searchParams.set('safesearch', 'true');
   if (sort === 'popular') {
     url.searchParams.set('order', 'popular');
+    url.searchParams.set('editors_choice', 'true');
   }
   if (photo) {
     url.searchParams.set('image_type', 'photo');

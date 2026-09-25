@@ -25,9 +25,10 @@ export function createShareRoutes(deps: { controller: ShareController }) {
     tags: ['Share'],
     summary: 'Cari foto atau video latar untuk kartu share',
     description:
-      'Default `provider=pexels`, `media=photo`. `sort=relevant` butuh `q`. ' +
+      'Default `provider=pixabay`, `media=photo`. `sort=relevant` butuh `q`. ' +
       '`sort=popular` untuk Media Explorer (q opsional). ' +
-      '`limit` 1–30 (default 3). `media=video` untuk `pexels`, `pixabay`, `wikimedia`. ' +
+      '`limit` 1–30 (default 3). `media=video` hanya `pixabay`. ' +
+      'Safe search always-on; Openverse dibatasi lisensi CC. ' +
       'Tanpa konfigurasi / gagal upstream → items kosong + degraded:true.',
     request: { query: listShareBackgroundsQuerySchema },
     responses: {

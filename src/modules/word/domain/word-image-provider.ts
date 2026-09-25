@@ -1,7 +1,8 @@
 /**
  * Provider gambar kata: upload storage aktif (github/imagekit) ATAU stock
- * Media Explorer (pexels/…). Client boleh kirim provider stock atau imagekit
- * (staging kontributor); absen/github → diisi dari storage aktif di presentation.
+ * Media Explorer (pixabay/openverse/unsplash). Client boleh kirim provider stock
+ * atau imagekit (staging kontributor); absen/github → diisi dari storage aktif di presentation.
+ * Legacy `pexels` / `wikimedia` tetap di allowlist agar gambar kata lama valid.
  */
 
 export const STOCK_WORD_IMAGE_PROVIDERS = [

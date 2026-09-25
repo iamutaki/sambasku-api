@@ -49,7 +49,7 @@ describe('ListShareBackgroundsUseCase', () => {
     expect(result.items).toEqual([]);
     expect(result.degraded).toBe(true);
     expect(result.page).toBe(1);
-    expect(result.provider).toBe('pexels');
+    expect(result.provider).toBe('pixabay');
     expect(result.cache_hit).toBe(false);
     expect(result.media).toBe('photo');
   });
@@ -101,16 +101,16 @@ describe('ListShareBackgroundsUseCase', () => {
   });
 
   it('cache photo vs video terpisah', async () => {
-    const pexels: ShareBackgroundProviderPort = {
-      providerId: 'pexels',
-      providerName: 'pexels',
+    const pixabay: ShareBackgroundProviderPort = {
+      providerId: 'pixabay',
+      providerName: 'pixabay',
       supportedMedia: ['photo', 'video'],
       search: vi
         .fn()
         .mockResolvedValueOnce(sample)
         .mockResolvedValueOnce([
           photoItem('v1', {
-            provider: 'pexels',
+            provider: 'pixabay',
             kind: 'video',
             mime_type: 'video/mp4',
             duration_seconds: 8,
@@ -118,12 +118,12 @@ describe('ListShareBackgroundsUseCase', () => {
         ]),
     };
     const useCase = new ListShareBackgroundsUseCase(
-      new Map([['pexels', pexels]]),
+      new Map([['pixabay', pixabay]]),
       86_400,
     );
-    const photo = await useCase.execute('makan', 1, 'relevant', 'pexels', 3, 'photo');
-    const video = await useCase.execute('makan', 1, 'relevant', 'pexels', 3, 'video');
-    expect(pexels.search).toHaveBeenCalledTimes(2);
+    const photo = await useCase.execute('makan', 1, 'relevant', 'pixabay', 3, 'photo');
+    const video = await useCase.execute('makan', 1, 'relevant', 'pixabay', 3, 'video');
+    expect(pixabay.search).toHaveBeenCalledTimes(2);
     expect(photo.media).toBe('photo');
     expect(video.media).toBe('video');
     expect(video.cache_hit).toBe(false);
@@ -136,9 +136,9 @@ describe('ListShareBackgroundsUseCase', () => {
     ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
   });
 
-  it('pexels tanpa key → degraded', async () => {
+  it('pixabay tanpa key → degraded', async () => {
     const useCase = new ListShareBackgroundsUseCase(new Map(), 0);
-    const result = await useCase.execute('makan', 1, 'relevant', 'pexels', 3, 'video');
+    const result = await useCase.execute('makan', 1, 'relevant', 'pixabay', 3, 'video');
     expect(result.degraded).toBe(true);
     expect(result.items).toEqual([]);
     expect(result.media).toBe('video');
@@ -175,28 +175,11 @@ describe('ListShareBackgroundsUseCase', () => {
     ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
   });
 
-  it('wikimedia + video diizinkan', async () => {
-    const wikimedia: ShareBackgroundProviderPort = {
-      providerId: 'wikimedia',
-      providerName: 'wikimedia',
-      supportedMedia: ['photo', 'video'],
-      search: vi.fn().mockResolvedValue([
-        photoItem('v1', {
-          provider: 'wikimedia',
-          kind: 'video',
-          mime_type: 'video/mp4',
-          duration_seconds: 8,
-        }),
-      ]),
-    };
-    const useCase = new ListShareBackgroundsUseCase(
-      new Map([['wikimedia', wikimedia]]),
-      0,
-    );
-    const result = await useCase.execute('makan', 1, 'relevant', 'wikimedia', 3, 'video');
-    expect(result.provider).toBe('wikimedia');
-    expect(result.media).toBe('video');
-    expect(result.degraded).toBe(false);
+  it('query diblok → ValidationError', async () => {
+    const useCase = new ListShareBackgroundsUseCase(new Map(), 0);
+    await expect(
+      useCase.execute('nude nature', 1, 'relevant', 'pixabay'),
+    ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
   });
 
   it('sort=popular tanpa q diizinkan', async () => {

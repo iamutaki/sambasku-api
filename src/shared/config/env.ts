@@ -76,13 +76,10 @@ const envSchema = z.object({
   RAF555_BASE_URL: z.string().optional(), // default https://kbbi.raf555.dev di factory
   LEMMA_DEFINITION_CACHE_TTL_SECONDS: z.coerce.number().default(3600),
 
-  // Unsplash — latar kartu share (docs/backlogs/SHARE.md). Tanpa key →
-  // GET /api/v1/share/backgrounds mengembalikan items [].
+  // Unsplash / Pixabay — latar kartu share (docs/api/22-api-share-backgrounds.md).
+  // Tanpa key → provider terkait degraded (items []).
   UNSPLASH_ACCESS_KEY: z.string().optional(),
-  PEXELS_API_KEY: z.string().optional(),
   PIXABAY_API_KEY: z.string().optional(),
-  // Wikimedia Commons — User-Agent deskriptif (bukan secret). Kosong = default SambasKu.
-  WIKIMEDIA_USER_AGENT: z.string().optional(),
   SHARE_BACKGROUNDS_CACHE_TTL_SECONDS: z.coerce.number().default(86_400),
 
   // Firebase Cloud Messaging (opsional). Tanpa ketiganya → push no-op.

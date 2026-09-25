@@ -15,7 +15,7 @@ export const listShareBackgroundsQuerySchema = z
       .default(''),
     page: z.coerce.number().int().min(1).default(1),
     sort: z.enum(['relevant', 'popular']).default('relevant'),
-    provider: z.enum(SHARE_BACKGROUND_PROVIDER_IDS).default('pexels'),
+    provider: z.enum(SHARE_BACKGROUND_PROVIDER_IDS).default('pixabay'),
     limit: z.coerce.number().int().min(1).max(30).default(3),
     media: z.enum(SHARE_MEDIA_KINDS).default('photo'),
     orientation: z.enum(SHARE_ORIENTATIONS).optional(),
