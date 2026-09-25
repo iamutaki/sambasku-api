@@ -9,7 +9,7 @@ export class LogoutAllDevicesUseCase {
 
   async execute(userId: string): Promise<void> {
     await this.refreshTokenRepo.revokeAllForUser(userId);
-    // Soft-delete semua FCM token aktif — device lain tidak boleh terima push
+    // Soft-delete semua FCM token aktif - device lain tidak boleh terima push
     // setelah sesi di semua perangkat dicabut.
     if (this.deviceTokenRepo) {
       await this.deviceTokenRepo.revokeAllForUser(userId);

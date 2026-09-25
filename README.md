@@ -6,7 +6,7 @@
 
 Backend API Kamus Digital Sambas-Indonesia.
 
-Stack & konvensi mengikuti `docs/api/api-base-stack.md` — Hono + Drizzle ORM +
+Stack & konvensi mengikuti `docs/api/api-base-stack.md` - Hono + Drizzle ORM +
 **Turso (libSQL / SQLite)**, clean architecture feature-based
 (`src/modules/<fitur>/`). Dokumentasi API interaktif di `GET /docs` (Scalar)
 saat server jalan. Keputusan migrasi Neon → Turso: `docs/api/ADR-turso.md`.
@@ -47,7 +47,7 @@ pnpm seed
 #    Atau terpisah: pnpm seed:accounts | pnpm seed:reference
 
 # 5. Jalankan API (Hono + Node)
-pnpm dev                    # http://localhost:3000 — docs di /docs
+pnpm dev                    # http://localhost:3000 - docs di /docs
 #    Health: GET /health  →  { "status": "ok", "database": "up" }
 ```
 
@@ -81,12 +81,12 @@ pnpm test
 ## Cloudflare Workers (deploy)
 
 Dua runtime berbagi satu composition root: `main.ts` (Node, default dev)
-dan `worker.ts` (Workers — env dari bindings, DB via `@libsql/client/web`
+dan `worker.ts` (Workers - env dari bindings, DB via `@libsql/client/web`
 singleton HTTP ke Turso, email via Resend).
 
 Migration **tetap dari CI Node** (`pnpm db:migrate`), bukan dari Workers.
 
-### Secret Worker (staging) — sekali
+### Secret Worker (staging) - sekali
 
 ```bash
 npx wrangler secret put DATABASE_URL --env staging
@@ -95,7 +95,7 @@ npx wrangler secret put DATABASE_URL --env staging
 npx wrangler secret put DATABASE_AUTH_TOKEN --env staging
 # paste: token dari `turso db tokens create sambasku-staging`
 
-# JWT, Resend, ImageKit, OAuth, FCM — sama seperti sebelumnya
+# JWT, Resend, ImageKit, OAuth, FCM - sama seperti sebelumnya
 # Audio pelafalan (lihat bagian "Audio pelafalan" di bawah):
 #   npx wrangler secret put PRONUNCIACION_GITHUB_TOKEN --env staging
 ```
@@ -113,11 +113,11 @@ test (file SQLite) → migrate Turso → `wrangler deploy --env staging`.
 | `TURSO_STAGING_DATABASE_URL`  | `libsql://…` staging                               |
 | `TURSO_STAGING_AUTH_TOKEN`    | token Turso staging                                |
 
-Secret Worker (JWT, dll.) tidak ikut CI — `wrangler deploy` mempertahankan
+Secret Worker (JWT, dll.) tidak ikut CI - `wrangler deploy` mempertahankan
 secret yang sudah terpasang. Seed manual (staging):
 
 ```bash
-# Aman diulang — Anonim, Pengimpor Data CSV, bahasa/dialek/kelas/kategori
+# Aman diulang - Anonim, Pengimpor Data CSV, bahasa/dialek/kelas/kategori
 gh workflow run seed-reference-staging.yml --ref staging
 
 # Hanya jika perlu reset password akun default → pass1234
@@ -143,7 +143,7 @@ Kontrak API lengkap: `docs/api/29-api-pronunciation-audio.md`.
 ```env
 PRONUNCIACION_PROVIDER=github
 PRONUNCIACION_GITHUB_URL=https://github.com/sambasku/audios
-PRONUNCIACION_GITHUB_TOKEN=          # PAT Contents RW — secret, jangan commit
+PRONUNCIACION_GITHUB_TOKEN=          # PAT Contents RW - secret, jangan commit
 ```
 
 Staging: `PRONUNCIACION_PROVIDER` + `PRONUNCIACION_GITHUB_URL` di

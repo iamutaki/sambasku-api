@@ -75,7 +75,7 @@ export interface WordSummary {
 
 /** Item feed beranda: kata published, urut waktu persetujuan. */
 export interface LatestWordSummary extends WordSummary {
-  /** COALESCE(verified_at, created_at) — waktu tayang/persetujuan. */
+  /** COALESCE(verified_at, created_at) - waktu tayang/persetujuan. */
   approvedAt: Date;
   /** Definisi makna published pertama, atau terjemahan pertama bila definisi kosong. */
   sense: string | null;

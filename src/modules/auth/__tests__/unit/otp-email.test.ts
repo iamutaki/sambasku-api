@@ -17,7 +17,7 @@ describe('otp email template', () => {
     expect(html).toContain('8 karakter 0-9A-Z');
     expect(html).toContain('XXXX-XXXX');
     expect(html).toContain(`cid:${OTP_EMAIL_LOGO_CONTENT_ID}`);
-    expect(html).toContain('width="220"');
+    expect(html).toContain('width="300"');
     expect(html).toContain('alt="SambasKu"');
     expect(html).not.toContain('height="96"');
     expect(html).not.toContain('<script');

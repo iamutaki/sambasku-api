@@ -10,7 +10,7 @@ function readFirebaseEnv(): {
   clientEmail: string | undefined;
   privateKey: string | undefined;
 } {
-  // Baca process.env saat kirim (bukan snapshot env.ts) — setara c.env di jnn_api.
+  // Baca process.env saat kirim (bukan snapshot env.ts) - setara c.env di jnn_api.
   // worker.ts mengisi process.env dari bindings sebelum app di-import.
   return {
     projectId: process.env.FIREBASE_PROJECT_ID?.trim(),
@@ -20,7 +20,7 @@ function readFirebaseEnv(): {
 }
 
 /**
- * Lazy sender — pola jnn_api: kredensial dibaca saat kirim, bukan di-freeze
+ * Lazy sender - pola jnn_api: kredensial dibaca saat kirim, bukan di-freeze
  * saat composition root. Menghindari NoopPushSender terkunci jika snapshot
  * env sempat kosong di cold start.
  */

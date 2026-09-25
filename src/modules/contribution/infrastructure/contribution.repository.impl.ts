@@ -910,7 +910,7 @@ export class ContributionRepositoryImpl implements ContributionRepository {
         // Biasanya: kata soft-deleted tanpa twin published (hapus/merge orphan).
         throw new NotFoundError(
           'WORD_NOT_FOUND',
-          'Kata kontribusi tidak ditemukan atau sudah dihapus tanpa entri pengganti — tolak antrean ini atau pulihkan kata',
+          'Kata kontribusi tidak ditemukan atau sudah dihapus tanpa entri pengganti - tolak antrean ini atau pulihkan kata',
         );
       }
       // publishWordChildren menandai SEMUA foto published. Soft-delete foto

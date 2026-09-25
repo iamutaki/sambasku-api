@@ -7,12 +7,12 @@ import type {
 } from '../application/ports/share-background-provider.port';
 
 const UNSPLASH_SEARCH_URL = 'https://api.unsplash.com/search/photos';
-const UNSPLASH_PHOTOS_URL = 'https://api.unsplash.com/photos';
 const FETCH_TIMEOUT_MS = 8_000;
+const POPULAR_FALLBACK_QUERY = 'nature';
 
 /**
- * Proxy Unsplash Search Photos / List Photos (popular).
- * Access key di-inject dari factory (hindari import env di sini).
+ * Proxy Unsplash Search Photos (selalu content_filter=high).
+ * Mode popular memakai search + query fallback - GET /photos tidak mendukung filter.
  */
 export class UnsplashBackgroundProvider implements ShareBackgroundProviderPort {
   readonly providerId = 'unsplash' as const;
@@ -39,10 +39,11 @@ export class UnsplashBackgroundProvider implements ShareBackgroundProviderPort {
     const orientation = options?.orientation;
     const safePage = Math.max(1, Math.floor(page));
     const perPage = String(Math.min(Math.max(limit, 1), 30));
-    const url =
+    const q =
       sort === 'popular'
-        ? buildPopularUrl(safePage, perPage)
-        : buildSearchUrl(query, safePage, perPage, orientation);
+        ? query.trim() || POPULAR_FALLBACK_QUERY
+        : query.trim();
+    const url = buildUnsplashSearchUrl(q, safePage, perPage, orientation);
 
     let res: Response;
     try {
@@ -78,11 +79,11 @@ export class UnsplashBackgroundProvider implements ShareBackgroundProviderPort {
       );
     }
 
-    return sort === 'popular' ? mapUnsplashList(body) : mapUnsplashSearch(body);
+    return mapUnsplashSearch(body);
   }
 }
 
-function buildSearchUrl(
+export function buildUnsplashSearchUrl(
   query: string,
   page: number,
   perPage: string,
@@ -95,14 +96,6 @@ function buildSearchUrl(
   url.searchParams.set('orientation', orientation ?? 'portrait');
   url.searchParams.set('content_filter', 'high');
   url.searchParams.set('order_by', 'relevant');
-  return url;
-}
-
-function buildPopularUrl(page: number, perPage: string): URL {
-  const url = new URL(UNSPLASH_PHOTOS_URL);
-  url.searchParams.set('per_page', perPage);
-  url.searchParams.set('page', String(page));
-  url.searchParams.set('order_by', 'popular');
   return url;
 }
 
@@ -152,17 +145,6 @@ function mapUnsplashSearch(body: unknown): ShareBackgroundItem[] {
   if (!Array.isArray(results)) return [];
   const items: ShareBackgroundItem[] = [];
   for (const raw of results) {
-    const item = mapPhoto(raw);
-    if (item) items.push(item);
-  }
-  return items;
-}
-
-/** GET /photos mengembalikan array langsung. */
-function mapUnsplashList(body: unknown): ShareBackgroundItem[] {
-  if (!Array.isArray(body)) return [];
-  const items: ShareBackgroundItem[] = [];
-  for (const raw of body) {
     const item = mapPhoto(raw);
     if (item) items.push(item);
   }

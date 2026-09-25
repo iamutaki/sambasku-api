@@ -17,7 +17,7 @@ export interface ToggleVoteCommand {
 // yang dipilih user. TANPA audit (KEPUTUSAN PRODUK: volume tinggi, bukan
 // aksi admin; analitik cukup dari tabel votes sendiri).
 //
-// KEPUTUSAN PRODUK: target `translation_help` (pertanyaan) upvote-only —
+// KEPUTUSAN PRODUK: target `translation_help` (pertanyaan) upvote-only -
 // downvote ditolak (komunitas minta bantuan, bukan konten yang di-downvote).
 export class ToggleVoteUseCase {
   constructor(private readonly voteRepo: VoteRepository) {}

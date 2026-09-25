@@ -10,7 +10,7 @@ export function extensionForImageMime(mimeType: string): string {
   return MIME_TO_EXT[mimeType] ?? 'jpg';
 }
 
-/** Path kata: assets/words/<ulid>.<ext> — ULID sebelum kata tersimpan. */
+/** Path kata: assets/words/<ulid>.<ext> - ULID sebelum kata tersimpan. */
 export function buildWordImagePath(mimeType: string): string {
   return `assets/words/${generateId()}.${extensionForImageMime(mimeType)}`;
 }

@@ -65,6 +65,18 @@ function makeUserRepo() {
   } as unknown as UserRepository;
 }
 
+function makeApproveExtras() {
+  const userRepo = {
+    findById: vi.fn().mockResolvedValue({
+      email: 'budi@test.com',
+      displayName: 'Budi',
+      username: 'budi',
+    }),
+  } as unknown as UserRepository;
+  const mailer = { sendVerifierApprovedEmail: vi.fn().mockResolvedValue(undefined) };
+  return { userRepo, mailer };
+}
+
 const submit = {
   userId: USER,
   role: 'contributor',
@@ -157,11 +169,14 @@ describe('ApproveVerifierApplicationUseCase', () => {
     const refreshTokenRepo = { revokeAllForUser: vi.fn().mockResolvedValue(undefined) };
     const auditRepo = { record: vi.fn().mockResolvedValue(undefined) };
     const notifyUser = { execute: vi.fn().mockResolvedValue(undefined) };
+    const { userRepo, mailer } = makeApproveExtras();
     const useCase = new ApproveVerifierApplicationUseCase(
       appRepo,
       refreshTokenRepo as never,
       auditRepo as never,
       notifyUser as never,
+      userRepo,
+      mailer as never,
     );
     const result = await useCase.execute({
       applicationId: APP_ID,
@@ -174,6 +189,7 @@ describe('ApproveVerifierApplicationUseCase', () => {
     expect(notifyUser.execute).toHaveBeenCalledWith(
       expect.objectContaining({ userId: USER, title: 'Pengajuan verifikator disetujui' }),
     );
+    expect(mailer.sendVerifierApprovedEmail).toHaveBeenCalledWith('budi@test.com', 'Budi');
   });
 
   it('sudah reviewed (CAS) → 409 APPLICATION_ALREADY_REVIEWED', async () => {
@@ -184,11 +200,14 @@ describe('ApproveVerifierApplicationUseCase', () => {
           new ConflictError('APPLICATION_ALREADY_REVIEWED', 'Pengajuan sudah memiliki keputusan'),
         ),
     });
+    const { userRepo, mailer } = makeApproveExtras();
     const useCase = new ApproveVerifierApplicationUseCase(
       appRepo,
       { revokeAllForUser: vi.fn() } as never,
       { record: vi.fn() } as never,
       { execute: vi.fn() } as never,
+      userRepo,
+      mailer as never,
     );
     await expect(
       useCase.execute({ applicationId: APP_ID, actorId: ADMIN, actorRole: 'admin' }),
@@ -202,11 +221,14 @@ describe('ApproveVerifierApplicationUseCase', () => {
         .mockRejectedValue(new ForbiddenError('ALREADY_VERIFIER', 'Pemohon bukan lagi kontributor')),
     });
     const refreshTokenRepo = { revokeAllForUser: vi.fn() };
+    const { userRepo, mailer } = makeApproveExtras();
     const useCase = new ApproveVerifierApplicationUseCase(
       appRepo,
       refreshTokenRepo as never,
       { record: vi.fn() } as never,
       { execute: vi.fn() } as never,
+      userRepo,
+      mailer as never,
     );
     await expect(
       useCase.execute({ applicationId: APP_ID, actorId: ADMIN, actorRole: 'admin' }),

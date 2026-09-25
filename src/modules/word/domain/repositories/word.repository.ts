@@ -214,6 +214,8 @@ export interface CursorPage<T> {
 // search() - client memperlakukan cursor sebagai opaque.
 export interface ListAtoZParams {
   q: string;
+  /** Satu huruf A-Z: prefix lemma (panel A-Z). Beda dari `q` = contains. */
+  letter?: string;
   limit: number;
   wordType?: string;
   cursor?: { lemma: string; id: string };
@@ -238,7 +240,7 @@ export function decodeListCursor(s: string): { lemma: string; id: string } {
   return { lemma: parts[0], id: parts[1] };
 }
 
-/** Feed beranda. Cursor komposit (approvedAt ISO, id) — opaque bagi klien. */
+/** Feed beranda. Cursor komposit (approvedAt ISO, id) - opaque bagi klien. */
 export interface ListLatestParams {
   limit: number;
   cursor?: { approvedAt: Date; id: string };
@@ -523,13 +525,13 @@ export interface WordRepository {
     audioId: string,
   ): Promise<WordAudioMedia | null>;
 
-  /** Hitung audio aktif (belum soft-delete) untuk target word/example — is_primary */
+  /** Hitung audio aktif (belum soft-delete) untuk target word/example - is_primary */
   countWordAudios(
     wordId: string,
     exampleId?: string | null,
   ): Promise<number>;
 
-  /** Example by id + wordId induk (lewat meaning) — validasi upload audio example */
+  /** Example by id + wordId induk (lewat meaning) - validasi upload audio example */
   findExampleWithWord(
     exampleId: string,
   ): Promise<{ id: string; meaningId: string; wordId: string } | null>;

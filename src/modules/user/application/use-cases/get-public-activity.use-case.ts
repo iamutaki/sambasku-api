@@ -3,7 +3,7 @@ import type { PublicActivityItem } from '../../domain/entities/public-profile.en
 import type { PublicUserRepository } from '../../domain/repositories/public-user.repository';
 
 const ACTIVITY_LIMIT = 20;
-/** Ambil lebih banyak per sumber lalu merge — cukup untuk 20 terbaru. */
+/** Ambil lebih banyak per sumber lalu merge - cukup untuk 20 terbaru. */
 const PER_SOURCE = 20;
 
 export class GetPublicActivityUseCase {

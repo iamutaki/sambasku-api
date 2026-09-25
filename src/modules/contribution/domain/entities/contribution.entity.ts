@@ -65,7 +65,7 @@ export interface ReviewOutcome {
   entityType: ContributionEntityType;
   entityId: string;
   status: ContributionStatus;
-  /** User yang mengirim kontribusi — untuk push notifikasi setelah review. */
+  /** User yang mengirim kontribusi - untuk push notifikasi setelah review. */
   contributorUserId: string;
   /**
    * Set saat approve kata digabung ke lemma published yang sudah ada

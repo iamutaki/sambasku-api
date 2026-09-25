@@ -34,7 +34,7 @@ export interface CreateWordImageDto {
   /** Stock Media Explorer ATAU nama storage aktif (dari presentation layer) */
   provider: string;
   providerFileId: string;
-  /** Blob sha GitHub — opsional; stock / ImageKit lama null */
+  /** Blob sha GitHub - opsional; stock / ImageKit lama null */
   sha?: string | null;
   altText?: string;
   isPrimary?: boolean;

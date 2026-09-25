@@ -1,5 +1,7 @@
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
+import type { MailerPort } from '@/modules/auth/application/ports/mailer.port';
 import type { RefreshTokenRepository } from '@/modules/auth/domain/repositories/refresh-token.repository';
+import type { UserRepository } from '@/modules/auth/domain/repositories/user.repository';
 import type { NotifyUserUseCase } from '@/modules/device/application/use-cases/notify-user.use-case';
 import type { VerifierApplicationRepository } from '../../domain/repositories/verifier-application.repository';
 
@@ -22,6 +24,8 @@ export class ApproveVerifierApplicationUseCase {
     private readonly refreshTokenRepo: RefreshTokenRepository,
     private readonly auditRepo: AuditLogRepository,
     private readonly notifyUser: NotifyUserUseCase,
+    private readonly userRepo: UserRepository,
+    private readonly mailer: MailerPort,
   ) {}
 
   async execute(cmd: ApproveVerifierApplicationCommand): Promise<ApproveVerifierApplicationResult> {
@@ -52,6 +56,27 @@ export class ApproveVerifierApplicationUseCase {
       },
     });
 
+    await this.sendWelcomeEmail(updated.userId);
+
     return { id: updated.id, status: 'approved', role: 'reviewer' };
+  }
+
+  /** Peran sudah berubah. Gagal kirim email tidak membatalkan persetujuan. */
+  private async sendWelcomeEmail(userId: string): Promise<void> {
+    try {
+      const user = await this.userRepo.findById(userId);
+      if (!user?.email) return;
+      const name = user.displayName.trim() || user.username;
+      await this.mailer.sendVerifierApprovedEmail(user.email, name);
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          msg: 'email selamat verifikator gagal dikirim',
+          user_id: userId,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
   }
 }

@@ -12,6 +12,7 @@ import {
   SHARE_PROVIDER_MEDIA,
 } from '../ports/share-background-provider.port';
 import type { ShareBackgroundProviderRegistry } from '../../infrastructure/share-background.factory';
+import { isBlockedShareQuery } from '../utils/share-query-denylist';
 
 export interface ListShareBackgroundsResult {
   provider: ShareBackgroundProviderId;
@@ -29,6 +30,8 @@ interface CacheEntry {
 }
 
 const DEFAULT_LIMIT = 3;
+/** Bump saat policy safe-search berubah agar cache lama tidak tersaji. */
+const CACHE_KEY_PREFIX = 'v2';
 
 function isKnownProvider(id: string): id is ShareBackgroundProviderId {
   return (SHARE_BACKGROUND_PROVIDER_IDS as readonly string[]).includes(id);
@@ -60,7 +63,7 @@ export class ListShareBackgroundsUseCase {
     query: string,
     page: number = 1,
     sort: ShareBackgroundSort = 'relevant',
-    providerId: ShareBackgroundProviderId = 'pexels',
+    providerId: ShareBackgroundProviderId = 'pixabay',
     limit: number = DEFAULT_LIMIT,
     media: ShareMediaKind = 'photo',
     orientation?: ShareOrientation,
@@ -83,6 +86,12 @@ export class ListShareBackgroundsUseCase {
     } else if (trimmed.length > 120) {
       throw new ValidationError([
         { field: 'q', message: 'Query latar maksimal 120 karakter' },
+      ]);
+    }
+
+    if (trimmed && isBlockedShareQuery(trimmed)) {
+      throw new ValidationError([
+        { field: 'q', message: 'Query pencarian tidak diizinkan' },
       ]);
     }
 
@@ -124,7 +133,7 @@ export class ListShareBackgroundsUseCase {
       return empty(true, false, []);
     }
 
-    const cacheKey = `${provider.providerId}:${safeMedia}:${safeSort}:${
+    const cacheKey = `${CACHE_KEY_PREFIX}:${provider.providerId}:${safeMedia}:${safeSort}:${
       safeSort === 'popular' ? 'popular' : trimmed.toLowerCase()
     }:${safePage}:${safeLimit}:${orientationKey}`;
     const now = Date.now();

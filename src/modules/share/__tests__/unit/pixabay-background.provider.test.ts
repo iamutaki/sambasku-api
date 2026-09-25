@@ -3,7 +3,37 @@ import {
   mapPixabayPhoto,
   mapPixabayVideo,
   pickPixabayVideoFile,
+  buildPixabayUrl,
 } from '../../infrastructure/pixabay-background.provider';
+
+describe('buildPixabayUrl', () => {
+  it('selalu safesearch=true', () => {
+    const url = buildPixabayUrl(
+      'https://pixabay.com/api/',
+      'key',
+      'makan',
+      1,
+      '12',
+      'relevant',
+      undefined,
+      true,
+    );
+    expect(url.searchParams.get('safesearch')).toBe('true');
+  });
+
+  it('popular → editors_choice=true', () => {
+    const url = buildPixabayUrl(
+      'https://pixabay.com/api/',
+      'key',
+      '',
+      1,
+      '12',
+      'popular',
+    );
+    expect(url.searchParams.get('editors_choice')).toBe('true');
+    expect(url.searchParams.get('order')).toBe('popular');
+  });
+});
 
 describe('pickPixabayVideoFile', () => {
   it('pilih large lalu medium', () => {

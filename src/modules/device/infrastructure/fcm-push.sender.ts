@@ -86,7 +86,7 @@ async function pushOne(
   message: PushMessage,
 ): Promise<boolean> {
   // Samakan 1:1 dengan jnn_api `pushOne`: notification + optional data.
-  // Jangan set android.channel_id — di jnn tidak ada dan notif background
+  // Jangan set android.channel_id - di jnn tidak ada dan notif background
   // tampil lewat channel default Firebase Messaging. Channel AwesomeNotifications
   // (`sambasku_notifications`) hanya untuk foreground via onMessage.
   const payload = {
@@ -190,7 +190,7 @@ export class FcmPushSender implements PushSenderPort {
   }
 }
 
-/** No-op bila FIREBASE_* belum di-set — boot tetap aman. */
+/** No-op bila FIREBASE_* belum di-set - boot tetap aman. */
 export class NoopPushSender implements PushSenderPort {
   readonly isConfigured = false;
 

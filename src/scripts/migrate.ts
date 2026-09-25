@@ -2,7 +2,7 @@
  * Apply Drizzle migrations via @libsql/client (bukan drizzle-kit CLI).
  *
  * Alasan: drizzle-kit@0.31.x di non-TTY (CI) menyembunyikan error di balik
- * spinner ANSI — exit 1 tanpa pesan (drizzle-orm#6121). Runner ini mencetak
+ * spinner ANSI - exit 1 tanpa pesan (drizzle-orm#6121). Runner ini mencetak
  * stack/cause ke stderr.
  *
  * Usage: pnpm db:migrate
@@ -77,7 +77,7 @@ const db = drizzle(client);
 
 try {
   await migrate(db, { migrationsFolder });
-  console.log('[db:migrate] OK — migrations applied');
+  console.log('[db:migrate] OK - migrations applied');
 } catch (err) {
   fail('Migrate gagal', err);
 } finally {

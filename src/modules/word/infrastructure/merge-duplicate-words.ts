@@ -185,7 +185,7 @@ export async function mergeDuplicateWordsInTx(
           .where(and(eq(wordCategories.wordId, sourceId), eq(wordCategories.categoryId, c.categoryId)));
         continue;
       }
-      // SQLite: tidak bisa update PK sebagian dengan aman di semua driver —
+      // SQLite: tidak bisa update PK sebagian dengan aman di semua driver -
       // soft-delete sumber + insert ke keep.
       await tx
         .update(wordCategories)

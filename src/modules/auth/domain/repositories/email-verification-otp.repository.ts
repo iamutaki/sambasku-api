@@ -13,7 +13,7 @@ export interface EmailVerificationOtpRepository {
   deleteByUserId(userId: string): Promise<void>;
   /**
    * Hapus OTP hanya jika hash cocok (atomic). False = sudah dipakai /
-   * tidak ada / hash beda — menjamin kode sekali pakai saat race.
+   * tidak ada / hash beda - menjamin kode sekali pakai saat race.
    */
   consumeIfMatch(userId: string, codeHash: string): Promise<boolean>;
 }

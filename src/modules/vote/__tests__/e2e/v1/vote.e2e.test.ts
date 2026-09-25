@@ -363,7 +363,7 @@ describe.skipIf(!hasTestDb)('Vote E2E v1 - toggle + counts + my (08 doc)', () =>
   it('GET /votes/deck: 401 tanpa token; login lihat kata; vote → hilang dari deck', async () => {
     expect((await get('/api/v1/votes/deck')).status).toBe(401);
 
-    // Kata baru — fixture `wordId` sudah di-vote di tes sebelumnya.
+    // Kata baru - fixture `wordId` sudah di-vote di tes sebelumnya.
     const create = await post('/api/v1/admin/words', validWordBody('kata deck'), adminToken);
     expect(create.status).toBe(201);
     const deckWordId = ((await create.json()) as { data: { word_id: string } }).data.word_id;

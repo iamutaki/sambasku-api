@@ -10,6 +10,8 @@ import type {
 const OPENVERSE_IMAGES_URL = 'https://api.openverse.org/v1/images/';
 const FETCH_TIMEOUT_MS = 8_000;
 const FALLBACK_QUERY = 'indonesia';
+/** CC0 / Public Domain + BY + BY-SA + BY-NC (always-on). */
+export const OPENVERSE_SAFE_LICENSES = 'cc0,pdm,by,by-sa,by-nc';
 
 export class OpenverseBackgroundProvider implements ShareBackgroundProviderPort {
   readonly providerId = 'openverse' as const;
@@ -27,13 +29,7 @@ export class OpenverseBackgroundProvider implements ShareBackgroundProviderPort 
     const safePage = Math.max(1, Math.floor(page));
     const perPage = String(Math.min(Math.max(limit, 1), 30));
     const q = query.trim() || FALLBACK_QUERY;
-    const url = new URL(OPENVERSE_IMAGES_URL);
-    url.searchParams.set('q', q);
-    url.searchParams.set('page', String(safePage));
-    url.searchParams.set('page_size', perPage);
-    url.searchParams.set('mature', 'false');
-    const aspect = mapAspect(options.orientation);
-    if (aspect) url.searchParams.set('aspect_ratio', aspect);
+    const url = buildOpenverseSearchUrl(q, safePage, perPage, options.orientation);
 
     let res: Response;
     try {
@@ -70,6 +66,24 @@ export class OpenverseBackgroundProvider implements ShareBackgroundProviderPort 
   }
 }
 
+export function buildOpenverseSearchUrl(
+  query: string,
+  page: number,
+  perPage: string,
+  orientation?: ShareOrientation,
+): URL {
+  const url = new URL(OPENVERSE_IMAGES_URL);
+  url.searchParams.set('q', query);
+  url.searchParams.set('page', String(page));
+  url.searchParams.set('page_size', perPage);
+  url.searchParams.set('mature', 'false');
+  url.searchParams.set('license', OPENVERSE_SAFE_LICENSES);
+  url.searchParams.set('unstable__include_sensitive_results', 'false');
+  const aspect = mapAspect(orientation);
+  if (aspect) url.searchParams.set('aspect_ratio', aspect);
+  return url;
+}
+
 function mapAspect(orientation?: ShareOrientation): string | undefined {
   if (orientation === 'portrait') return 'tall';
   if (orientation === 'landscape') return 'wide';
@@ -92,6 +106,10 @@ function mapOpenversePhotos(body: unknown): ShareBackgroundItem[] {
 export function mapOpenversePhoto(raw: unknown): ShareBackgroundItem | null {
   if (!raw || typeof raw !== 'object') return null;
   const hit = raw as Record<string, unknown>;
+  if (hit.mature === true) return null;
+  const sensitivity = hit.unstable__sensitivity;
+  if (Array.isArray(sensitivity) && sensitivity.length > 0) return null;
+
   const id = hit.id != null ? String(hit.id) : '';
   const url = typeof hit.url === 'string' ? hit.url : '';
   const photographer =

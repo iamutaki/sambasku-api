@@ -180,7 +180,7 @@ export class TranslationHelpRepositoryImpl implements TranslationHelpRepository 
       }
     }
 
-    // Agregat tidak boleh di WHERE — cursor popular memakai HAVING.
+    // Agregat tidak boleh di WHERE - cursor popular memakai HAVING.
     const havingClause =
       cursorUp != null && cursorId != null
         ? sql`(${upvoteExpr} < ${cursorUp} or (${upvoteExpr} = ${cursorUp} and ${translationHelps.id} < ${cursorId}))`

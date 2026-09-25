@@ -56,7 +56,7 @@ export class AccountDeletionUseCase {
     await this.erase(user.id, 'in_app', requestId);
   }
 
-  /** Selalu sukses di mata pemanggil — email yang tidak terdaftar tidak dibedakan. */
+  /** Selalu sukses di mata pemanggil - email yang tidak terdaftar tidak dibedakan. */
   async requestByEmail(emailRaw: string): Promise<void> {
     // Sama pola resend-otp: simpan email lowercase; lookup tanpa normalize
     // = silent miss (UI tetap "kode dikirim") meski akun ada.

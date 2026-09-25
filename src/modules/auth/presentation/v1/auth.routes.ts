@@ -323,7 +323,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps) {
       200: { description: 'Google dilepas', content: json(unlinkGoogleResponseSchema) },
       401: { description: 'Token tidak ada', content: json(errorResponseSchema) },
       404: { description: 'Google belum terhubung', content: json(errorResponseSchema) },
-      409: { description: 'Metode login terakhir — setel password dulu', content: json(errorResponseSchema) },
+      409: { description: 'Metode login terakhir - setel password dulu', content: json(errorResponseSchema) },
     },
   });
 

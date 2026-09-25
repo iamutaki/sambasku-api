@@ -25,7 +25,7 @@ export function buildJsDelivrPublicUrl(input: {
   return `https://cdn.jsdelivr.net/gh/${input.owner}/${input.repo}@${input.branch}/${clean}`;
 }
 
-/** base64 tanpa Buffer — aman di Workers (chunk 8KB). */
+/** base64 tanpa Buffer - aman di Workers (chunk 8KB). */
 export function bytesToBase64(bytes: Uint8Array): string {
   const chunkSize = 0x2000;
   let binary = '';

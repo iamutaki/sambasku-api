@@ -5,7 +5,7 @@ import { env } from '@/shared/config/env';
 import * as schema from './schema';
 
 // Satu-satunya file koneksi DB (api-base-stack.md Section 8).
-// Node (dev/test/CI/scripts): @libsql/client — file: lokal ATAU libsql:// remote.
+// Node (dev/test/CI/scripts): @libsql/client - file: lokal ATAU libsql:// remote.
 // Cloudflare Workers: @libsql/client/web (fetch-only) lewat dynamic import di bawah.
 // Turso HTTP = singleton global (bukan pool per-request Neon WS).
 

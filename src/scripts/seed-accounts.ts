@@ -6,7 +6,7 @@ import { logger } from '@/shared/logging/logger';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
-/** Akun login default — seed menimpa password jadi pass1234. */
+/** Akun login default - seed menimpa password jadi pass1234. */
 const SEED_USERS = [
   { username: 'admin', email: 'admin@email.com', role: 'admin' },
   { username: 'root', email: 'root@email.com', role: 'root' },
