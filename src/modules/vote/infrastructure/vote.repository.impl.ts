@@ -740,8 +740,12 @@ export class VoteRepositoryImpl implements VoteRepository {
 
     const page: VoteDeckWord[] = pageRows.map((r) => {
       const approvedAt = (r.verifiedAt ?? r.createdAt) as Date;
-      const labels = Array.isArray(r.usageLabels)
-        ? r.usageLabels.filter((x): x is string => typeof x === 'string')
+      // usage_labels is typed UsageLabel[] by the schema. A predicate `x is string`
+      // is illegal there: predicates may only narrow, and string is wider than
+      // the closed union. Widen to unknown so the JSON guard can drop non-strings.
+      const rawLabels: unknown = r.usageLabels;
+      const labels = Array.isArray(rawLabels)
+        ? rawLabels.filter((x): x is string => typeof x === 'string')
         : [];
       return {
         id: r.id,
