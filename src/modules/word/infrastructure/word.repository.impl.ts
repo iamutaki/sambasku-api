@@ -62,6 +62,7 @@ import { generateId } from '@/shared/utils/ulid';
 import type { UsageLabel } from '@/shared/constants/usage-labels';
 import {
   FEED_EXCLUDED_USAGE_LABELS,
+  BROWSE_EXCLUDED_USAGE_LABELS,
   USAGE_LABEL_SET,
 } from '@/shared/constants/usage-labels';
 import type { ImageContentWarning } from '@/shared/constants/image-content-warnings';
@@ -84,6 +85,15 @@ function toContentWarnings(raw: unknown): ImageContentWarning[] {
 function feedSafeUsageLabelsSql() {
   return and(
     ...FEED_EXCLUDED_USAGE_LABELS.map(
+      (label) => sql`${words.usageLabels} NOT LIKE ${`%"${label}"%`}`,
+    ),
+  );
+}
+
+/** SQL: sembunyikan kasar/diskriminatif dari browsing A-Z tanpa `q`. */
+function browseSafeUsageLabelsSql() {
+  return and(
+    ...BROWSE_EXCLUDED_USAGE_LABELS.map(
       (label) => sql`${words.usageLabels} NOT LIKE ${`%"${label}"%`}`,
     ),
   );
@@ -1008,11 +1018,17 @@ export class WordRepositoryImpl implements WordRepository {
   // Index words_lemma_az_idx menopang ekspresi yang sama.
   async listAtoZ(params: ListAtoZParams): Promise<CursorPage<WordSummary>> {
     const lemmaAz = sql`lower(${words.lemma})`;
+    const q = params.q?.trim() ?? '';
+    const letter = params.letter?.trim().toLowerCase();
+    // Browse tanpa q: jangan ekspos kasar/diskriminatif di listing publik.
+    // Filter q / search endpoint tetap boleh menemukan + menampilkan badge.
+    // `letter` = prefix A–Z (panel beranda); `q` = contains (kotak filter).
     const where = and(
       isNull(words.deletedAt),
       // Endpoint publik - selalu published (bukan opsional seperti search())
       eq(words.status, 'published'),
-      params.q ? ilikeCompat(words.lemma, `%${escapeLike(params.q.trim())}%`) : undefined,
+      q ? ilikeCompat(words.lemma, `%${escapeLike(q)}%`) : browseSafeUsageLabelsSql(),
+      letter ? sql`${lemmaAz} LIKE ${`${escapeLike(letter)}%`}` : undefined,
       params.wordType ? eq(words.wordType, params.wordType) : undefined,
       params.cursor
         ? sql`(${lemmaAz}, ${words.id}) > (lower(${params.cursor.lemma}), ${params.cursor.id})`

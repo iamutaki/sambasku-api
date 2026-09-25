@@ -820,6 +820,44 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(tipe.items.map((w) => w.lemma)).toEqual(['kiasan']);
   });
 
+  it('listAtoZ: browse tanpa q menyembunyikan kasar/diskriminatif; q manual tetap menemukan', async () => {
+    await repo.saveWithRelations(baseWord({ lemma: 'aman', usageLabels: ['informal'] }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'kasarx', usageLabels: ['kasar'] }), ACTOR);
+    await repo.saveWithRelations(
+      baseWord({ lemma: 'diskrx', usageLabels: ['diskriminatif'] }),
+      ACTOR,
+    );
+    await repo.saveWithRelations(baseWord({ lemma: 'tabux', usageLabels: ['tabu'] }), ACTOR);
+
+    const browse = await repo.listAtoZ({ q: '', limit: 20 });
+    const browseLemmas = browse.items.map((w) => w.lemma);
+    expect(browseLemmas).toContain('aman');
+    expect(browseLemmas).toContain('tabux'); // tabu tetap di A-Z (bukan browse-excluded)
+    expect(browseLemmas).not.toContain('kasarx');
+    expect(browseLemmas).not.toContain('diskrx');
+
+    const byKasar = await repo.listAtoZ({ q: 'kasarx', limit: 10 });
+    expect(byKasar.items.map((w) => w.lemma)).toEqual(['kasarx']);
+
+    const byDiskr = await repo.listAtoZ({ q: 'diskr', limit: 10 });
+    expect(byDiskr.items.map((w) => w.lemma)).toEqual(['diskrx']);
+  });
+
+  it('listAtoZ: letter = prefix lemma (bukan contains seperti q)', async () => {
+    await repo.saveWithRelations(baseWord({ lemma: 'dalam' }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'budak' }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'madam' }), ACTOR);
+
+    const byLetter = await repo.listAtoZ({ q: '', letter: 'D', limit: 20 });
+    expect(byLetter.items.map((w) => w.lemma)).toEqual(['dalam']);
+
+    const byContains = await repo.listAtoZ({ q: 'd', limit: 20 });
+    const lemmas = byContains.items.map((w) => w.lemma);
+    expect(lemmas).toContain('dalam');
+    expect(lemmas).toContain('budak');
+    expect(lemmas).toContain('madam');
+  });
+
   it('listAtoZ: sense = [kode] terjemahan dipisah koma lintas makna', async () => {
     const VERBA = ulid26('01TESTWCVERBA');
     await db.insert(wordClasses).values({ id: VERBA, code: 'v', name: 'Verba' });

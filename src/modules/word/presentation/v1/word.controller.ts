@@ -500,6 +500,7 @@ export class WordController {
   async list(c: Context, query: ListWordsQueryBody) {
     const { items, meta } = await this.deps.list.execute({
       q: query.q,
+      letter: query.letter,
       limit: query.limit,
       cursor: query.cursor,
       wordType: query.word_type,

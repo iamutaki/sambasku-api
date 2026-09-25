@@ -654,6 +654,12 @@ export const adminListWordsQuerySchema = z.object({
 /** GET /api/v1/words - daftar semua kata A-Z publik (18-api-list-words.md) */
 export const listWordsQuerySchema = z.object({
   q: z.string().trim().max(255).default(''),
+  // Panel A-Z: satu huruf → prefix lemma. Beda dari q (contains ILIKE %q%).
+  letter: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]$/, 'Huruf harus satu karakter A-Z')
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   // OPAQUE base64url komposit (lemma, id) - BEDA dari ULID search; jangan
   // share validator length(26)

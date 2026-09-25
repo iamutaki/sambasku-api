@@ -214,6 +214,8 @@ export interface CursorPage<T> {
 // search() - client memperlakukan cursor sebagai opaque.
 export interface ListAtoZParams {
   q: string;
+  /** Satu huruf A–Z: prefix lemma (panel A-Z). Beda dari `q` = contains. */
+  letter?: string;
   limit: number;
   wordType?: string;
   cursor?: { lemma: string; id: string };

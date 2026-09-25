@@ -8,6 +8,8 @@ import {
 
 export interface ListWordsQuery {
   q: string;
+  /** Satu huruf A–Z untuk jump prefix (panel beranda). */
+  letter?: string;
   limit: number;
   cursor?: string;
   wordType?: string;
@@ -37,6 +39,7 @@ export class ListWordsUseCase {
 
     const { items, nextCursor, hasMore } = await this.wordRepo.listAtoZ({
       q: query.q.trim(),
+      letter: query.letter,
       limit: query.limit,
       wordType: query.wordType,
       cursor,
