@@ -117,7 +117,7 @@ Secret Worker (JWT, dll.) tidak ikut CI — `wrangler deploy` mempertahankan
 secret yang sudah terpasang. Seed manual (staging):
 
 ```bash
-# Aman diulang — Anonim, Importir Data CSV, bahasa/dialek/kelas/kategori
+# Aman diulang — Anonim, Pengimpor Data CSV, bahasa/dialek/kelas/kategori
 gh workflow run seed-reference-staging.yml --ref staging
 
 # Hanya jika perlu reset password akun default → pass1234

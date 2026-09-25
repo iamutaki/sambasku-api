@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { isNull } from 'drizzle-orm';
+import { eq, isNull } from 'drizzle-orm';
 import { closeDb, db } from '@/shared/database/drizzle/client';
 import {
   categories,
@@ -107,6 +107,14 @@ export async function seedReference(): Promise<void> {
       emailVerified: true,
     })
     .onConflictDoNothing({ target: users.id });
+  // Nama tampilan boleh berganti; password dan id tetap.
+  await db
+    .update(users)
+    .set({
+      username: CSV_IMPORTER_USERNAME,
+      displayName: CSV_IMPORTER_USERNAME,
+    })
+    .where(eq(users.id, CSV_IMPORTER_USER_ID));
   logger.info(`Seed referensi: user sistem ${CSV_IMPORTER_EMAIL} (skip jika sudah ada)`);
 
   for (const lang of SEED_LANGUAGES) {
