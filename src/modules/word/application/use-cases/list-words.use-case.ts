@@ -13,6 +13,7 @@ export interface ListWordsQuery {
   limit: number;
   cursor?: string;
   wordType?: string;
+  isVerified?: boolean;
 }
 
 export interface ListWordsResult extends CursorPage<WordSummary> {
@@ -42,6 +43,7 @@ export class ListWordsUseCase {
       letter: query.letter,
       limit: query.limit,
       wordType: query.wordType,
+      isVerified: query.isVerified,
       cursor,
     });
 

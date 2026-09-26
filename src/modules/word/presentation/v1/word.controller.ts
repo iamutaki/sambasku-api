@@ -504,6 +504,7 @@ export class WordController {
       limit: query.limit,
       cursor: query.cursor,
       wordType: query.word_type,
+      isVerified: query.is_verified,
     });
     return c.json({
       success: true as const,
@@ -1087,6 +1088,7 @@ function toListItem(w: {
   matchedTranslation?: string;
   matchedVariant?: string;
   sense?: string | null;
+  updatedAt?: Date | null;
 }) {
   return {
     id: w.id,
@@ -1101,6 +1103,9 @@ function toListItem(w: {
     ...(w.matchedVariant !== undefined ? { matched_variant: w.matchedVariant } : {}),
     // A-Z + search: `[n] makan,[v] santap`. Null = belum ada terjemahan published.
     ...(w.sense !== undefined ? { sense: w.sense } : {}),
+    ...(w.updatedAt !== undefined
+      ? { updated_at: w.updatedAt ? w.updatedAt.toISOString() : null }
+      : {}),
   };
 }
 
