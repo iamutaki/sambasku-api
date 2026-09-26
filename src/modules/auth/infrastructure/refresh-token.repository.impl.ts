@@ -53,6 +53,7 @@ function mapRow(row: {
   id: string;
   userId: string;
   tokenHash: string;
+  clientId: string | null;
   isRevoked: boolean;
   rotatedAt: Date | null;
   expiresAt: Date;
@@ -61,6 +62,7 @@ function mapRow(row: {
     id: row.id,
     userId: row.userId,
     tokenHash: row.tokenHash,
+    clientId: row.clientId,
     isRevoked: row.isRevoked,
     rotatedAt: row.rotatedAt,
     expiresAt: row.expiresAt,

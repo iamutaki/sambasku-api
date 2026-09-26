@@ -5,9 +5,11 @@ import type { DeleteAdminVoteUseCase } from '../../application/use-cases/delete-
 import type { GetTopTargetVotesUseCase } from '../../application/use-cases/get-top-target-votes.use-case';
 import type { ListAdminVotesUseCase } from '../../application/use-cases/list-admin-votes.use-case';
 import type { ResetTargetVotesUseCase } from '../../application/use-cases/reset-target-votes.use-case';
+import type { ResetVotesByClientUseCase } from '../../application/use-cases/reset-votes-by-client.use-case';
 import type {
   DeleteAdminVoteParams,
   ListAdminVotesQuery,
+  ResetByClientVotesBody,
   ResetTargetVotesBody,
   TopVoteTargetsQuery,
 } from './validators/admin-votes.validator';
@@ -20,6 +22,7 @@ export class AdminVotesController {
       list: ListAdminVotesUseCase;
       deleteById: DeleteAdminVoteUseCase;
       resetTarget: ResetTargetVotesUseCase;
+      resetByClient: ResetVotesByClientUseCase;
       topTargets: GetTopTargetVotesUseCase;
     },
   ) {}
@@ -47,6 +50,7 @@ export class AdminVotesController {
         target_id: v.entityId,
         target_preview: v.targetPreview,
         value: v.value,
+        client_id: v.clientId,
         created_at: v.createdAt.toISOString(),
         updated_at: v.updatedAt ? v.updatedAt.toISOString() : null,
       })),
@@ -87,6 +91,24 @@ export class AdminVotesController {
       data: {
         target_type: result.entityType,
         target_id: result.entityId,
+        deleted_count: result.deletedCount,
+      },
+    });
+  }
+
+  async resetByClient(c: AdminCtx, body: ResetByClientVotesBody) {
+    const user = c.get('user')!;
+    const requestId = c.get('requestId') ?? null;
+
+    const result = await this.deps.resetByClient.execute({
+      clientId: body.client_id,
+      actorId: user.user_id,
+      requestId,
+    });
+    return c.json({
+      success: true as const,
+      data: {
+        client_id: result.clientId,
         deleted_count: result.deletedCount,
       },
     });

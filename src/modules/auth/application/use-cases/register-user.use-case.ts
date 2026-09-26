@@ -1,5 +1,8 @@
 import { ConflictError } from '@/shared/errors/app-error';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
+import type { AppSettingsRepository } from '@/modules/legal/domain/repositories/app-settings.repository';
+import type { UserConsentRepository } from '@/modules/legal/domain/repositories/user-consent.repository';
+import { assertConsentsMatchActiveVersions } from '@/modules/legal/application/utils/validate-consents';
 import { Email } from '../../domain/value-objects/email.vo';
 import { Password } from '../../domain/value-objects/password.vo';
 import type { UserRepository } from '../../domain/repositories/user.repository';
@@ -17,11 +20,16 @@ export class RegisterUserUseCase {
     private readonly auditRepo: AuditLogRepository,
     private readonly otpRepo: EmailVerificationOtpRepository,
     private readonly mailer: MailerPort,
+    private readonly settingsRepo: AppSettingsRepository,
+    private readonly consentRepo: UserConsentRepository,
   ) {}
 
   async execute(dto: RegisterDto, requestId?: string | null): Promise<User> {
     const email = Email.create(dto.email);
     Password.create(dto.password);
+
+    const active = await this.settingsRepo.getLegalActiveVersions();
+    assertConsentsMatchActiveVersions(dto.consents, active);
 
     if (await this.userRepo.findByUsername(dto.name)) {
       throw new ConflictError('USERNAME_ALREADY_EXISTS', 'Nama sudah dipakai');
@@ -42,6 +50,26 @@ export class RegisterUserUseCase {
       emailVerified: false,
     });
 
+    const byType = new Map(dto.consents.map((c) => [c.documentType, c.documentVersion]));
+    await this.consentRepo.insertMany([
+      {
+        userId: user.id,
+        documentType: 'terms',
+        documentVersion: byType.get('terms')!,
+        source: 'register',
+        clientId: dto.clientId ?? null,
+        requestId: requestId ?? null,
+      },
+      {
+        userId: user.id,
+        documentType: 'privacy',
+        documentVersion: byType.get('privacy')!,
+        source: 'register',
+        clientId: dto.clientId ?? null,
+        requestId: requestId ?? null,
+      },
+    ]);
+
     const code = generateOtpCode();
     await this.otpRepo.replaceForUser({
       userId: user.id,
@@ -60,6 +88,10 @@ export class RegisterUserUseCase {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        consents: {
+          terms: byType.get('terms'),
+          privacy: byType.get('privacy'),
+        },
       },
       requestId: requestId ?? null,
     });

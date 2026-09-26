@@ -3,10 +3,12 @@ import { UnauthorizedError } from '@/shared/errors/app-error';
 import type { AppVariables } from '@/shared/types';
 import type { ListSearchMissesUseCase } from '../../application/use-cases/list-search-misses.use-case';
 import type { DismissSearchMissUseCase } from '../../application/use-cases/dismiss-search-miss.use-case';
+import type { BulkDismissSearchMissUseCase } from '../../application/use-cases/bulk-dismiss-search-miss.use-case';
 import type { UpdateSearchMissUseCase } from '../../application/use-cases/update-search-miss.use-case';
 import type { ResolveSearchMissUseCase } from '../../application/use-cases/resolve-search-miss.use-case';
 import type {
   AdminSearchMissQueryBody,
+  BulkDismissSearchMissBody,
   PublicSearchMissQueryBody,
   ResolveSearchMissBody,
   UpdateSearchMissBody,
@@ -17,6 +19,7 @@ export class SearchMissController {
     private readonly deps: {
       list: ListSearchMissesUseCase;
       dismiss: DismissSearchMissUseCase;
+      bulkDismiss: BulkDismissSearchMissUseCase;
       update: UpdateSearchMissUseCase;
       resolve: ResolveSearchMissUseCase;
     },
@@ -59,6 +62,19 @@ export class SearchMissController {
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
     await this.deps.dismiss.execute({ missId: id, actorId: actor.user_id, requestId });
     return c.json({ success: true as const, data: null });
+  }
+
+  /** Mass dismiss - POST /api/v1/admin/search-misses/bulk-dismiss */
+  async bulkDismiss(c: Context, body: BulkDismissSearchMissBody) {
+    const actor = (c as Context<{ Variables: AppVariables }>).get('user');
+    if (!actor) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
+    const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    const data = await this.deps.bulkDismiss.execute({
+      ids: body.ids,
+      actorId: actor.user_id,
+      requestId,
+    });
+    return c.json({ success: true as const, data });
   }
 
   async update(c: Context, id: string, body: UpdateSearchMissBody) {

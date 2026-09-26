@@ -14,6 +14,9 @@ import {
   createAuthenticateMiddleware,
   createOptionalAuthenticateMiddleware,
 } from '@/shared/middlewares/authenticate.middleware';
+import { createRequireApprovedClientMiddleware } from '@/shared/middlewares/require-approved-client.middleware';
+import { ApiClientRepositoryImpl } from '@/modules/developer-oauth/infrastructure/api-client.repository.impl';
+import { ResolveFirstPartyClientUseCase } from '@/modules/developer-oauth/application/use-cases/resolve-first-party-client.use-case';
 import { createOpenApiApp } from '@/shared/openapi/openapi-app';
 import { UserRepositoryImpl } from '@/modules/auth/infrastructure/user.repository.impl';
 import { RefreshTokenRepositoryImpl } from '@/modules/auth/infrastructure/refresh-token.repository.impl';
@@ -23,6 +26,31 @@ import { Pbkdf2PasswordService } from '@/modules/auth/infrastructure/pbkdf2-pass
 import { createMailer } from '@/modules/auth/infrastructure/mailer.factory';
 import { EmailVerificationOtpRepositoryImpl } from '@/modules/auth/infrastructure/email-verification-otp.repository.impl';
 import { RegisterUserUseCase } from '@/modules/auth/application/use-cases/register-user.use-case';
+import { AppSettingsRepositoryImpl } from '@/modules/legal/infrastructure/app-settings.repository.impl';
+import { LegalDocumentRepositoryImpl } from '@/modules/legal/infrastructure/legal-document.repository.impl';
+import { UserConsentRepositoryImpl } from '@/modules/legal/infrastructure/user-consent.repository.impl';
+import {
+  GetCurrentLegalUseCase,
+  GetLegalDocumentUseCase,
+} from '@/modules/legal/application/use-cases/get-legal.use-cases';
+import {
+  ArchiveLegalDocumentUseCase,
+  CreateLegalDocumentDraftUseCase,
+  ListAdminLegalDocumentsUseCase,
+  PublishLegalDocumentUseCase,
+  UpdateLegalDocumentDraftUseCase,
+} from '@/modules/legal/application/use-cases/admin-legal.use-cases';
+import {
+  GetAppSettingsUseCase,
+  UpdateAppSettingsUseCase,
+} from '@/modules/legal/application/use-cases/app-settings.use-cases';
+import { AcceptLegalUseCase } from '@/modules/legal/application/use-cases/accept-legal.use-case';
+import { LegalController } from '@/modules/legal/presentation/v1/legal.controller';
+import {
+  createAdminLegalRoutes,
+  createLegalAuthRoutes,
+  createLegalPublicRoutes,
+} from '@/modules/legal/presentation/v1/legal.routes';
 import { LoginUserUseCase } from '@/modules/auth/application/use-cases/login-user.use-case';
 import { VerifyEmailUseCase } from '@/modules/auth/application/use-cases/verify-email.use-case';
 import { ResendOtpUseCase } from '@/modules/auth/application/use-cases/resend-otp.use-case';
@@ -121,6 +149,7 @@ import { GetMyContributionDetailUseCase } from '@/modules/contribution/applicati
 import { SearchMissRepositoryImpl } from '@/modules/search-miss/infrastructure/search-miss.repository.impl';
 import { ListSearchMissesUseCase } from '@/modules/search-miss/application/use-cases/list-search-misses.use-case';
 import { DismissSearchMissUseCase } from '@/modules/search-miss/application/use-cases/dismiss-search-miss.use-case';
+import { BulkDismissSearchMissUseCase } from '@/modules/search-miss/application/use-cases/bulk-dismiss-search-miss.use-case';
 import { UpdateSearchMissUseCase } from '@/modules/search-miss/application/use-cases/update-search-miss.use-case';
 import { ResolveSearchMissUseCase } from '@/modules/search-miss/application/use-cases/resolve-search-miss.use-case';
 import { SearchMissController } from '@/modules/search-miss/presentation/v1/search-miss.controller';
@@ -200,6 +229,7 @@ import { createAdminVoteRoutes } from '@/modules/vote/presentation/v1/admin-vote
 import { ListAdminVotesUseCase } from '@/modules/vote/application/use-cases/list-admin-votes.use-case';
 import { DeleteAdminVoteUseCase } from '@/modules/vote/application/use-cases/delete-admin-vote.use-case';
 import { ResetTargetVotesUseCase } from '@/modules/vote/application/use-cases/reset-target-votes.use-case';
+import { ResetVotesByClientUseCase } from '@/modules/vote/application/use-cases/reset-votes-by-client.use-case';
 import { GetTopTargetVotesUseCase } from '@/modules/vote/application/use-cases/get-top-target-votes.use-case';
 import { CommentRepositoryImpl } from '@/modules/comment/infrastructure/comment.repository.impl';
 import { CreateCommentUseCase } from '@/modules/comment/application/use-cases/create-comment.use-case';
@@ -326,9 +356,22 @@ const identityRepo = new AuthIdentityRepositoryImpl(db);
 
 // ---- Modul audit (Section 21) - direkspos ke use case modul lain ----
 const auditRepo = new AuditLogRepositoryImpl(db);
+const appSettingsRepo = new AppSettingsRepositoryImpl(db);
+const legalDocumentRepo = new LegalDocumentRepositoryImpl(db);
+const userConsentRepo = new UserConsentRepositoryImpl(db);
+const apiClientRepo = new ApiClientRepositoryImpl(db);
+const resolveFirstPartyClient = new ResolveFirstPartyClientUseCase(apiClientRepo);
 
 const controller = new AuthController({
-  register: new RegisterUserUseCase(userRepo, hasher, auditRepo, otpRepo, mailer),
+  register: new RegisterUserUseCase(
+    userRepo,
+    hasher,
+    auditRepo,
+    otpRepo,
+    mailer,
+    appSettingsRepo,
+    userConsentRepo,
+  ),
   login: new LoginUserUseCase(
     userRepo,
     hasher,
@@ -352,6 +395,7 @@ const controller = new AuthController({
     tokenService,
     env.JWT_ACCESS_TOKEN_TTL,
     env.JWT_REFRESH_TOKEN_TTL,
+    apiClientRepo,
   ),
   logout: new LogoutUserUseCase(refreshTokenRepo),
   logoutAll: new LogoutAllDevicesUseCase(refreshTokenRepo, deviceTokenRepo),
@@ -381,12 +425,16 @@ const controller = new AuthController({
   listProviders: new ListAuthProvidersUseCase(identityRepo),
   linkGoogle: new LinkGoogleAccountUseCase(userRepo, identityRepo, googleTokenVerifier),
   unlinkGoogle: new UnlinkGoogleAccountUseCase(userRepo, identityRepo),
+  resolveFirstPartyClient,
 });
 
 const authenticate = createAuthenticateMiddleware((token) => tokenService.verifyAccessToken(token));
 const optionalAuthenticate = createOptionalAuthenticateMiddleware((token) =>
   tokenService.verifyAccessToken(token),
 );
+const requireVoteWriteClient = createRequireApprovedClientMiddleware(apiClientRepo, {
+  scope: 'vote.write',
+});
 
 // ---- Modul word (+ language & category sebagai data referensi form admin) ----
 const wordRepo = new WordRepositoryImpl(db);
@@ -472,6 +520,7 @@ const contributionController = new ContributionController({
 const searchMissController = new SearchMissController({
   list: new ListSearchMissesUseCase(searchMissRepo),
   dismiss: new DismissSearchMissUseCase(searchMissRepo, auditRepo),
+  bulkDismiss: new BulkDismissSearchMissUseCase(searchMissRepo, auditRepo),
   update: new UpdateSearchMissUseCase(searchMissRepo, auditRepo),
   resolve: new ResolveSearchMissUseCase(
     searchMissRepo,
@@ -508,6 +557,7 @@ const adminVotesController = new AdminVotesController({
   list: new ListAdminVotesUseCase(voteRepo),
   deleteById: new DeleteAdminVoteUseCase(voteRepo, auditRepo),
   resetTarget: new ResetTargetVotesUseCase(voteRepo, auditRepo),
+  resetByClient: new ResetVotesByClientUseCase(voteRepo, auditRepo),
   topTargets: new GetTopTargetVotesUseCase(voteRepo),
 });
 
@@ -692,6 +742,22 @@ const accountDeletion = new AccountDeletionUseCase(
 );
 app.route('/api/v1/auth', createAuthRoutes({ controller, authenticate, accountDeletion }));
 
+const legalController = new LegalController({
+  getCurrent: new GetCurrentLegalUseCase(appSettingsRepo, legalDocumentRepo),
+  getDocument: new GetLegalDocumentUseCase(appSettingsRepo, legalDocumentRepo),
+  acceptLegal: new AcceptLegalUseCase(appSettingsRepo, userConsentRepo),
+  listAdmin: new ListAdminLegalDocumentsUseCase(legalDocumentRepo),
+  createDraft: new CreateLegalDocumentDraftUseCase(legalDocumentRepo, auditRepo),
+  updateDraft: new UpdateLegalDocumentDraftUseCase(legalDocumentRepo, auditRepo),
+  publish: new PublishLegalDocumentUseCase(legalDocumentRepo, auditRepo),
+  archive: new ArchiveLegalDocumentUseCase(legalDocumentRepo, auditRepo),
+  getSettings: new GetAppSettingsUseCase(appSettingsRepo),
+  updateSettings: new UpdateAppSettingsUseCase(appSettingsRepo, auditRepo),
+});
+app.route('/api/v1/legal', createLegalPublicRoutes({ controller: legalController }));
+app.route('/api/v1/auth', createLegalAuthRoutes({ controller: legalController, authenticate }));
+app.route('/api/v1/admin/legal', createAdminLegalRoutes({ controller: legalController, authenticate }));
+
 // Modul word - admin (write) + publik (read)
 app.route('/api/v1/admin/words', createAdminWordRoutes({ controller: wordController, authenticate }));
 // Kontribusi media (pronounce/gambar/contoh) DI-MOUNT SEBELUM public routes -
@@ -729,7 +795,14 @@ app.route('/api/v1/word-classes', createWordClassRoutes({ controller: wordContro
 
 // Vote polymorphic (08-api-upvote-downvote.md) - toggle (login) + counts
 // (publik) + my (login). Tanpa prefix bentrok, urutan mount bebas.
-app.route('/api/v1/votes', createVoteRoutes({ controller: voteController, authenticate }));
+app.route(
+  '/api/v1/votes',
+  createVoteRoutes({
+    controller: voteController,
+    authenticate,
+    requireApprovedClient: requireVoteWriteClient,
+  }),
+);
 
 // Komentar (09-api-comment.md): my + delete by author; admin takedown
 app.route('/api/v1/comments', createCommentRoutes({ controller: commentController, authenticate }));

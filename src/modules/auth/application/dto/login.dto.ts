@@ -7,4 +7,8 @@ export interface LoginDto {
 export interface LoginMeta {
   deviceInfo?: string | null;
   ipAddress?: string | null;
+  /** api_clients.client_id - diisi setelah ResolveFirstPartyClient */
+  clientId?: string | null;
+  /** Space-separated scopes untuk claim JWT */
+  scopes?: string | null;
 }

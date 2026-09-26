@@ -10,6 +10,8 @@ export interface ToggleVoteCommand {
   targetType: VoteTargetType;
   targetId: string;
   value: 1 | -1;
+  /** Dari JWT azp - atribusi klien */
+  clientId?: string | null;
 }
 
 // Toggle vote (08-api-upvote-downvote.md): vote searah kedua kali = batal,
@@ -40,6 +42,6 @@ export class ToggleVoteUseCase {
       throw new NotFoundError('VOTE_TARGET_NOT_FOUND', 'Target vote tidak ditemukan atau sudah dihapus');
     }
 
-    return this.voteRepo.toggle(cmd.userId, target, cmd.value);
+    return this.voteRepo.toggle(cmd.userId, target, cmd.value, cmd.clientId ?? null);
   }
 }

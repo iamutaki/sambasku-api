@@ -40,3 +40,7 @@ export * from './word-reports.schema';
 export * from './translation-helps.schema';
 export * from './word-audios.schema';
 export * from './word-import-sessions.schema';
+export * from './app-settings.schema';
+export * from './legal-documents.schema';
+export * from './user-consents.schema';
+export * from './api-clients.schema';

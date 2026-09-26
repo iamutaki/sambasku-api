@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { opaqueId } from '@/shared/validation/id';
 import { queryBooleanSchema } from '@/shared/validation/query-boolean';
+import { SEARCH_MISS_BULK_DISMISS_MAX } from '../../../application/use-cases/bulk-dismiss-search-miss.use-case';
 
 export const publicSearchMissQuerySchema = z.object({
   direction: z.enum(['lemma', 'translation']).optional(),
@@ -30,10 +32,21 @@ export const resolveSearchMissBodySchema = z.object({
   meaning_id: z.string().length(26).optional(),
 });
 
+export const bulkDismissSearchMissBodySchema = z.object({
+  ids: z
+    .array(opaqueId)
+    .min(1, 'Pilih minimal satu pencarian')
+    .max(
+      SEARCH_MISS_BULK_DISMISS_MAX,
+      `Maksimal ${SEARCH_MISS_BULK_DISMISS_MAX} pencarian per permintaan`,
+    ),
+});
+
 export type PublicSearchMissQueryBody = z.infer<typeof publicSearchMissQuerySchema>;
 export type AdminSearchMissQueryBody = z.infer<typeof adminSearchMissQuerySchema>;
 export type UpdateSearchMissBody = z.infer<typeof updateSearchMissBodySchema>;
 export type ResolveSearchMissBody = z.infer<typeof resolveSearchMissBodySchema>;
+export type BulkDismissSearchMissBody = z.infer<typeof bulkDismissSearchMissBodySchema>;
 
 const searchMissItemSchema = z.object({
   id: z.string(),
@@ -68,5 +81,26 @@ export const resolveSearchMissResponseSchema = z.object({
     target_word_id: z.string(),
     created_word_id: z.string().nullable(),
     variant_id: z.string().nullable(),
+  }),
+});
+
+const bulkDismissItemSuccessSchema = z.object({
+  id: z.string(),
+  ok: z.literal(true),
+});
+
+const bulkDismissItemFailureSchema = z.object({
+  id: z.string(),
+  ok: z.literal(false),
+  error_code: z.string(),
+  message: z.string(),
+});
+
+export const bulkDismissSearchMissResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    succeeded: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    results: z.array(z.union([bulkDismissItemSuccessSchema, bulkDismissItemFailureSchema])),
   }),
 });

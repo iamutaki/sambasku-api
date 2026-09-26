@@ -30,6 +30,8 @@ export class JwtTokenService implements TokenServicePort {
     return new SignJWT({
       role: payload.role,
       ...(payload.username ? { username: payload.username } : {}),
+      ...(payload.azp ? { azp: payload.azp } : {}),
+      ...(payload.scope ? { scope: payload.scope } : {}),
     })
       .setProtectedHeader({ alg: 'RS256' })
       .setSubject(payload.user_id)
@@ -45,7 +47,10 @@ export class JwtTokenService implements TokenServicePort {
       if (!user_id || typeof payload.role !== 'string') {
         throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak valid');
       }
-      return { user_id, role: payload.role };
+      const azp = typeof payload.azp === 'string' ? payload.azp : undefined;
+      const scope = typeof payload.scope === 'string' ? payload.scope : undefined;
+      const username = typeof payload.username === 'string' ? payload.username : undefined;
+      return { user_id, role: payload.role, username, azp, scope };
     } catch (err) {
       if (err instanceof UnauthorizedError) throw err;
       if (err instanceof errors.JWTExpired) {

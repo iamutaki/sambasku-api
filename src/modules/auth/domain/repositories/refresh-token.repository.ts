@@ -2,6 +2,7 @@ export interface RefreshTokenRecord {
   id: string;
   userId: string;
   tokenHash: string;
+  clientId: string | null;
   isRevoked: boolean;
   /** Waktu rotasi. Null = belum dirotasi, atau sudah dicabut paksa (logout). */
   rotatedAt: Date | null;
@@ -11,6 +12,7 @@ export interface RefreshTokenRecord {
 export interface NewRefreshToken {
   userId: string;
   tokenHash: string;
+  clientId?: string | null;
   deviceInfo?: string | null;
   ipAddress?: string | null;
   expiresAt: Date;

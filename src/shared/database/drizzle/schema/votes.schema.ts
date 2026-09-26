@@ -20,6 +20,8 @@ export const votes = sqliteTable(
     entityId: text('entity_id').notNull(),
     // 1 = upvote, -1 = downvote. integer bukan boolean: arah eksplisit.
     value: integer('value').notNull(),
+    /** api_clients.client_id dari JWT azp - atribusi third-party */
+    clientId: text('client_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
     updatedAt: integer('updated_at', { mode: 'timestamp' }),
   },
@@ -28,5 +30,6 @@ export const votes = sqliteTable(
     index('votes_target_idx').on(t.entityType, t.entityId),
     // Riwayat milik user: ORDER BY id DESC (26-api-my-votes.md)
     index('votes_user_id_id_idx').on(t.userId, t.id),
+    index('votes_client_id_idx').on(t.clientId),
   ],
 );

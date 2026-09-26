@@ -19,6 +19,7 @@
     "seed:accounts": "tsx src/scripts/seed-accounts.ts",
     "seed:reference": "tsx src/scripts/seed-reference.ts",
     "cleanup-tokens": "tsx src/scripts/cleanup-tokens.ts",
+    "dataset:export": "tsx src/scripts/dataset/export-published-dataset.ts",
     "test": "vitest run",
     "test:unit": "vitest run --dir '**/__tests__/unit'",
     "test:integration": "vitest run --dir '**/__tests__/integration'",

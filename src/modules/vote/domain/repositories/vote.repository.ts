@@ -36,6 +36,7 @@ export interface Vote {
   entityType: VoteTargetType;
   entityId: string;
   value: 1 | -1;
+  clientId: string | null;
   createdAt: Date;
   updatedAt: Date | null;
 }
@@ -92,10 +93,17 @@ export function encodeAdminCursor(c: AdminVoteCursor): string {
  * Decode cursor string ke AdminVoteCursor.
  * Domain TIDAK mengimport NotFoundError (lempar generic Error saja).
  * Presentation / Use Case layer yang wrap ke NotFoundError ber-code.
+ *
+ * ISO-8601 (`2026-09-25T16:27:10.000Z`) memuat `:`, jadi jangan
+ * `split(':')[0]` - rejoin semua bagian kecuali id terakhir (pola
+ * decodeVoteDeckCursor).
  */
 export function decodeAdminCursor(s: string): AdminVoteCursor {
   const raw = Buffer.from(s, 'base64url').toString();
-  const [iso, id] = raw.split(ADMIN_CURSOR_SEP);
+  const parts = raw.split(ADMIN_CURSOR_SEP);
+  if (parts.length < 2) throw new Error('INVALID_CURSOR_FORMAT');
+  const id = parts[parts.length - 1];
+  const iso = parts.slice(0, -1).join(ADMIN_CURSOR_SEP);
   if (!iso || !id) throw new Error('INVALID_CURSOR_FORMAT');
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) throw new Error('INVALID_CURSOR_DATE');
@@ -206,7 +214,12 @@ export interface VoteRepository {
    * final + counts segar. DIJAMIN atomik - use case tidak perlu tahu soal
    * transaction.
    */
-  toggle(userId: string, target: VoteTarget, value: 1 | -1): Promise<ToggleVoteResult>;
+  toggle(
+    userId: string,
+    target: VoteTarget,
+    value: 1 | -1,
+    clientId?: string | null,
+  ): Promise<ToggleVoteResult>;
 
   /**
    * Counts batch - key map "entityType:entityId". Target tanpa vote TIDAK
@@ -251,6 +264,12 @@ export interface VoteRepository {
    * Return count baris yang dihapus (0 = target tidak punya vote).
    */
   resetTarget(target: VoteTarget): Promise<number>;
+
+  /**
+   * Hard delete SEMUA vote yang diatribusikan ke client_id (revoke third-party).
+   * Return jumlah baris yang dihapus.
+   */
+  resetByClientId(clientId: string): Promise<number>;
 
   /**
    * Top target terurut skor bersih (net = sum(value)) desc.

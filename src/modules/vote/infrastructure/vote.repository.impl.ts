@@ -132,7 +132,12 @@ export class VoteRepositoryImpl implements VoteRepository {
     }
   }
 
-  async toggle(userId: string, target: VoteTarget, value: 1 | -1): Promise<ToggleVoteResult> {
+  async toggle(
+    userId: string,
+    target: VoteTarget,
+    value: 1 | -1,
+    clientId?: string | null,
+  ): Promise<ToggleVoteResult> {
     return this.db.transaction(async (tx) => {
       // Vote searah kedua kali = batal. Hanya hapus baris dengan arah yang
       // SAMA - kalau tidak kena berarti baru / beda arah → upsert di bawah.
@@ -152,10 +157,20 @@ export class VoteRepositoryImpl implements VoteRepository {
       if (removed.length === 0) {
         await tx
           .insert(votes)
-          .values({ userId, entityType: target.entityType, entityId: target.entityId, value })
+          .values({
+            userId,
+            entityType: target.entityType,
+            entityId: target.entityId,
+            value,
+            clientId: clientId ?? null,
+          })
           .onConflictDoUpdate({
             target: [votes.userId, votes.entityType, votes.entityId],
-            set: { value, updatedAt: new Date() },
+            set: {
+              value,
+              clientId: clientId ?? null,
+              updatedAt: new Date(),
+            },
           });
         myVote = value;
       }
@@ -240,6 +255,7 @@ export class VoteRepositoryImpl implements VoteRepository {
         entityType: votes.entityType,
         entityId: votes.entityId,
         value: votes.value,
+        clientId: votes.clientId,
         createdAt: votes.createdAt,
         updatedAt: votes.updatedAt,
       })
@@ -278,6 +294,7 @@ export class VoteRepositoryImpl implements VoteRepository {
       entityType: row.entityType as VoteTargetType,
       entityId: row.entityId,
       value: row.value === 1 ? 1 : -1,
+      clientId: row.clientId ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       targetPreview: null,
@@ -308,6 +325,11 @@ export class VoteRepositoryImpl implements VoteRepository {
     const result = await this.db
       .delete(votes)
       .where(and(eq(votes.entityType, target.entityType), eq(votes.entityId, target.entityId)));
+    return Number(result.rowsAffected ?? 0);
+  }
+
+  async resetByClientId(clientId: string): Promise<number> {
+    const result = await this.db.delete(votes).where(eq(votes.clientId, clientId));
     return Number(result.rowsAffected ?? 0);
   }
 

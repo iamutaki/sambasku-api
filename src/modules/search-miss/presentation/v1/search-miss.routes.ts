@@ -10,6 +10,8 @@ import type { AppVariables } from '@/shared/types';
 import type { SearchMissController } from './search-miss.controller';
 import {
   adminSearchMissQuerySchema,
+  bulkDismissSearchMissBodySchema,
+  bulkDismissSearchMissResponseSchema,
   publicSearchMissQuerySchema,
   resolveSearchMissBodySchema,
   resolveSearchMissResponseSchema,
@@ -52,13 +54,15 @@ export function createSearchMissRoutes(deps: SearchMissRoutesDeps) {
 }
 
 // Panel admin: GET /api/v1/admin/search-misses + PATCH /:id + POST /:id/dismiss
+// + POST /bulk-dismiss. Verifikator (admin/root/reviewer) boleh list + dismiss;
+// koreksi term / tayang / resolve tetap di UI hanya admin/root.
 export function createAdminSearchMissRoutes(deps: SearchMissRoutesDeps) {
   const routes = createOpenApiApp();
 
   routes.use(
     '*',
     deps.authenticate,
-    authorizeRole('admin', 'root'),
+    authorizeRole('admin', 'root', 'reviewer'),
     rateLimit({ points: 500, duration: 60 }),
   );
 
@@ -70,6 +74,23 @@ export function createAdminSearchMissRoutes(deps: SearchMissRoutesDeps) {
     request: { query: adminSearchMissQuerySchema },
     responses: {
       200: { description: 'Daftar miss', content: json(searchMissListResponseSchema) },
+      401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
+      403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
+    },
+  });
+
+  const bulkDismissRoute = createRoute({
+    method: 'post',
+    path: '/bulk-dismiss',
+    tags: ['Search Misses', 'Admin'],
+    summary: 'Singkirkan banyak miss sekaligus (spam / tidak layak) - soft delete massal',
+    request: { body: { content: json(bulkDismissSearchMissBodySchema) } },
+    responses: {
+      200: {
+        description: 'Hasil per-id (partial success)',
+        content: json(bulkDismissSearchMissResponseSchema),
+      },
+      400: { description: 'Body tidak valid', content: json(errorResponseSchema) },
       401: { description: 'Token tidak ada/invalid', content: json(errorResponseSchema) },
       403: { description: 'Role tidak diizinkan', content: json(errorResponseSchema) },
     },
@@ -129,6 +150,9 @@ export function createAdminSearchMissRoutes(deps: SearchMissRoutesDeps) {
   });
 
   routes.openapi(listRoute, (c) => deps.controller.listAdmin(c, c.req.valid('query')) as never);
+  routes.openapi(bulkDismissRoute, (c) =>
+    deps.controller.bulkDismiss(c, c.req.valid('json')) as never,
+  );
   routes.openapi(updateRoute, (c) =>
     deps.controller.update(c, c.req.valid('param').id, c.req.valid('json')) as never,
   );

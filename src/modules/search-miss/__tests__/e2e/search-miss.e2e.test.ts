@@ -195,6 +195,67 @@ describe.skipIf(!hasTestDb)('Search Miss E2E - pencarian kosong jadi peluang kon
     expect((await bogus.json()).error_code).toBe('SEARCH_MISS_NOT_FOUND');
   });
 
+  it('bulk-dismiss: multi-id sukses + id ngawur partial fail; tanpa token → 401', async () => {
+    await get('/api/v1/words/search?q=bulka');
+    await get('/api/v1/words/search?q=bulkb');
+    const panel = await get('/api/v1/admin/search-misses', adminToken);
+    const panelData = (await panel.json()).data as { id: string; term: string }[];
+    const a = panelData.find((m) => m.term === 'bulka');
+    const b = panelData.find((m) => m.term === 'bulkb');
+    expect(a).toBeTruthy();
+    expect(b).toBeTruthy();
+
+    const bogusId = ulid26('01E2EBULKGACAK');
+    const bulk = await post(
+      '/api/v1/admin/search-misses/bulk-dismiss',
+      { ids: [a!.id, b!.id, bogusId] },
+      adminToken,
+    );
+    expect(bulk.status).toBe(200);
+    const body = await bulk.json();
+    expect(body.data.succeeded).toBe(2);
+    expect(body.data.failed).toBe(1);
+    expect(body.data.results).toEqual(
+      expect.arrayContaining([
+        { id: a!.id, ok: true },
+        { id: b!.id, ok: true },
+        expect.objectContaining({ id: bogusId, ok: false, error_code: 'SEARCH_MISS_NOT_FOUND' }),
+      ]),
+    );
+
+    const panelAfter = await get('/api/v1/admin/search-misses', adminToken);
+    const afterTerms = ((await panelAfter.json()).data as { term: string }[]).map((m) => m.term);
+    expect(afterTerms).not.toContain('bulka');
+    expect(afterTerms).not.toContain('bulkb');
+
+    expect((await post('/api/v1/admin/search-misses/bulk-dismiss', { ids: [a!.id] })).status).toBe(
+      401,
+    );
+
+    // contributor → 403 (hanya admin/root/reviewer)
+    const stamp = Date.now();
+    await post('/api/v1/auth/register', {
+      name: `ctr${stamp}`,
+      email: `ctr${stamp}@test.com`,
+      password: 'Password123',
+      confirm_password: 'Password123',
+    });
+    await post('/api/v1/auth/verify-email', {
+      email: `ctr${stamp}@test.com`,
+      code: capturedOtpDisplayCode(),
+    });
+    const contribToken = (
+      (await (await post('/api/v1/auth/login', { email: `ctr${stamp}@test.com`, password: 'Password123' })).json())
+        .data
+    ).access_token;
+    const forbidden = await post(
+      '/api/v1/admin/search-misses/bulk-dismiss',
+      { ids: [ulid26('01E2EBULKFORBID')] },
+      contribToken,
+    );
+    expect(forbidden.status).toBe(403);
+  });
+
   it('query terlalu pendek (<2 karakter) tidak dicatat; tanpa token panel admin → 401', async () => {
     await get('/api/v1/words/search?q=a');
     const beranda = await get('/api/v1/search-misses');

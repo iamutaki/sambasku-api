@@ -22,7 +22,7 @@ describe('ToggleVoteUseCase', () => {
     const result = await useCase.execute({ userId: USER, targetType: 'word', targetId: WORD_ID, value: 1 });
 
     expect(voteRepo.targetExists).toHaveBeenCalledWith(TARGET);
-    expect(voteRepo.toggle).toHaveBeenCalledWith(USER, TARGET, 1);
+    expect(voteRepo.toggle).toHaveBeenCalledWith(USER, TARGET, 1, null);
     expect(result).toEqual({ myVote: 1, upvotes: 1, downvotes: 0 });
   });
 

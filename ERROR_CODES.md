@@ -27,6 +27,8 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `MEANING_NOT_FOUND` | 404 | Makna tidak ditemukan by id (kontribusi contoh kalimat) |
 | `CONTRIBUTION_NOT_FOUND` | 404 | Kontribusi tidak ditemukan by id (antrean review) |
 | `SEARCH_MISS_NOT_FOUND` | 404 | Pencarian kosong tidak ditemukan by id (dismiss / create-from-miss / update / resolve) |
+| `SEARCH_MISS_BULK_EMPTY` | 400 | Mass dismiss pencarian tanpa id |
+| `SEARCH_MISS_BULK_TOO_LARGE` | 400 | Mass dismiss pencarian lebih dari 50 id |
 | `SEARCH_MISS_TERM_MISMATCH` | 400 | Body create kata tidak cocok term miss (soft-check provenance 12-api) |
 | `SEARCH_MISS_TERM_CONFLICT` | 409 | Koreksi term bentrok unique (term, direction) dengan miss lain (14-api) |
 | `WORD_VARIANT_CONFLICT` | 409 | Resolve-as-variant: form sudah ada pada kata target |
@@ -51,6 +53,17 @@ Dokumen hidup - wajib diupdate tiap ada `errorCode` baru di PR yang sama
 | `EMAIL_ALREADY_EXISTS` | 409 | Registrasi dengan email yang sudah dipakai |
 | `USERNAME_ALREADY_EXISTS` | 409 | Registrasi dengan nama (username) yang sudah dipakai |
 | `PHONE_ALREADY_EXISTS` | 409 | Registrasi / pengajuan verifikator / buat user admin dengan nomor HP yang sudah dipakai user lain |
+| `CONSENT_REQUIRED` | 400 | Register/accept-legal tanpa consents terms+privacy lengkap, atau dokumen legal belum dikonfigurasi |
+| `LEGAL_CONSENT_OUTDATED` | 400/403 | Versi terms/privacy yang dikirim bukan versi aktif; atau user belum setuju versi terbaru saat write |
+| `LEGAL_DOCUMENT_NOT_FOUND` | 404 | Dokumen legal tidak ada / belum dipublish |
+| `LEGAL_VERSION_EXISTS` | 409 | Draft legal dengan type+version yang sama sudah ada |
+| `LEGAL_DRAFT_ONLY` | 400 | Mengubah dokumen yang bukan status draft |
+| `INVALID_SETTING_KEY` | 400 | PATCH app_settings dengan key yang tidak diizinkan |
+| `INVALID_SETTING_VALUE` | 400 | Nilai app_settings tidak valid (mis. third_party_registration / retensi) |
+| `CLIENT_REQUIRED` | 401 | Write dengan JWT tanpa claim `azp` saat `OAUTH_REQUIRE_AZP=true` |
+| `CLIENT_NOT_ALLOWED` | 403 | `azp` unknown/suspended/revoked, atau klien first-party tidak approved |
+| `CLIENT_MISMATCH` | 400 | `client_id` login bukan first-party / tidak cocok `client_type` |
+| `INSUFFICIENT_SCOPE` | 403 | Token third-party kurang scope untuk endpoint write |
 | `CANNOT_DEACTIVATE_SELF` | 403 | Admin mencoba mengubah status aktif akunnya sendiri |
 | `BUG_REPORT_NOT_FOUND` | 404 | Laporan masalah tidak ditemukan / sudah selesai (resolve admin) |
 | `TRANSLATION_HELP_NOT_FOUND` | 404 | Bantuan terjemahan tidak ditemukan / tidak boleh diakses |

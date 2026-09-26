@@ -31,6 +31,7 @@ export class VoteController {
       targetType: body.target_type,
       targetId: body.target_id,
       value: body.value,
+      clientId: user.azp ?? null,
     });
 
     logger.info(
