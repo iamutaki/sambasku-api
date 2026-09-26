@@ -665,6 +665,8 @@ export const listWordsQuerySchema = z.object({
   // share validator length(26)
   cursor: z.string().optional(),
   word_type: z.enum(['word', 'idiom', 'peribahasa', 'ungkapan']).optional(),
+  /** Omit = semua yang tayang. true = hanya terverifikasi (sitemap). */
+  is_verified: queryBooleanSchema,
 });
 
 export type SearchWordsQueryBody = z.infer<typeof searchWordsQuerySchema>;

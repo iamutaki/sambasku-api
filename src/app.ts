@@ -593,7 +593,18 @@ app.notFound((c) =>
 app.use('*', requestIdMiddleware);
 // Workers: pool DB per-request (WebSocket = I/O milik request, lihat client.ts)
 app.use('*', requestDb);
-app.use('/api/*', cors({ origin: env.CORS_ALLOWED_ORIGINS, credentials: true }));
+// Origin allowlist tetap dapat credentials (konsol / situs). Origin lain
+// boleh baca API publik (kamus) lewat Access-Control-Allow-Origin: *.
+app.use(
+  '/api/*',
+  cors({
+    origin: (origin) => {
+      if (origin && env.CORS_ALLOWED_ORIGINS.includes(origin)) return origin;
+      return '*';
+    },
+    credentials: true,
+  }),
+);
 
 // Info singkat di root - meta route (bukan endpoint fitur, jadi tidak ikut OpenAPI spec)
 app.get('/', (c) =>

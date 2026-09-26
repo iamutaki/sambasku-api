@@ -1030,6 +1030,7 @@ export class WordRepositoryImpl implements WordRepository {
       q ? ilikeCompat(words.lemma, `%${escapeLike(q)}%`) : browseSafeUsageLabelsSql(),
       letter ? sql`${lemmaAz} LIKE ${`${escapeLike(letter)}%`}` : undefined,
       params.wordType ? eq(words.wordType, params.wordType) : undefined,
+      params.isVerified === undefined ? undefined : eq(words.isVerified, params.isVerified),
       params.cursor
         ? sql`(${lemmaAz}, ${words.id}) > (lower(${params.cursor.lemma}), ${params.cursor.id})`
         : undefined,
@@ -1045,6 +1046,7 @@ export class WordRepositoryImpl implements WordRepository {
         usageLabels: words.usageLabels,
         isVerified: words.isVerified,
         status: words.status,
+        updatedAt: words.updatedAt,
       })
       .from(words)
       .innerJoin(languages, eq(words.languageId, languages.id))
@@ -1062,6 +1064,7 @@ export class WordRepositoryImpl implements WordRepository {
       usageLabels: toUsageLabels(r.usageLabels),
       isVerified: r.isVerified,
       status: r.status as WordStatus,
+      updatedAt: r.updatedAt ?? null,
       sense: null,
     }));
 

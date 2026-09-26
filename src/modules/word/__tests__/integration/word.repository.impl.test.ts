@@ -858,6 +858,19 @@ describe.skipIf(!hasTestDb)('WordRepositoryImpl', () => {
     expect(lemmas).toContain('madam');
   });
 
+  it('listAtoZ: isVerified menyaring, dan updatedAt ikut item', async () => {
+    const tayang = await repo.saveWithRelations(baseWord({ lemma: 'tayang', isVerified: true }), ACTOR);
+    await repo.saveWithRelations(baseWord({ lemma: 'drafseo', isVerified: false }), ACTOR);
+
+    const only = await repo.listAtoZ({ q: '', limit: 20, isVerified: true });
+    expect(only.items.map((w) => w.lemma)).toEqual(['tayang']);
+    expect(only.items[0]!.id).toBe(tayang.id);
+    expect(only.items[0]!.updatedAt === null || only.items[0]!.updatedAt instanceof Date).toBe(true);
+
+    const all = await repo.listAtoZ({ q: '', limit: 20 });
+    expect(all.items.map((w) => w.lemma).sort()).toEqual(['drafseo', 'tayang']);
+  });
+
   it('listAtoZ: sense = [kode] terjemahan dipisah koma lintas makna', async () => {
     const VERBA = ulid26('01TESTWCVERBA');
     await db.insert(wordClasses).values({ id: VERBA, code: 'v', name: 'Verba' });

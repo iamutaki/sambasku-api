@@ -65,6 +65,8 @@ export interface WordSummary {
   matchedTranslation?: string;
   /** 11: terisi saat pencarian lemma cocok lewat variasi penulisan (formnya) */
   matchedVariant?: string;
+  /** waktu perubahan terakhir (listing A-Z; sitemap web pakai ini sebagai lastmod). Null bila kolom kosong. */
+  updatedAt?: Date | null;
   /**
    * Ringkas gloss daftar: `[n] makan,[v] santap` (kode kelas + terjemahan).
    * GET /words (A-Z) dan GET /words/search. Feed /latest memakai

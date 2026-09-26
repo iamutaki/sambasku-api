@@ -218,6 +218,8 @@ export interface ListAtoZParams {
   letter?: string;
   limit: number;
   wordType?: string;
+  /** Omit = semua yang tayang. Sitemap web mengirim true. */
+  isVerified?: boolean;
   cursor?: { lemma: string; id: string };
 }
 

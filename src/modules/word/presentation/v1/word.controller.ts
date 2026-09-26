@@ -254,12 +254,14 @@ export class WordController {
 
   async detail(c: Context, id: string) {
     const word = await this.deps.getById.execute(id);
+    setPublicWordReadCache(c);
     return c.json({ success: true as const, data: this.toDetailData(word, { redactStagingImages: true }) });
   }
 
   /** URL publik /words/<lemma> - resolusi homonim di repository. */
   async detailByLemma(c: Context, lemma: string) {
     const word = await this.deps.getByLemma.execute(lemma);
+    setPublicWordReadCache(c);
     return c.json({ success: true as const, data: this.toDetailData(word, { redactStagingImages: true }) });
   }
 
@@ -472,6 +474,7 @@ export class WordController {
       wordType: query.word_type,
       isVerified: query.is_verified,
     });
+    setPublicWordReadCache(c);
     return c.json({
       success: true as const,
       data: items.map(toListItem),
@@ -504,7 +507,9 @@ export class WordController {
       limit: query.limit,
       cursor: query.cursor,
       wordType: query.word_type,
+      isVerified: query.is_verified,
     });
+    setPublicWordReadCache(c);
     return c.json({
       success: true as const,
       data: items.map(toListItem),
@@ -1075,6 +1080,11 @@ export class WordController {
   }
 }
 
+/** Cache pendek untuk GET baca kamus publik (bot & CDN ramah). */
+function setPublicWordReadCache(c: Context) {
+  c.header('Cache-Control', 'public, max-age=60, s-maxage=300');
+}
+
 function toListItem(w: {
   id: string;
   lemma: string;
@@ -1087,6 +1097,7 @@ function toListItem(w: {
   matchedTranslation?: string;
   matchedVariant?: string;
   sense?: string | null;
+  updatedAt?: Date | null;
 }) {
   return {
     id: w.id,
@@ -1101,6 +1112,9 @@ function toListItem(w: {
     ...(w.matchedVariant !== undefined ? { matched_variant: w.matchedVariant } : {}),
     // A-Z + search: `[n] makan,[v] santap`. Null = belum ada terjemahan published.
     ...(w.sense !== undefined ? { sense: w.sense } : {}),
+    ...(w.updatedAt !== undefined
+      ? { updated_at: w.updatedAt ? w.updatedAt.toISOString() : null }
+      : {}),
   };
 }
 
