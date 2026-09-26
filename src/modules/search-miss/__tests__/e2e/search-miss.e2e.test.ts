@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
-import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
+import { capturedOtpDisplayCode, e2eRegisterBody} from '@/shared/testing/e2e-auth';
 import { eq } from 'drizzle-orm';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
@@ -54,12 +54,10 @@ describe.skipIf(!hasTestDb)('Search Miss E2E - pencarian kosong jadi peluang kon
     app = appModule.app;
 
     const stamp = Date.now();
-    await post('/api/v1/auth/register', {
-      name: `adm${stamp}`,
-      email: `adm${stamp}@test.com`,
-      password: 'Password123',
-      confirm_password: 'Password123',
-    });
+    await post('/api/v1/auth/register', e2eRegisterBody({
+        name: `adm${stamp}`,
+        email: `adm${stamp}@test.com`,
+    }));
     await post('/api/v1/auth/verify-email', {
       email: `adm${stamp}@test.com`,
       code: capturedOtpDisplayCode(),
@@ -234,12 +232,10 @@ describe.skipIf(!hasTestDb)('Search Miss E2E - pencarian kosong jadi peluang kon
 
     // contributor → 403 (hanya admin/root/reviewer)
     const stamp = Date.now();
-    await post('/api/v1/auth/register', {
-      name: `ctr${stamp}`,
-      email: `ctr${stamp}@test.com`,
-      password: 'Password123',
-      confirm_password: 'Password123',
-    });
+    await post('/api/v1/auth/register', e2eRegisterBody({
+        name: `ctr${stamp}`,
+        email: `ctr${stamp}@test.com`,
+    }));
     await post('/api/v1/auth/verify-email', {
       email: `ctr${stamp}@test.com`,
       code: capturedOtpDisplayCode(),

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
 import { ANONIM_EMAIL, ANONIM_USER_ID, ANONIM_USERNAME } from '@/shared/constants/anonim';
+import { e2eRegisterBody } from '@/shared/testing/e2e-auth';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -56,12 +57,10 @@ describe.skipIf(!hasTestDb)('Variasi Penulisan E2E v1 (11 doc) - search + valida
 
     const stamp = Date.now();
     const email = `adm${stamp}@test.com`;
-    await post('/api/v1/auth/register', {
-      name: `adm${stamp}`,
-      email,
-      password: 'Password123',
-      confirm_password: 'Password123',
-    });
+    await post('/api/v1/auth/register', e2eRegisterBody({
+        name: `adm${stamp}`,
+        email: email,
+    }));
     await db.update(users).set({ role: 'admin', emailVerified: true }).where(eq(users.email, email));
 
     // User sistem Anonim - penampung kontribusi tanpa login (03 doc)

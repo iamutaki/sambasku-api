@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
-import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
+import { capturedOtpDisplayCode, e2eRegisterBody} from '@/shared/testing/e2e-auth';
 import { eq } from 'drizzle-orm';
 
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -66,19 +66,15 @@ describe.skipIf(!hasTestDb)('Verifier application E2E v1 (20 doc)', () => {
     const stamp = Date.now();
     const adminEmail = `admva${stamp}@test.com`;
     contributorEmail = `konva${stamp}@test.com`;
-    await post('/api/v1/auth/register', {
-      name: `admva${stamp}`,
-      email: adminEmail,
-      password: 'Password123',
-      confirm_password: 'Password123',
-    });
+    await post('/api/v1/auth/register', e2eRegisterBody({
+        name: `admva${stamp}`,
+        email: adminEmail,
+    }));
     await post('/api/v1/auth/verify-email', { email: adminEmail, code: capturedOtpDisplayCode() });
-    await post('/api/v1/auth/register', {
-      name: `konva${stamp}`,
-      email: contributorEmail,
-      password: 'Password123',
-      confirm_password: 'Password123',
-    });
+    await post('/api/v1/auth/register', e2eRegisterBody({
+        name: `konva${stamp}`,
+        email: contributorEmail,
+    }));
     await post('/api/v1/auth/verify-email', { email: contributorEmail, code: capturedOtpDisplayCode() });
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, adminEmail));
 

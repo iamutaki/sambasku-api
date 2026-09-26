@@ -67,6 +67,15 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
   let ipSeq = 0;
   const xff = () => ({ 'x-forwarded-for': `10.0.0.${++ipSeq}` });
 
+  /**
+   * setRefreshTokenCookie menghapus varian lama dulu (Set-Cookie kosong
+   * Max-Age=0), lalu set nilai baru. Ambil header yang punya nilai token.
+   */
+  const refreshSetCookie = (res: { headers: { getSetCookie: () => string[] } }) =>
+    res.headers
+      .getSetCookie()
+      .find((c: string) => /^refresh_token=[^;]+/.test(c));
+
   const register = (email: string) =>
     client.api.v1.auth.register.$post(
       {
@@ -186,7 +195,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(body.data.access_token).toBeDefined();
     expect(body.data.expires_in).toBe(900);
 
-    const cookie = res.headers.getSetCookie().find((c: string) => c.startsWith('refresh_token='));
+    const cookie = refreshSetCookie(res);
     expect(cookie).toBeDefined();
     expect(cookie).toMatch(/httponly/i);
     expect(cookie).toMatch(/samesite=strict/i);
@@ -206,10 +215,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     const email = unique();
     await registerAndVerify(email);
     const loginRes = await client.api.v1.auth.login.$post({ json: { email, password: 'Password123' } }, { headers: xff() });
-    const cookie = loginRes.headers
-      .getSetCookie()
-      .find((c: string) => c.startsWith('refresh_token='));
-    const oldToken = (cookie ?? '').match(/refresh_token=([^;]+)/)?.[1];
+    const oldToken = (refreshSetCookie(loginRes) ?? '').match(/refresh_token=([^;]+)/)?.[1];
     expect(oldToken).toBeDefined();
 
     // Rotasi pertama: sukses, dapat cookie baru
@@ -219,10 +225,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(res1.status).toBe(200);
     const body1 = await res1.json();
     expect(body1.data.access_token).toBeDefined();
-    const newCookie = res1.headers
-      .getSetCookie()
-      .find((c: string) => c.startsWith('refresh_token='));
-    const newToken = (newCookie ?? '').match(/refresh_token=([^;]+)/)?.[1];
+    const newToken = (refreshSetCookie(res1) ?? '').match(/refresh_token=([^;]+)/)?.[1];
     expect(newToken).not.toBe(oldToken);
 
     // Dalam 60 detik, token lama masih diterima (retry timeout / dua tab)
@@ -247,9 +250,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
       { json: { email, password: 'Password123' } },
       { headers: xff() },
     );
-    const first = loginRes.headers
-      .getSetCookie()
-      .find((c: string) => c.startsWith('refresh_token='));
+    const first = refreshSetCookie(loginRes);
     const staleHostOnly = (first ?? '').match(/refresh_token=([^;]+)/)?.[1];
     expect(staleHostOnly).toBeDefined();
 
@@ -257,10 +258,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
       headers: { cookie: `refresh_token=${staleHostOnly}` },
     });
     expect(rotated.status).toBe(200);
-    const validDomain = rotated.headers
-      .getSetCookie()
-      .find((c: string) => c.startsWith('refresh_token='))
-      ?.match(/refresh_token=([^;]+)/)?.[1];
+    const validDomain = refreshSetCookie(rotated)?.match(/refresh_token=([^;]+)/)?.[1];
     expect(validDomain).toBeDefined();
     expect(validDomain).not.toBe(staleHostOnly);
 

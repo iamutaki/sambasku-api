@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
-import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
+import { capturedOtpDisplayCode, e2eRegisterBody } from '@/shared/testing/e2e-auth';
 import { eq } from 'drizzle-orm';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
@@ -37,12 +37,10 @@ describe.skipIf(!hasTestDb)('Audit Logs E2E', () => {
     ] as const) {
       await request('/api/v1/auth/register', {
         method: 'POST',
-        body: JSON.stringify({
-          name,
-          email,
-          password: 'Password123',
-          confirm_password: 'Password123',
-        }),
+        body: JSON.stringify(e2eRegisterBody({
+            name,
+            email,
+        })),
       });
       await request('/api/v1/auth/verify-email', {
         method: 'POST',
