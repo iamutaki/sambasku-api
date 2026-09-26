@@ -30,6 +30,11 @@ export interface SearchMissRepository {
   /** Soft-delete (dismiss dari panel admin). Return false kalau tidak ada. */
   dismiss(id: string, actorId: string): Promise<boolean>;
   /**
+   * Soft-delete massal (satu query IN). Return id yang benar-benar di-update
+   * (sudah dismissed / tidak ada tidak ikut).
+   */
+  dismissMany(ids: string[], actorId: string): Promise<string[]>;
+  /**
    * Partial update term / is_visible (14-api). Null kalau tidak ada.
    * Unique (term,direction) collision → throw ConflictError.
    */

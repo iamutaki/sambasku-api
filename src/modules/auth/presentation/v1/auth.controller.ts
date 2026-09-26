@@ -1,11 +1,9 @@
 import type { Context } from 'hono';
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
-import { env } from '@/shared/config/env';
 import { UnauthorizedError } from '@/shared/errors/app-error';
 import type { AppVariables } from '@/shared/types';
 import type { RegisterUserUseCase } from '../../application/use-cases/register-user.use-case';
 import type { LoginUserUseCase, LoginResult } from '../../application/use-cases/login-user.use-case';
-import type { RefreshTokenUseCase } from '../../application/use-cases/refresh-token.use-case';
+import type { RefreshTokenUseCase, RefreshResult } from '../../application/use-cases/refresh-token.use-case';
 import type { LogoutUserUseCase } from '../../application/use-cases/logout-user.use-case';
 import type { LogoutAllDevicesUseCase } from '../../application/use-cases/logout-all-devices.use-case';
 import type { ForgotPasswordUseCase } from '../../application/use-cases/forgot-password.use-case';
@@ -29,18 +27,14 @@ import type { ForgotPasswordBody } from './validators/forgot-password.validator'
 import type { ResetPasswordBody } from './validators/reset-password.validator';
 import type { ChangePasswordBody } from './validators/change-password.validator';
 import type { VerifyEmailBody, ResendOtpBody } from './validators/verify-email.validator';
-
-const REFRESH_TOKEN_COOKIE = 'refresh_token';
-const COOKIE_PATH = '/api/v1/auth'; // cookie hanya dikirim ke endpoint auth
-
-// Atribut penentu SCOPE cookie. Set dan hapus WAJIB memakai atribut yang sama:
-// browser mencocokkan name+path+domain, jadi domain yang tidak ikut saat
-// deleteCookie membuat logout gagal membersihkan cookie secara senyap.
-// REFRESH_COOKIE_DOMAIN kosong (dev/test) = host-only seperti semula.
-const cookieScope = {
-  path: COOKIE_PATH,
-  domain: env.REFRESH_COOKIE_DOMAIN,
-} as const;
+import type { ResolveFirstPartyClientUseCase } from '@/modules/developer-oauth/application/use-cases/resolve-first-party-client.use-case';
+import type { LoginMeta } from '../../application/dto/login.dto';
+import {
+  REFRESH_TOKEN_COOKIE,
+  clearRefreshCookieVariants,
+  getAllCookieValues,
+  setRefreshTokenCookie,
+} from './refresh-cookie';
 
 export class AuthController {
   constructor(
@@ -60,6 +54,7 @@ export class AuthController {
       listProviders: ListAuthProvidersUseCase;
       linkGoogle: LinkGoogleAccountUseCase;
       unlinkGoogle: UnlinkGoogleAccountUseCase;
+      resolveFirstPartyClient: ResolveFirstPartyClientUseCase;
     },
   ) {}
 
@@ -71,6 +66,11 @@ export class AuthController {
         email: body.email,
         phone: body.phone,
         password: body.password,
+        clientId: body.client_id,
+        consents: body.consents.map((item) => ({
+          documentType: item.document_type,
+          documentVersion: item.document_version,
+        })),
       },
       requestId,
     );
@@ -90,15 +90,17 @@ export class AuthController {
   }
 
   async login(c: Context, body: LoginBody) {
-    const result = await this.deps.login.execute(body, this.loginMeta(c));
+    const meta = await this.loginMetaWithClient(c, body.client_type, body.client_id);
+    const result = await this.deps.login.execute(body, meta);
     return this.loginJson(c, body.client_type, result);
   }
 
   async google(c: Context, body: GoogleLoginBody) {
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    const meta = await this.loginMetaWithClient(c, body.client_type, body.client_id);
     const result = await this.deps.google.execute(
       { idToken: body.id_token },
-      this.loginMeta(c),
+      meta,
       requestId,
     );
     return this.loginJson(c, body.client_type, result);
@@ -106,18 +108,20 @@ export class AuthController {
 
   async facebook(c: Context, body: FacebookLoginBody) {
     const requestId = (c as Context<{ Variables: AppVariables }>).get('requestId');
+    const meta = await this.loginMetaWithClient(c, body.client_type, body.client_id);
     const result = await this.deps.facebook.execute(
       { accessToken: body.access_token },
-      this.loginMeta(c),
+      meta,
       requestId,
     );
     return this.loginJson(c, body.client_type, result);
   }
 
   async verifyEmail(c: Context, body: VerifyEmailBody) {
+    const meta = await this.loginMetaWithClient(c, body.client_type, body.client_id);
     const result = await this.deps.verifyEmail.execute(
       { email: body.email, code: body.code },
-      this.loginMeta(c),
+      meta,
     );
     return this.loginJson(c, body.client_type, result);
   }
@@ -133,9 +137,17 @@ export class AuthController {
   }
 
   async refresh(c: Context, body: { refresh_token?: string } = {}) {
-    const token = body.refresh_token ?? getCookie(c, REFRESH_TOKEN_COOKIE);
-    if (!token) throw new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak ada');
-    const result = await this.deps.refresh.execute(token);
+    const tokens =
+      body.refresh_token !== undefined
+        ? body.refresh_token
+          ? [body.refresh_token]
+          : []
+        : this.cookieRefreshTokens(c);
+    if (tokens.length === 0) {
+      throw new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak ada');
+    }
+
+    const result = await this.refreshWithCandidates(tokens);
 
     if (body.refresh_token !== undefined) {
       // Klien mobile: kembalikan token rotasi via body juga
@@ -157,9 +169,16 @@ export class AuthController {
   }
 
   async logout(c: Context, body: { refresh_token?: string } = {}) {
-    const token = body.refresh_token ?? getCookie(c, REFRESH_TOKEN_COOKIE);
-    if (token) await this.deps.logout.execute(token);
-    deleteCookie(c, REFRESH_TOKEN_COOKIE, cookieScope);
+    const tokens =
+      body.refresh_token !== undefined
+        ? body.refresh_token
+          ? [body.refresh_token]
+          : []
+        : this.cookieRefreshTokens(c);
+    for (const token of tokens) {
+      await this.deps.logout.execute(token);
+    }
+    clearRefreshCookieVariants(c);
     return c.json({ success: true as const, data: null });
   }
 
@@ -167,7 +186,7 @@ export class AuthController {
     const user = (c as Context<{ Variables: AppVariables }>).get('user');
     if (!user) throw new UnauthorizedError('UNAUTHORIZED', 'Token tidak disertakan');
     await this.deps.logoutAll.execute(user.user_id);
-    deleteCookie(c, REFRESH_TOKEN_COOKIE, cookieScope);
+    clearRefreshCookieVariants(c);
     return c.json({ success: true as const, data: null });
   }
 
@@ -259,6 +278,22 @@ export class AuthController {
     };
   }
 
+  private async loginMetaWithClient(
+    c: Context,
+    clientType: 'web' | 'mobile',
+    clientId?: string,
+  ): Promise<LoginMeta> {
+    const resolved = await this.deps.resolveFirstPartyClient.execute({
+      clientId,
+      clientType,
+    });
+    return {
+      ...this.loginMeta(c),
+      clientId: resolved.clientId,
+      scopes: resolved.scopes,
+    };
+  }
+
   // Dua kanal refresh token: web via httpOnly cookie (XSS-safe),
   // mobile via response body (client simpan di Keychain/Keystore)
   private loginJson(c: Context, clientType: 'web' | 'mobile', result: LoginResult) {
@@ -292,14 +327,33 @@ export class AuthController {
     });
   }
 
+  /**
+   * Cookie header bisa berisi beberapa `refresh_token` (host-only lama +
+   * Domain=.sambasku.com). Coba dari yang terakhir dulu (biasanya yang
+   * baru di-Set-Cookie), lalu mundur.
+   */
+  private cookieRefreshTokens(c: Context): string[] {
+    const values = getAllCookieValues(c.req.header('cookie') ?? null, REFRESH_TOKEN_COOKIE);
+    return values.reverse();
+  }
+
+  private async refreshWithCandidates(tokens: string[]): Promise<RefreshResult> {
+    let lastUnauthorized: UnauthorizedError | null = null;
+    for (const token of tokens) {
+      try {
+        return await this.deps.refresh.execute(token);
+      } catch (err) {
+        if (err instanceof UnauthorizedError) {
+          lastUnauthorized = err;
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastUnauthorized ?? new UnauthorizedError('UNAUTHORIZED', 'Refresh token tidak valid');
+  }
+
   private setRefreshCookie(c: Context, token: string) {
-    setCookie(c, REFRESH_TOKEN_COOKIE, token, {
-      httpOnly: true,
-      secure: env.NODE_ENV === 'production',
-      // Strict tetap aman: console./api./deno./render. satu registrable domain.
-      sameSite: 'Strict',
-      ...cookieScope,
-      maxAge: env.JWT_REFRESH_TOKEN_TTL,
-    });
+    setRefreshTokenCookie(c, token);
   }
 }

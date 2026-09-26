@@ -11,6 +11,8 @@ export const refreshTokens = sqliteTable(
       .notNull()
       .references(() => users.id),
     tokenHash: text('token_hash').notNull().unique(), // sha256 hex
+    /** api_clients.client_id - null = token lama sebelum cutover azp */
+    clientId: text('client_id'),
     deviceInfo: text('device_info'),
     ipAddress: text('ip_address'),
     isRevoked: integer('is_revoked', { mode: 'boolean' }).notNull().default(false),
@@ -21,5 +23,8 @@ export const refreshTokens = sqliteTable(
     expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   },
-  (t) => [index('refresh_tokens_user_id_idx').on(t.userId)],
+  (t) => [
+    index('refresh_tokens_user_id_idx').on(t.userId),
+    index('refresh_tokens_client_id_idx').on(t.clientId),
+  ],
 );

@@ -24,12 +24,15 @@ export async function issueLoginSession(
     user_id: user.id,
     role: user.role,
     username: user.username,
+    ...(meta.clientId ? { azp: meta.clientId } : {}),
+    ...(meta.scopes ? { scope: meta.scopes } : {}),
   });
 
   const { token, tokenHash } = generateToken();
   await deps.refreshTokenRepo.create({
     userId: user.id,
     tokenHash,
+    clientId: meta.clientId ?? null,
     deviceInfo: meta.deviceInfo ?? null,
     ipAddress: meta.ipAddress ?? null,
     expiresAt: new Date(Date.now() + deps.refreshTokenTtlSeconds * 1000),

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
+import { e2eRegisterBody } from '@/shared/testing/e2e-auth';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -91,12 +92,10 @@ describe.skipIf(!hasTestDb)('Admin Votes E2E v1 - moderasi vote (root/admin/revi
     voter1Name = `vot1${stamp}`;
     voter2Name = `vot2${stamp}`;
     const register = async (name: string) =>
-      post('/api/v1/auth/register', {
-        name,
-        email: `${name}@test.com`,
-        password: 'Password123',
-        confirm_password: 'Password123',
-      });
+      post(
+        '/api/v1/auth/register',
+        e2eRegisterBody({ name, email: `${name}@test.com` }),
+      );
     await register(`adm${stamp}`);
     await register(`rev${stamp}`);
     await register(`edt${stamp}`);

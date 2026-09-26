@@ -5,6 +5,10 @@ export interface AccessTokenPayload {
   // saat restore sesi (decode JWT) untuk menampilkan nama user tanpa
   // bergantung cache sessionStorage (yang per-tab - lihat docs/api/auth).
   username?: string;
+  /** Authorized party = api_clients.client_id */
+  azp?: string;
+  /** Space-separated OAuth scopes */
+  scope?: string;
 }
 
 export interface TokenServicePort {

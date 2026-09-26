@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
+import { e2eRegisterBody } from '@/shared/testing/e2e-auth';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -85,18 +86,14 @@ describe.skipIf(!hasTestDb)('Word E2E v1 - Edit Kata (05 doc)', () => {
     app = appModule.app;
 
     const stamp = Date.now();
-    await post('/api/v1/auth/register', {
-      name: `adm${stamp}`,
-      email: `adm${stamp}@test.com`,
-      password: 'Password123',
-      confirm_password: 'Password123',
-    });
-    await post('/api/v1/auth/register', {
-      name: `kon${stamp}`,
-      email: `kon${stamp}@test.com`,
-      password: 'Password123',
-      confirm_password: 'Password123',
-    });
+    await post('/api/v1/auth/register', e2eRegisterBody({
+        name: `adm${stamp}`,
+        email: `adm${stamp}@test.com`,
+    }));
+    await post('/api/v1/auth/register', e2eRegisterBody({
+        name: `kon${stamp}`,
+        email: `kon${stamp}@test.com`,
+    }));
     await db.update(users).set({ emailVerified: true });
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, `adm${stamp}@test.com`));
 

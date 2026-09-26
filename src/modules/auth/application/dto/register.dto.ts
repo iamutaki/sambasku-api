@@ -5,4 +5,6 @@ export interface RegisterDto {
   /** Digit internasional tanpa '+', mis. 6289988887777 - atau null */
   phone: string | null;
   password: string;
+  clientId?: string | null;
+  consents: Array<{ documentType: 'terms' | 'privacy'; documentVersion: string }>;
 }

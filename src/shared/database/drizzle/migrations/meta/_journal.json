@@ -141,6 +141,34 @@
       "when": 1791900000000,
       "tag": "0019_word-import-sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1792000000000,
+      "tag": "0020_legal-consent-and-app-settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1792100000000,
+      "tag": "0021_api-clients-and-refresh-client-id",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1792200000000,
+      "tag": "0022_votes-client-id",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1792300000000,
+      "tag": "0023_drop-oauth-write-enforcement-setting",
+      "breakpoints": true
     }
   ]
 }

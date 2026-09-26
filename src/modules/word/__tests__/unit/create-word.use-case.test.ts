@@ -115,6 +115,7 @@ function makeDeps(missing: Partial<MissingReferences> = {}, duplicate = false, i
     record: vi.fn(),
     list: vi.fn(),
     dismiss: vi.fn(),
+    dismissMany: vi.fn(),
   };
   return {
     wordRepo,

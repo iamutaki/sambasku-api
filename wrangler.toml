@@ -51,6 +51,8 @@ PUBLIC_IMAGE_PROVIDER = "github"
 PUBLIC_IMAGE_GITHUB_URL = "https://github.com/sambasku/images"
 PRONUNCIACION_PROVIDER = "github"
 PRONUNCIACION_GITHUB_URL = "https://github.com/sambasku/audios"
+# Gate JWT azp pada write (false = grace / backward-compat token tanpa azp).
+OAUTH_REQUIRE_AZP = "false"
 
 [observability]
 enabled = true
@@ -96,6 +98,8 @@ PUBLIC_IMAGE_PROVIDER = "github"
 PUBLIC_IMAGE_GITHUB_URL = "https://github.com/coem/staging-images"
 PRONUNCIACION_PROVIDER = "github"
 PRONUNCIACION_GITHUB_URL = "https://github.com/coem/staging-audios"
+# Gate JWT azp pada write (false = grace / backward-compat token tanpa azp).
+OAUTH_REQUIRE_AZP = "false"
 
 [env.staging.observability]
 enabled = true

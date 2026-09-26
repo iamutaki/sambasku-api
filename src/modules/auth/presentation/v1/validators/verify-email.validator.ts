@@ -5,6 +5,7 @@ export const verifyEmailSchema = z.object({
   email: z.email(),
   code: z.string().trim().min(6).max(16),
   client_type: z.enum(['web', 'mobile']).default('web'),
+  client_id: z.string().min(1).max(100).optional(),
 });
 
 export type VerifyEmailBody = z.infer<typeof verifyEmailSchema>;

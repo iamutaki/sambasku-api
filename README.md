@@ -114,7 +114,10 @@ test (file SQLite) → migrate Turso → `wrangler deploy --env staging`.
 | `TURSO_STAGING_AUTH_TOKEN`    | token Turso staging                                |
 
 Secret Worker (JWT, dll.) tidak ikut CI - `wrangler deploy` mempertahankan
-secret yang sudah terpasang. Seed manual (staging):
+secret yang sudah terpasang. Vars non-secret (termasuk
+`OAUTH_REQUIRE_AZP=false` default / grace) ada di `wrangler.toml`
+`[vars]` / `[env.staging.vars]` - lihat
+`docs/api/35-api-oauth-client-azp.md`. Seed manual (staging):
 
 ```bash
 # Aman diulang - Anonim, Pengimpor Data CSV, bahasa/dialek/kelas/kategori

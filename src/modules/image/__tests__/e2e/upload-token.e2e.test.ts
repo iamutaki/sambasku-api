@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
+import { e2eRegisterBody } from '@/shared/testing/e2e-auth';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -32,12 +33,10 @@ describe.skipIf(!hasTestDb)('Image Upload Token E2E', () => {
     const email = `imgadm${stamp}@test.com`;
     await request('/api/v1/auth/register', {
       method: 'POST',
-      body: JSON.stringify({
-        name: `imgadm${stamp}`,
-        email,
-        password: 'Password123',
-        confirm_password: 'Password123',
-      }),
+      body: JSON.stringify(e2eRegisterBody({
+          name: `imgadm${stamp}`,
+          email: email,
+      })),
       headers: { 'x-forwarded-for': '10.1.0.1' },
     });
     await db.update(users).set({ role: 'admin', emailVerified: true }).where(eq(users.email, email));

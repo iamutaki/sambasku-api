@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
+import { e2eRegisterBody } from '@/shared/testing/e2e-auth';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -57,12 +58,10 @@ describe.skipIf(!hasTestDb)('Add Meaning E2E v1 - kontribusi definisi (17 doc)',
       ['adm', `adm${stamp}@test.com`, 'admin'],
       ['kon', `kon${stamp}@test.com`, 'contributor'],
     ] as const) {
-      await post('/api/v1/auth/register', {
-        name: `${prefix}${stamp}`,
-        email,
-        password: 'Password123',
-        confirm_password: 'Password123',
-      });
+      await post('/api/v1/auth/register', e2eRegisterBody({
+          name: `${prefix}${stamp}`,
+          email: email,
+      }));
       if (role !== 'contributor') {
         await db.update(users).set({ role }).where(eq(users.email, email));
       }

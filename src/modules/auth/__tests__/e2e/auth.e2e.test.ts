@@ -67,6 +67,15 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
   let ipSeq = 0;
   const xff = () => ({ 'x-forwarded-for': `10.0.0.${++ipSeq}` });
 
+  /**
+   * setRefreshTokenCookie menghapus varian lama dulu (Set-Cookie kosong
+   * Max-Age=0), lalu set nilai baru. Ambil header yang punya nilai token.
+   */
+  const refreshSetCookie = (res: { headers: { getSetCookie: () => string[] } }) =>
+    res.headers
+      .getSetCookie()
+      .find((c: string) => /^refresh_token=[^;]+/.test(c));
+
   const register = (email: string) =>
     client.api.v1.auth.register.$post(
       {
@@ -75,6 +84,11 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
           email,
           password: 'Password123',
           confirm_password: 'Password123',
+          client_id: 'sambasku-web',
+          consents: [
+            { document_type: 'terms', document_version: '2026-09-26' },
+            { document_type: 'privacy', document_version: '2026-09-26' },
+          ],
         },
       },
       { headers: xff() },
@@ -181,7 +195,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(body.data.access_token).toBeDefined();
     expect(body.data.expires_in).toBe(900);
 
-    const cookie = res.headers.getSetCookie().find((c: string) => c.startsWith('refresh_token='));
+    const cookie = refreshSetCookie(res);
     expect(cookie).toBeDefined();
     expect(cookie).toMatch(/httponly/i);
     expect(cookie).toMatch(/samesite=strict/i);
@@ -201,10 +215,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     const email = unique();
     await registerAndVerify(email);
     const loginRes = await client.api.v1.auth.login.$post({ json: { email, password: 'Password123' } }, { headers: xff() });
-    const cookie = loginRes.headers
-      .getSetCookie()
-      .find((c: string) => c.startsWith('refresh_token='));
-    const oldToken = (cookie ?? '').match(/refresh_token=([^;]+)/)?.[1];
+    const oldToken = (refreshSetCookie(loginRes) ?? '').match(/refresh_token=([^;]+)/)?.[1];
     expect(oldToken).toBeDefined();
 
     // Rotasi pertama: sukses, dapat cookie baru
@@ -214,10 +225,7 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
     expect(res1.status).toBe(200);
     const body1 = await res1.json();
     expect(body1.data.access_token).toBeDefined();
-    const newCookie = res1.headers
-      .getSetCookie()
-      .find((c: string) => c.startsWith('refresh_token='));
-    const newToken = (newCookie ?? '').match(/refresh_token=([^;]+)/)?.[1];
+    const newToken = (refreshSetCookie(res1) ?? '').match(/refresh_token=([^;]+)/)?.[1];
     expect(newToken).not.toBe(oldToken);
 
     // Dalam 60 detik, token lama masih diterima (retry timeout / dua tab)
@@ -233,6 +241,37 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
       }),
     );
     expect(replay.status).toBe(401);
+  });
+
+  it('POST /auth/refresh: cookie ganda (host-only lama + Domain baru) → pakai yang valid', async () => {
+    const email = unique();
+    await registerAndVerify(email);
+    const loginRes = await client.api.v1.auth.login.$post(
+      { json: { email, password: 'Password123' } },
+      { headers: xff() },
+    );
+    const first = refreshSetCookie(loginRes);
+    const staleHostOnly = (first ?? '').match(/refresh_token=([^;]+)/)?.[1];
+    expect(staleHostOnly).toBeDefined();
+
+    const rotated = await client.api.v1.auth.refresh.$post(undefined, {
+      headers: { cookie: `refresh_token=${staleHostOnly}` },
+    });
+    expect(rotated.status).toBe(200);
+    const validDomain = refreshSetCookie(rotated)?.match(/refresh_token=([^;]+)/)?.[1];
+    expect(validDomain).toBeDefined();
+    expect(validDomain).not.toBe(staleHostOnly);
+
+    // Lewat grace: token host-only sudah mati, tapi Domain cookie masih hidup.
+    // Hono getCookie hanya baca yang pertama - tanpa perbaikan = 401.
+    const res = await refreshAfterGrace(() =>
+      client.api.v1.auth.refresh.$post(undefined, {
+        headers: {
+          cookie: `refresh_token=${staleHostOnly}; refresh_token=${validDomain}`,
+        },
+      }),
+    );
+    expect(res.status).toBe(200);
   });
 
   it('MOBILE: login client_type mobile → refresh_token di body (tanpa cookie)', async () => {
@@ -574,6 +613,11 @@ describe.skipIf(!hasTestDb)('Auth E2E', () => {
           email,
           password: 'Password123',
           confirm_password: 'Password123',
+          client_id: 'sambasku-web',
+          consents: [
+            { document_type: 'terms', document_version: '2026-09-26' },
+            { document_type: 'privacy', document_version: '2026-09-26' },
+          ],
         },
       },
       { headers: xff() },

@@ -25,6 +25,8 @@ const json = <T extends z.ZodType>(schema: T) => ({
 export interface VoteRoutesDeps {
   controller: VoteController;
   authenticate: MiddlewareHandler<{ Variables: AppVariables }>;
+  /** Gate azp/scope untuk POST toggle - OAUTH_REQUIRE_AZP=false mengizinkan token tanpa azp. */
+  requireApprovedClient?: MiddlewareHandler<{ Variables: AppVariables }>;
 }
 
 // Vote polymorphic (08-api-upvote-downvote.md): toggle + batch counts +
@@ -32,11 +34,10 @@ export interface VoteRoutesDeps {
 export function createVoteRoutes(deps: VoteRoutesDeps) {
   const routes = createOpenApiApp();
 
-  // Toggle: login (semua role) + 60/menit per user_id - interaksi ringan,
-  // lebih longgar dari tier tulis 30/menit (Section 15)
-  routes.use(
-    '/',
+  // Toggle: login (semua role) + azp gate + 60/menit per user_id
+  const toggleGuards = [
     deps.authenticate,
+    ...(deps.requireApprovedClient ? [deps.requireApprovedClient] : []),
     rateLimit({
       points: 60,
       duration: 60,
@@ -45,7 +46,8 @@ export function createVoteRoutes(deps: VoteRoutesDeps) {
         return `vote-toggle:${user?.user_id ?? 'unknown'}`;
       },
     }),
-  );
+  ];
+  routes.use('/', ...toggleGuards);
   // Counts: baca publik - tier 100/menit per IP (Section 15)
   routes.use('/counts', rateLimit({ points: 100, duration: 60 }));
   // My: login (semua role), tanpa limit tambahan - baca kecil bermakna user sendiri

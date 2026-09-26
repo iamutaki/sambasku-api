@@ -116,6 +116,19 @@ const envSchema = z.object({
   // kosong = POST /api/v1/auth/facebook → 503 FACEBOOK_AUTH_UNAVAILABLE.
   FACEBOOK_APP_ID: z.string().optional(),
   FACEBOOK_APP_SECRET: z.string().optional(),
+
+  // Gate write: JWT wajib punya claim `azp` (api_clients.client_id).
+  // false (default) = grace / backward-compat: token tanpa azp masih lolos
+  //   (legacy_map). true = ketat → CLIENT_REQUIRED.
+  // Bukan app_settings: cutover lewat redeploy, bukan toggle Console.
+  OAUTH_REQUIRE_AZP: z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (v === undefined || v.trim() === '') return false;
+      const n = v.trim().toLowerCase();
+      return n === 'true' || n === '1' || n === 'yes';
+    }),
 });
 
 const parsed = envSchema.parse(process.env);

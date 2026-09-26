@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
+import { e2eRegisterBody } from '@/shared/testing/e2e-auth';
 
 const { parsed } = config({ path: '.env.test', quiet: true });
 const hasTestDb = !!parsed?.DATABASE_URL;
@@ -60,12 +61,10 @@ describe.skipIf(!hasTestDb)('Comment E2E v1 - post-moderation (09 doc)', () => {
 
     const stamp = Date.now();
     for (const name of ['adm', 'kon', 'lain']) {
-      await post('/api/v1/auth/register', {
-        name: `${name}${stamp}`,
-        email: `${name}${stamp}@test.com`,
-        password: 'Password123',
-        confirm_password: 'Password123',
-      });
+      await post('/api/v1/auth/register', e2eRegisterBody({
+          name: `${name}${stamp}`,
+          email: `${name}${stamp}@test.com`,
+      }));
     }
     await db.update(users).set({ emailVerified: true });
     await db.update(users).set({ role: 'admin' }).where(eq(users.email, `adm${stamp}@test.com`));

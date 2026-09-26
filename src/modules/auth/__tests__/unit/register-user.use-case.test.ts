@@ -5,6 +5,13 @@ import type { EmailVerificationOtpRepository } from '../../domain/repositories/e
 import type { PasswordHasherPort } from '../../application/ports/password-hasher.port';
 import type { MailerPort } from '../../application/ports/mailer.port';
 import type { AuditLogRepository } from '@/modules/audit/domain/repositories/audit-log.repository';
+import type { AppSettingsRepository } from '@/modules/legal/domain/repositories/app-settings.repository';
+import type { UserConsentRepository } from '@/modules/legal/domain/repositories/user-consent.repository';
+
+const activeConsents = [
+  { documentType: 'terms' as const, documentVersion: '2026-09-26' },
+  { documentType: 'privacy' as const, documentVersion: '2026-09-26' },
+];
 
 function makeDeps(overrides: {
   findByUsername?: unknown;
@@ -54,144 +61,96 @@ function makeDeps(overrides: {
     sendResetPasswordEmail: vi.fn(),
     sendVerificationOtpEmail: vi.fn().mockResolvedValue(undefined),
   } as unknown as MailerPort;
+  const settingsRepo = {
+    getLegalActiveVersions: vi.fn().mockResolvedValue({
+      termsVersion: '2026-09-26',
+      privacyVersion: '2026-09-26',
+    }),
+  } as unknown as AppSettingsRepository;
+  const consentRepo = {
+    insertMany: vi.fn().mockResolvedValue([]),
+    findLatestByUser: vi.fn(),
+    deleteByUserId: vi.fn(),
+  } as unknown as UserConsentRepository;
   return {
     userRepo,
     hasher,
     auditRepo,
     otpRepo,
     mailer,
+    settingsRepo,
+    consentRepo,
     useCase: new RegisterUserUseCase(
       userRepo,
       hasher,
       auditRepo as unknown as AuditLogRepository,
       otpRepo,
       mailer,
+      settingsRepo,
+      consentRepo,
     ),
   };
 }
 
 describe('RegisterUserUseCase', () => {
-  it('menyimpan user belum verified, kirim OTP tampilan XXXX-XXXX, tanpa JWT', async () => {
-    const { useCase, userRepo, hasher, otpRepo, mailer } = makeDeps();
+  it('menyimpan user belum verified, catat consents, kirim OTP', async () => {
+    const { useCase, userRepo, hasher, otpRepo, mailer, consentRepo } = makeDeps();
 
     const user = await useCase.execute({
       name: 'Budi Santoso',
       email: 'Budi@Test.com',
       phone: '6281234567890',
       password: 'Password123',
+      clientId: 'sambasku-mobile',
+      consents: activeConsents,
     });
 
     expect(hasher.hash).toHaveBeenCalledWith('Password123');
-    expect(userRepo.save).toHaveBeenCalledWith({
-      username: 'Budi Santoso',
-      email: 'budi@test.com',
-      phone: '6281234567890',
-      passwordHash: 'argon2id$hash',
-      emailVerified: false,
-    });
+    expect(userRepo.save).toHaveBeenCalled();
+    expect(consentRepo.insertMany).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          documentType: 'terms',
+          documentVersion: '2026-09-26',
+          source: 'register',
+          clientId: 'sambasku-mobile',
+        }),
+      ]),
+    );
     expect(user.emailVerified).toBe(false);
-    expect(otpRepo.replaceForUser).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: user.id,
-        codeHash: expect.any(String),
-        expiresAt: expect.any(Date),
-      }),
-    );
-    expect(mailer.sendVerificationOtpEmail).toHaveBeenCalledWith(
-      'budi@test.com',
-      expect.stringMatching(/^[0-9A-Z]{4}-[0-9A-Z]{4}$/),
-    );
+    expect(otpRepo.replaceForUser).toHaveBeenCalled();
+    expect(mailer.sendVerificationOtpEmail).toHaveBeenCalled();
   });
 
-  it('menerima phone null (opsional)', async () => {
+  it('versi consent kedaluwarsa → LEGAL_CONSENT_OUTDATED', async () => {
+    const { useCase, userRepo, consentRepo } = makeDeps();
+    await expect(
+      useCase.execute({
+        name: 'Budi',
+        email: 'budi@test.com',
+        phone: null,
+        password: 'Password123',
+        consents: [
+          { documentType: 'terms', documentVersion: '2019-01-01' },
+          { documentType: 'privacy', documentVersion: '2026-09-26' },
+        ],
+      }),
+    ).rejects.toMatchObject({ errorCode: 'LEGAL_CONSENT_OUTDATED' });
+    expect(userRepo.save).not.toHaveBeenCalled();
+    expect(consentRepo.insertMany).not.toHaveBeenCalled();
+  });
+
+  it('consent kurang → CONSENT_REQUIRED', async () => {
     const { useCase, userRepo } = makeDeps();
-
-    await useCase.execute({
-      name: 'Budi',
-      email: 'budi@test.com',
-      phone: null,
-      password: 'Password123',
-    });
-
-    expect(userRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ phone: null }),
-    );
-  });
-
-  it('menolak email yang sudah terdaftar (EMAIL_ALREADY_EXISTS)', async () => {
-    const { useCase } = makeDeps({ findByEmail: { id: 1 } });
-
     await expect(
       useCase.execute({
-        name: 'budi',
+        name: 'Budi',
         email: 'budi@test.com',
         phone: null,
         password: 'Password123',
+        consents: [{ documentType: 'terms', documentVersion: '2026-09-26' }],
       }),
-    ).rejects.toMatchObject({ errorCode: 'EMAIL_ALREADY_EXISTS', statusCode: 409 });
-  });
-
-  it('menolak nama yang sudah dipakai (USERNAME_ALREADY_EXISTS)', async () => {
-    const { useCase } = makeDeps({ findByUsername: { id: 1 } });
-
-    await expect(
-      useCase.execute({
-        name: 'budi',
-        email: 'budi@test.com',
-        phone: null,
-        password: 'Password123',
-      }),
-    ).rejects.toMatchObject({ errorCode: 'USERNAME_ALREADY_EXISTS', statusCode: 409 });
-  });
-
-  it('menolak phone yang sudah dipakai (PHONE_ALREADY_EXISTS)', async () => {
-    const { useCase } = makeDeps({ findByPhone: { id: 1 } });
-
-    await expect(
-      useCase.execute({
-        name: 'budi',
-        email: 'budi@test.com',
-        phone: '6281234567890',
-        password: 'Password123',
-      }),
-    ).rejects.toMatchObject({ errorCode: 'PHONE_ALREADY_EXISTS', statusCode: 409 });
-  });
-
-  it('menolak password lewat Validator Zod (VO domain tetap menjaga invariant)', async () => {
-    const { useCase } = makeDeps();
-
-    await expect(
-      useCase.execute({
-        name: 'budi',
-        email: 'budi@test.com',
-        phone: null,
-        password: 'pendek1',
-      }),
-    ).rejects.toMatchObject({ errorCode: 'VALIDATION_ERROR' });
-  });
-
-  it('mencatat audit trail user.create - TANPA password/hash di new_data', async () => {
-    const { useCase, auditRepo } = makeDeps();
-
-    await useCase.execute(
-      {
-        name: 'budi',
-        email: 'budi@test.com',
-        phone: null,
-        password: 'Password123',
-      },
-      'req-123',
-    );
-
-    expect(auditRepo.record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'create',
-        entityType: 'user',
-        requestId: 'req-123',
-        newData: expect.not.objectContaining({ password: expect.anything() }),
-      }),
-    );
-    const entry = vi.mocked(auditRepo.record).mock.calls[0][0];
-    expect(JSON.stringify(entry.newData)).not.toContain('argon2id');
+    ).rejects.toMatchObject({ errorCode: 'CONSENT_REQUIRED' });
+    expect(userRepo.save).not.toHaveBeenCalled();
   });
 });

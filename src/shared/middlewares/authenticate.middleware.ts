@@ -6,6 +6,8 @@ import type { AppVariables } from '@/shared/types';
 export interface AccessTokenPayload {
   user_id: string; // ULID
   role: string;
+  azp?: string;
+  scope?: string;
 }
 
 type VerifyFn = (token: string) => Promise<AccessTokenPayload>;
@@ -26,7 +28,12 @@ export function createAuthenticateMiddleware(verifyAccessToken: VerifyFn) {
 
     try {
       const payload = await verifyAccessToken(token);
-      c.set('user', { user_id: payload.user_id, role: payload.role });
+      c.set('user', {
+        user_id: payload.user_id,
+        role: payload.role,
+        azp: payload.azp,
+        scope: payload.scope,
+      });
       await next();
     } catch (err) {
       const code = err instanceof AppError && err.errorCode === 'TOKEN_EXPIRED' ? 'TOKEN_EXPIRED' : 'UNAUTHORIZED';
@@ -52,7 +59,12 @@ export function createOptionalAuthenticateMiddleware(verifyAccessToken: VerifyFn
 
     try {
       const payload = await verifyAccessToken(token);
-      c.set('user', { user_id: payload.user_id, role: payload.role });
+      c.set('user', {
+        user_id: payload.user_id,
+        role: payload.role,
+        azp: payload.azp,
+        scope: payload.scope,
+      });
       await next();
     } catch (err) {
       const code = err instanceof AppError && err.errorCode === 'TOKEN_EXPIRED' ? 'TOKEN_EXPIRED' : 'UNAUTHORIZED';

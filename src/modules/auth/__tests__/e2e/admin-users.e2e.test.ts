@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
+import { e2eRegisterBody } from '@/shared/testing/e2e-auth';
 
 const { parsed } = config({ path: '.env.test', quiet: true });
 const hasTestDb = !!parsed?.DATABASE_URL;
@@ -135,12 +136,10 @@ describe.skipIf(!hasTestDb)('Admin create user E2E', () => {
     ] as const) {
       const reg = await request('/api/v1/auth/register', {
         method: 'POST',
-        body: JSON.stringify({
-          name,
-          email,
-          password: 'Password123',
-          confirm_password: 'Password123',
-        }),
+        body: JSON.stringify(e2eRegisterBody({
+            name,
+            email,
+        })),
       });
       expect(reg.status).toBe(201);
       const verify = await request('/api/v1/auth/verify-email', {

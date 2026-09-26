@@ -35,6 +35,7 @@ function record(overrides: Partial<RefreshTokenRecord> = {}): RefreshTokenRecord
     id: '01TESTULIDTOKENID00000000',
     userId: USER_ID,
     tokenHash: 'hash',
+    clientId: null,
     isRevoked: false,
     rotatedAt: null,
     expiresAt: new Date(Date.now() + 60_000),

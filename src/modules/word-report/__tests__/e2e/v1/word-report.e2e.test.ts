@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
-import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
+import { capturedOtpDisplayCode, e2eRegisterBody} from '@/shared/testing/e2e-auth';
 import { eq } from 'drizzle-orm';
 
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -53,12 +53,10 @@ describe.skipIf(!hasTestDb)('Word report E2E', () => {
       ['adm', `admrep${stamp}@test.com`, 'admin'],
       ['kon', `konrep${stamp}@test.com`, 'contributor'],
     ] as const) {
-      await post('/api/v1/auth/register', {
-        name: `${prefix}${stamp}`,
-        email,
-        password: 'Password123',
-        confirm_password: 'Password123',
-      });
+      await post('/api/v1/auth/register', e2eRegisterBody({
+          name: `${prefix}${stamp}`,
+          email: email,
+      }));
       await post('/api/v1/auth/verify-email', { email, code: capturedOtpDisplayCode() });
       if (role !== 'contributor') {
         await db.update(users).set({ role }).where(eq(users.email, email));

@@ -8,6 +8,8 @@ export const loginSchema = z.object({
   // di secure storage (Keychain/Keystore), lalu mengirimnya di body
   // ke /refresh dan /logout.
   client_type: z.enum(['web', 'mobile']).default('web'),
+  /** Klaim first-party; default dari client_type bila kosong. */
+  client_id: z.string().min(1).max(100).optional(),
 });
 
 export type LoginBody = z.infer<typeof loginSchema>;

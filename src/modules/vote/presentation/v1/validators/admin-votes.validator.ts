@@ -62,6 +62,7 @@ const adminVoteWireSchema = z.object({
   target_id: z.string().length(26),
   target_preview: z.string().nullable(),
   value: z.union([z.literal(1), z.literal(-1)]),
+  client_id: z.string().nullable().optional(),
   created_at: z.string(), // ISO date string
   updated_at: z.string().nullable(),
 });
@@ -86,6 +87,20 @@ export const resetTargetVotesResponseSchema = z.object({
   data: z.object({
     target_type: VoteTargetTypeZodEnum,
     target_id: z.string().length(26),
+    deleted_count: z.number().int().nonnegative(),
+  }),
+});
+
+// Body: DELETE /api/v1/admin/votes/reset-by-client
+export const resetByClientVotesBodySchema = z.object({
+  client_id: z.string().min(1).max(100),
+});
+export type ResetByClientVotesBody = z.infer<typeof resetByClientVotesBodySchema>;
+
+export const resetByClientVotesResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    client_id: z.string(),
     deleted_count: z.number().int().nonnegative(),
   }),
 });

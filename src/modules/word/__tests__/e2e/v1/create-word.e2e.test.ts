@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { eq } from 'drizzle-orm';
-import { capturedOtpDisplayCode } from '@/shared/testing/e2e-auth';
+import { capturedOtpDisplayCode, e2eRegisterBody} from '@/shared/testing/e2e-auth';
 
 // Pastikan .env.test (DB test) dipakai SEBELUM app di-import (Section 10)
 const { parsed } = config({ path: '.env.test', quiet: true });
@@ -103,22 +103,18 @@ describe.skipIf(!hasTestDb)('Word E2E v1', () => {
 
     // admin + contributor via register, lalu role admin dinaikkan manual
     const stamp = Date.now();
-    await post('/api/v1/auth/register', {
-      name: `adm${stamp}`,
-      email: `adm${stamp}@test.com`,
-      password: 'Password123',
-      confirm_password: 'Password123',
-    });
+    await post('/api/v1/auth/register', e2eRegisterBody({
+        name: `adm${stamp}`,
+        email: `adm${stamp}@test.com`,
+    }));
     await post('/api/v1/auth/verify-email', {
       email: `adm${stamp}@test.com`,
       code: capturedOtpDisplayCode(),
     });
-    await post('/api/v1/auth/register', {
-      name: `kon${stamp}`,
-      email: `kon${stamp}@test.com`,
-      password: 'Password123',
-      confirm_password: 'Password123',
-    });
+    await post('/api/v1/auth/register', e2eRegisterBody({
+        name: `kon${stamp}`,
+        email: `kon${stamp}@test.com`,
+    }));
     await post('/api/v1/auth/verify-email', {
       email: `kon${stamp}@test.com`,
       code: capturedOtpDisplayCode(),

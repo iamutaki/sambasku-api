@@ -158,6 +158,16 @@ export class SearchMissRepositoryImpl implements SearchMissRepository {
     return updated.length > 0;
   }
 
+  async dismissMany(ids: string[], actorId: string): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const updated = await this.db
+      .update(searchMisses)
+      .set({ deletedAt: new Date(), deletedBy: actorId })
+      .where(and(inArray(searchMisses.id, ids), isNull(searchMisses.deletedAt)))
+      .returning({ id: searchMisses.id });
+    return updated.map((r) => r.id);
+  }
+
   async update(id: string, patch: SearchMissUpdatePatch): Promise<SearchMiss | null> {
     const set: { term?: string; isVisible?: boolean; updatedAt: Date } = {
       updatedAt: new Date(),

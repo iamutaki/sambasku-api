@@ -12,3 +12,4 @@ dist/
 *.db-shm
 local.db
 test.db
+tmp/
